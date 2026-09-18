@@ -1,0 +1,35 @@
+{
+  "dashboard": {
+    "title": "Dashboard",
+    "description": "Overview of your recruitment pipeline",
+    "totalJobs": "Total Jobs",
+    "totalCandidates": "Total Candidates",
+    "totalLeads": "Total Leads",
+    "recentJobs": "Recent Jobs",
+    "recentCandidates": "Recent Candidates",
+    "viewAll": "View all",
+    "noJobs": "No jobs yet",
+    "noJobsDescription": "Create your first vacancy to start receiving applications.",
+    "noCandidates": "No candidates yet",
+    "analytics": "Hiring Analytics",
+    "groupBy": "Group by",
+    "company": "Company",
+    "position": "Position",
+    "experience": "Experience",
+    "loading": "Loading dashboard...",
+    "error": "Failed to load dashboard"
+  },
+  "stats": {
+    "jobs": "Open jobs",
+    "jobsHint": "active vacancies",
+    "candidates": "Candidates",
+    "candidatesHint": "in pipeline",
+    "applications": "Applications",
+    "applicationsHint": "received total",
+    "leads": "New leads",
+    "leadsHint": "last 7 days"
+  },
+  "viewAll": "View all",
+  "emptyJobs": "No jobs yet.",
+  "emptyCandidates": "No candidates yet."
+}

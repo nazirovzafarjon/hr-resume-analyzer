@@ -1,0 +1,15 @@
+{
+  "app": {
+    "name": "Resume Analyzer",
+    "tagline": "HR Narxlovchi Platformasi"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "jobs": "Ishlar",
+    "applications": "Ariza lar",
+    "candidates": "Kandidatlar",
+    "interviews": "Suhbatlars",
+    "analytics": "Tahlil",
+    "settings": "Sozlamalar"
+  }
+}

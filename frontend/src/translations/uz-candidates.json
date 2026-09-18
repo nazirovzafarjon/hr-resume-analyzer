@@ -1,0 +1,34 @@
+{
+  "candidates": {
+    "title": "Kandidatlar",
+    "description": "Kandidatlarni ko'rish va boshqarish",
+    "noCandidates": "Hala kandidatlar yo'q",
+    "noCandidatesDescription": "Kandidatlar ariza lar yuborilgandan so'ng shu yerda ko'rsatiladi.",
+    "noMatchingCandidates": "Mos keluvchi kandidatlar yo'q",
+    "name": "Ism",
+    "email": "Email",
+    "position": "Lavozim",
+    "company": "Kompaniya",
+    "aiScore": "AI balli",
+    "hiringStatus": "Hiring holati",
+    "created": "Yaratilgan vaqt",
+    "actions": "Harakatlar",
+    "view": "Ko'rish",
+    "loading": "Kandidatlar yuklanmoqda...",
+    "error": "Kandidatlar yuklanmadi"
+  },
+  "candStats": {
+    "total": "Nomzodlar",
+    "totalHint": "jarayonda",
+    "strong": "Kuchli nomzodlar",
+    "strongHint": "AI tavsiyasi yuqori",
+    "weak": "Kuchsiz nomzodlar",
+    "weakHint": "ko'rib chiqish kerak",
+    "noDecision": "Qaror yo'q",
+    "noDecisionHint": "HR ko'rishini kutmoqda"
+  },
+  "searchPlaceholder": "Ism, email, lavozim yoki kompaniya bo'yicha qidirish…",
+  "allCandidates": "Barcha nomzodlar",
+  "hiringFilter": "Yollash holati",
+  "interviewFilter": "Suhbat holati"
+}

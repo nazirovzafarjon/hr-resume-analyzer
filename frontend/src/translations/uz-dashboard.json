@@ -1,0 +1,35 @@
+{
+  "dashboard": {
+    "title": "Dashboard",
+    "description": "Narxlovchi qurilmasi ko'rib chiqish",
+    "totalJobs": "Jami Ishlar",
+    "totalCandidates": "Jami Kandidatlar",
+    "totalLeads": "Jami Leadlar",
+    "recentJobs": "So'nggi Ishlar",
+    "recentCandidates": "So'nggi Kandidatlar",
+    "viewAll": "Hammasini ko'rish",
+    "noJobs": "Hala ish yo'q",
+    "noJobsDescription": "Birinchi joy e'lonini yaratib, ariza yutuplarni boshlang.",
+    "noCandidates": "Hala kandidatlar yo'q",
+    "analytics": "Taslifiy tahlil",
+    "groupBy": "Guruhga bo'lish",
+    "company": "Kompaniya",
+    "position": "Lavozim",
+    "experience": "Tajriba",
+    "loading": "Dashboard yuklanmoqda...",
+    "error": "Dashboard yuklanmadi"
+  },
+  "stats": {
+    "jobs": "Ochiq vakansiyalar",
+    "jobsHint": "faol",
+    "candidates": "Nomzodlar",
+    "candidatesHint": "jarayonda",
+    "applications": "Arizalar",
+    "applicationsHint": "jami qabul qilingan",
+    "leads": "Yangi lidlar",
+    "leadsHint": "oxirgi 7 kun"
+  },
+  "viewAll": "Barchasini ko'rish",
+  "emptyJobs": "Hozircha vakansiya yo'q.",
+  "emptyCandidates": "Hozircha nomzod yo'q."
+}

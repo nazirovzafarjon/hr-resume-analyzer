@@ -1,0 +1,35 @@
+{
+  "dashboard": {
+    "title": "Панель управления",
+    "description": "Обзор воронки найма",
+    "totalJobs": "Всего вакансий",
+    "totalCandidates": "Всего кандидатов",
+    "totalLeads": "Всего лидов",
+    "recentJobs": "Последние вакансии",
+    "recentCandidates": "Последние кандидаты",
+    "viewAll": "Смотреть все",
+    "noJobs": "Вакансий пока нет",
+    "noJobsDescription": "Создайте первую вакансию, чтобы начать принимать заявки.",
+    "noCandidates": "Кандидатов пока нет",
+    "analytics": "Аналитика найма",
+    "groupBy": "Группировать по",
+    "company": "Компания",
+    "position": "Должность",
+    "experience": "Опыт",
+    "loading": "Загрузка панели...",
+    "error": "Ошибка загрузки панели"
+  },
+  "stats": {
+    "jobs": "Открытые вакансии",
+    "jobsHint": "активные",
+    "candidates": "Кандидаты",
+    "candidatesHint": "в процессе",
+    "applications": "Отклики",
+    "applicationsHint": "получено всего",
+    "leads": "Новые лиды",
+    "leadsHint": "за 7 дней"
+  },
+  "viewAll": "Показать все",
+  "emptyJobs": "Вакансий пока нет.",
+  "emptyCandidates": "Кандидатов пока нет."
+}

@@ -1,0 +1,15 @@
+{
+  "app": {
+    "name": "Resume Analyzer",
+    "tagline": "HR Recruitment Platform"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "jobs": "Jobs",
+    "applications": "Applications",
+    "candidates": "Candidates",
+    "interviews": "Interviews",
+    "analytics": "Analytics",
+    "settings": "Settings"
+  }
+}

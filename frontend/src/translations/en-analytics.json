@@ -1,0 +1,21 @@
+{
+  "analytics": {
+    "title": "Analytics",
+    "description": "Pipeline performance at a glance",
+    "openJobs": "Open Jobs",
+    "candidates": "Candidates",
+    "avgScore": "Avg AI Score",
+    "strongHires": "Strong Hires",
+    "hiringFunnel": "Hiring Funnel",
+    "scoreDistribution": "AI Score Distribution",
+    "weeklyVolume": "Weekly Volume",
+    "applied": "Applied",
+    "screening": "Screening",
+    "interview": "Interview",
+    "shortlisted": "Shortlisted",
+    "hired": "Hired",
+    "rejected": "Rejected",
+    "loading": "Loading analytics...",
+    "error": "Failed to load analytics"
+  }
+}

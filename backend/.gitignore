@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+dist/
+build/
+
+# Environment & secrets
+.env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Databases / logs
+*.log
+*.sqlite3
+
+# Uploaded files (profile images) - runtime data, never versioned
+uploads/

@@ -1,0 +1,35 @@
+{
+  "dashboard": {
+    "title": "Панель башкылаш",
+    "description": "Кадр иштери катары жыйынтыгы",
+    "totalJobs": "Бардык ишлардын саны",
+    "totalCandidates": "Бардык кандидаттардын саны",
+    "totalLeads": "Бардык лиддөр",
+    "recentJobs": "Акыркы ишлар",
+    "recentCandidates": "Акыркы кандидаттар",
+    "viewAll": "Бардыгын көрүү",
+    "noJobs": "Азыры иш жок",
+    "noJobsDescription": "Аризalar үчүн биздин түрү зордук жайворлоо керек.",
+    "noCandidates": "Азыры кандидаттар жок",
+    "analytics": "Кадр иштери тахлили",
+    "groupBy": "Группа менен бөлүмөтүү",
+    "company": "Компания",
+    "position": "Лавозима",
+    "experience": "Тажрыба",
+    "loading": "Дешборд жүктөлүүдэ...",
+    "error": "Дешборд жүктөлмөдү"
+  },
+  "stats": {
+    "jobs": "Очиқ вакансиялар",
+    "jobsHint": "фаол",
+    "candidates": "Номзодлар",
+    "candidatesHint": "жараёнда",
+    "applications": "Аризалар",
+    "applicationsHint": "жами қабул қилинган",
+    "leads": "Янги лидлар",
+    "leadsHint": "охирги 7 кун"
+  },
+  "viewAll": "Ҳаммасини кўриш",
+  "emptyJobs": "Ҳозирча вакансия йўқ.",
+  "emptyCandidates": "Ҳозирча номзод йўқ."
+}

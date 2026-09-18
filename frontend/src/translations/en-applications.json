@@ -1,0 +1,54 @@
+{
+  "applications": {
+    "title": "Applications",
+    "description": "Review job applications and AI analysis",
+    "noApplications": "No applications yet",
+    "noApplicationsDescription": "Applications will appear here when candidates submit the public application form.",
+    "noMatchingApplications": "No matching applications",
+    "noMatchingApplicationsDescription": "Try adjusting your search or filters.",
+    "candidate": "Candidate",
+    "position": "Position / Company",
+    "aiMatch": "AI Match",
+    "aiStatus": {
+      "new": "Not Analyzed",
+      "pending": "Pending",
+      "analyzing": "Analyzing...",
+      "completed": "Completed",
+      "failed": "Failed"
+    },
+    "applicationStatus": "Status",
+    "submitted": "Submitted",
+    "actions": "Actions",
+    "view": "View",
+    "loading": "Loading applications...",
+    "error": "Failed to load applications",
+    "status": {
+      "new": "New",
+      "reviewing": "Reviewing",
+      "shortlisted": "Shortlisted",
+      "interview": "Interview",
+      "rejected": "Rejected",
+      "withdrawn": "Withdrawn"
+    },
+    "autoAnalyze": "Auto-analyze",
+    "autoAnalyzeTitle": "Auto-analyze Applications",
+    "autoAnalyzeDescription": "Run AI analysis on all applications for a selected job.",
+    "selectJob": "Select a job",
+    "analyze": "Analyze",
+    "analyzing": "Analyzing...",
+    "analysisComplete": "Analysis complete",
+    "analysisError": "Analysis failed for some applications"
+  },
+  "appStats": {
+    "total": "Total applications",
+    "totalHint": "across all jobs",
+    "fresh": "New",
+    "freshHint": "awaiting review",
+    "reviewing": "Reviewing",
+    "reviewingHint": "under consideration",
+    "shortlisted": "Shortlisted",
+    "shortlistedHint": "ready for interview"
+  },
+  "searchPlaceholder": "Search by candidate, position, company or email…",
+  "allJobs": "All jobs"
+}

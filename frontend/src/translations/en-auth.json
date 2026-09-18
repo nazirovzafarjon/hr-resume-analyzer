@@ -1,0 +1,27 @@
+{
+  "auth": {
+    "login": "Log In",
+    "register": "Create Account",
+    "logout": "Log Out",
+    "email": "Email",
+    "password": "Password",
+    "confirmPassword": "Confirm Password",
+    "name": "Full Name",
+    "forgotPassword": "Forgot password?",
+    "noAccount": "Don't have an account?",
+    "haveAccount": "Already have an account?",
+    "loginSuccess": "Welcome back!",
+    "registerSuccess": "Account created successfully!",
+    "invalidCredentials": "Invalid email or password",
+    "emailExists": "An account with this email already exists",
+    "passwordTooShort": "Password must be at least 8 characters",
+    "passwordMismatch": "Passwords do not match",
+    "resetPassword": "Reset Password",
+    "resetPasswordSuccess": "Password reset link sent to your email",
+    "skip": "Skip",
+    "changePassword": "Change Password",
+    "currentPassword": "Current Password",
+    "newPassword": "New Password",
+    "passwordChanged": "Password changed successfully"
+  }
+}

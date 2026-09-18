@@ -1,0 +1,30 @@
+{
+  "common": {
+    "search": "Search",
+    "filter": "Filter",
+    "sort": "Sort",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "view": "View",
+    "create": "Create",
+    "update": "Update",
+    "confirm": "Confirm",
+    "back": "Back",
+    "next": "Next",
+    "loading": "Loading...",
+    "error": "Something went wrong",
+    "errorDescription": "Please try again later",
+    "retry": "Try Again",
+    "noData": "No data available",
+    "copied": "Copied!",
+    "copy": "Copy"
+  },
+  "notifications": {
+    "success": "Success",
+    "error": "Error",
+    "warning": "Warning",
+    "info": "Info"
+  }
+}

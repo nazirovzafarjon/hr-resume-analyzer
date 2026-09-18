@@ -1,0 +1,53 @@
+{
+  "applications": {
+    "title": "Заявки",
+    "description": "Просмотр заявок и AI-анализа",
+    "noApplications": "Заявок пока нет",
+    "noApplicationsDescription": "Заявки появятся здесь после того, как кандидаты отправят форму.",
+    "noMatchingApplications": "Нет подходящих заявок",
+    "candidate": "Кандидат",
+    "position": "Должность / Компания",
+    "aiMatch": "AI совпадение",
+    "aiStatus": {
+      "new": "Не проанализировано",
+      "pending": "Ожидание",
+      "analyzing": "Анализ...",
+      "completed": "Завершено",
+      "failed": "Ошибка"
+    },
+    "applicationStatus": "Статус",
+    "submitted": "Отправлено",
+    "actions": "Действия",
+    "view": "Просмотреть",
+    "loading": "Загрузка заявок...",
+    "error": "Ошибка загрузки заявок",
+    "status": {
+      "new": "Новая",
+      "reviewing": "На проверке",
+      "shortlisted": "В отборе",
+      "interview": "Собеседование",
+      "rejected": "Отклонена",
+      "withdrawn": "Отозвана"
+    },
+    "autoAnalyze": "Автоанализ",
+    "autoAnalyzeTitle": "Автоматический анализ заявок",
+    "autoAnalyzeDescription": "Запустить AI-анализ для всех заявок выбранной вакансии.",
+    "selectJob": "Выберите вакансию",
+    "analyze": "Проанализировать",
+    "analyzing": "Анализ...",
+    "analysisComplete": "Анализ завершен",
+    "analysisError": "Анализ не удался для некоторых заявок"
+  },
+  "appStats": {
+    "total": "Всего откликов",
+    "totalHint": "по всем вакансиям",
+    "fresh": "Новые",
+    "freshHint": "ждут проверки",
+    "reviewing": "На рассмотрении",
+    "reviewingHint": "обсуждаются",
+    "shortlisted": "В шорт-листе",
+    "shortlistedHint": "готовы к интервью"
+  },
+  "searchPlaceholder": "Поиск по кандидату, вакансии, компании или email…",
+  "allJobs": "Все вакансии"
+}

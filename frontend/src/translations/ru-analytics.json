@@ -1,0 +1,21 @@
+{
+  "analytics": {
+    "title": "Аналитика",
+    "description": "Статистика воронки найма",
+    "openJobs": "Открытые вакансии",
+    "candidates": "Кандидаты",
+    "avgScore": "Средний AI балл",
+    "strongHires": "Сильные кандидаты",
+    "hiringFunnel": "Воронка найма",
+    "scoreDistribution": "Распределение AI баллов",
+    "weeklyVolume": "Еженедельный объем",
+    "applied": "Отклики",
+    "screening": "Отбор",
+    "interview": "Собеседование",
+    "shortlisted": "В отборе",
+    "hired": "Приняты",
+    "rejected": "Отклонены",
+    "loading": "Загрузка аналитики...",
+    "error": "Ошибка загрузки аналитики"
+  }
+}

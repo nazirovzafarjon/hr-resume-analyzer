@@ -1,0 +1,53 @@
+{
+  "applications": {
+    "title": "Аризalar",
+    "description": "Аризalarды көрүү жана АИ тахлили",
+    "noApplications": "Азыры аризalar жок",
+    "noApplicationsDescription": "Аризalar жаратылганда агаардын даврусу менен агаарды чыккасыз , анын жолынан болот.",
+    "noMatchingApplications": "Моосутурулган аризalar жок",
+    "candidate": "Кандидат",
+    "position": "Лавозима / Компания",
+    "aiMatch": "АИ тегиздиги",
+    "aiStatus": {
+      "new": "АИ тахлилинбеди",
+      "pending": "Кулпунда",
+      "analyzing": "АИ тахлилин Tup...",
+      "completed": "Тамгаланган",
+      "failed": "Аткара берди"
+    },
+    "applicationStatus": "Туруму",
+    "submitted": "Берилгени",
+    "actions": "Ишилдер",
+    "view": "Көрүү",
+    "loading": "Аризalar жүктөлүүдэ...",
+    "error": "Аризalar жүктөлмөдү",
+    "status": {
+      "new": "Жаңы",
+      "reviewing": "Көрөтүлүүдэ",
+      "shortlisted": "Кыскачаланган",
+      "interview": "Сухбат",
+      "rejected": "Жоготулган",
+      "withdrawn": "Алыстан"
+    },
+    "autoAnalyze": "Автоматтык тахлил",
+    "autoAnalyzeTitle": "Аризalarды автоматтык тахлил qilish",
+    "autoAnalyzeDescription": "Тандалган иш учун бардык аризalarды АИ менен тахлил qilish.",
+    "selectJob": "Ишти тандаңыз",
+    "analyze": "Ан анализ qilish",
+    "analyzing": "АИ тахлилин Tup...",
+    "analysisComplete": "Тамгаланган",
+    "analysisError": "Азыркы бир аризalar тахлилин аткара албады"
+  },
+  "appStats": {
+    "total": "Жами оғлишлар",
+    "totalHint": "ҳамма вакансиялар",
+    "fresh": "Янги",
+    "freshHint": "кўриш кутилмоқда",
+    "reviewing": "Кўрилмоқда",
+    "reviewingHint": "муҳокамаланмоқда",
+    "shortlisted": "Танланган",
+    "shortlistedHint": "суҳатга тайёр"
+  },
+  "searchPlaceholder": "Номзод, лавозим, компания ёки email бўйича қидириш…",
+  "allJobs": "Ҳамма вакансиялар"
+}

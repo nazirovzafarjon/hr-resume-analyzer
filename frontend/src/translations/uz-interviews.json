@@ -1,0 +1,42 @@
+{
+  "interviews": {
+    "title": "Suhtatlar",
+    "description": "Suhtatlarni rejalashtirish va boshqarish",
+    "createInterview": "Suhtatni rejalashtirish",
+    "noInterviews": "Hala suhtatlar yo'q",
+    "noInterviewsDescription": "Kandidatlar uchun suhtatlarni rejalashtiring.",
+    "noMatchingInterviews": "Mos keluvchi suhtatlar yo'q",
+    "candidate": "Kandidat",
+    "job": "Ish",
+    "interviewer": "Intervyu beruvchi",
+    "scheduled": "Sheduallya",
+    "duration": "Davomiyligi",
+    "status": {
+      "in_process": "Jarayonda",
+      "completed": "Tasdiqlangan",
+      "not_completed": "Tasdiqlanmagan"
+    },
+    "actions": "Harakatlar",
+    "view": "Ko'rish",
+    "schedule": "Rejalashtirish",
+    "loading": "Suhtatlar yuklanmoqda...",
+    "error": "Suhtatlar yuklanmadi",
+    "filters": {
+      "all": "Barcha suhtatlar",
+      "upcoming": "Yaqinlashtirilgan",
+      "completed": "Tasdiqlangan",
+      "cancelled": "Bekor qilingan"
+    }
+  },
+  "stats": {
+    "total": "Suhbatlar",
+    "totalHint": "jami",
+    "upcoming": "Kutilayotgan",
+    "upcomingHint": "rejalashtirilgan",
+    "completed": "Yakunlangan",
+    "completedHint": "fikr kutilmoqda",
+    "cancelled": "Bekor qilingan",
+    "cancelledHint": "o'tkazilmagan"
+  },
+  "searchPlaceholder": "Nomzod, vakansiya yoki suhbat olib boruvchi bo'yicha qidirish…"
+}

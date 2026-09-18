@@ -1,0 +1,15 @@
+{
+  "app": {
+    "name": "Resume Analyzer",
+    "tagline": "HR найм платформаси"
+  },
+  "nav": {
+    "dashboard": "Панель башлаш",
+    "jobs": "Ишлар",
+    "applications": "Аризalar",
+    "candidates": "Кандидатлар",
+    "interviews": "Сухбатлар",
+    "analytics": "Тахлил",
+    "settings": "Тецерүүлөр"
+  }
+}

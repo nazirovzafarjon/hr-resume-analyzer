@@ -1,0 +1,27 @@
+{
+  "auth": {
+    "login": "Кириш",
+    "register": "Аккаунт жарык",
+    "logout": "Чыкыш",
+    "email": "Эл поштасы",
+    "password": "Пароль",
+    "confirmPassword": "Парольду тастыклоо",
+    "name": "Толук аты-жөнү",
+    "forgotPassword": "Парольду унутуп калдыңбы?",
+    "noAccount": "Аккаунтүү жокпу?",
+    "haveAccount": "Аккаунтүү барбы?",
+    "loginSuccess": "Куттубулдук!",
+    "registerSuccess": "Аккаунт муваффақияттуу түзүлдү!",
+    "invalidCredentials": "Туура эмес эл поштасы же пароль",
+    "emailExists": "Бул эл поштасы менен аккаунт тарыхта болду",
+    "passwordTooShort": "Пароль азырынча 8 белгиден туруу керек",
+    "passwordMismatch": "Паролдор мос келбейт",
+    "resetPassword": "Парольду кайра түзүү",
+    "resetPasswordSuccess": "Пароль кайра түзүү болжагы эл ичине ж내기лди",
+    "skip": "Өтүү",
+    "changePassword": "Парольду өзгөртүү",
+    "currentPassword": "Азыргы пароль",
+    "newPassword": "Жаңы пароль",
+    "passwordChanged": "Пароль муваффақияттуу өзгөртүлдү"
+  }
+}

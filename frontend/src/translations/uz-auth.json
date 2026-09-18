@@ -1,0 +1,27 @@
+{
+  "auth": {
+    "login": "Kirish",
+    "register": "Ro'yxatdan o'tish",
+    "logout": "Chiqish",
+    "email": "Email",
+    "password": "Parol",
+    "confirmPassword": "Parolni tasdiqlang",
+    "name": "To'liq ism",
+    "forgotPassword": "Parolni unutdingizmi?",
+    "noAccount": "Hesabingiz yo'qmi?",
+    "haveAccount": "Hesabingiz bormi?",
+    "loginSuccess": "Xo'sh kelibsiz!",
+    "registerSuccess": "Hesab muvaffaqiyatli yaratildi!",
+    "invalidCredentials": "Noto'g'ri email yoki parol",
+    "emailExists": "Bu email bilan hesab allaqachon mavjud",
+    "passwordTooShort": "Parol kamida 8 belgidan iborat bo'lishi kerak",
+    "passwordMismatch": "Parollar mos kelmayapti",
+    "resetPassword": "Parolni qayta sozlash",
+    "resetPasswordSuccess": "Parol qayta sozlash havolasi emailingizga yuborildi",
+    "skip": "O'tish",
+    "changePassword": "Parolni o'zgartirish",
+    "currentPassword": "Joriy parol",
+    "newPassword": "Yangi parol",
+    "passwordChanged": "Parol muvaffaqiyatli o'zgartirildi"
+  }
+}

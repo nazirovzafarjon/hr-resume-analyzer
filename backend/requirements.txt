@@ -1,0 +1,25 @@
+# Web framework
+fastapi
+uvicorn[standard]
+
+# HTTP client (Google OAuth token/userinfo exchange in app.services.google_auth,
+# and the Resend transactional-email REST API in app.services.email)
+httpx
+
+# Database
+sqlalchemy
+psycopg2-binary
+alembic
+
+# Configuration & validation
+pydantic
+pydantic-settings
+email-validator
+
+# Authentication & security
+python-jose[cryptography]
+bcrypt
+python-multipart
+
+# Testing
+pytest

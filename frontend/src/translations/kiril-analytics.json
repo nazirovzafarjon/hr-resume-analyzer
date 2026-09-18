@@ -1,0 +1,21 @@
+{
+  "analytics": {
+    "title": "Тахлил",
+    "description": "Кадрчу катары сызыгы",
+    "openJobs": "Ачык ишлар",
+    "candidates": "Кандидаттар",
+    "avgScore": "АИ мөрү жогорку",
+    "strongHires": "Чыйынкапы",
+    "hiringFunnel": "Кадрлуу сызык",
+    "scoreDistribution": "АИ мөрү ийке глобалдуу",
+    "weeklyVolume": "Апталагуу көлөмү",
+    "applied": "Аризалыктар",
+    "screening": "Кичүүдө",
+    "interview": "Сухбат",
+    "shortlisted": "Кыскачалангандар",
+    "hired": "Экин алууланган",
+    "rejected": "Экин алуунун",
+    "loading": "Тахлил жүктөлүүдэ...",
+    "error": "Тахлил жүктөлмөдү"
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "candidates": {
+    "title": "Кандидаты",
+    "description": "Просмотр и управление кандидатами",
+    "noCandidates": "Кандидатов пока нет",
+    "noCandidatesDescription": "Кандидаты появятся здесь после получения заявок.",
+    "noMatchingCandidates": "Нет подходящих кандидатов",
+    "name": "Имя",
+    "email": "Email",
+    "position": "Должность",
+    "company": "Компания",
+    "aiScore": "AI балл",
+    "hiringStatus": "Статус найма",
+    "created": "Дата создания",
+    "actions": "Действия",
+    "view": "Просмотреть",
+    "loading": "Загрузка кандидатов...",
+    "error": "Ошибка загрузки кандидатов"
+  },
+  "candStats": {
+    "total": "Кандидаты",
+    "totalHint": "в процессе",
+    "strong": "Сильные кандидаты",
+    "strongHint": "высокая рекомендация ИИ",
+    "weak": "Слабые кандидаты",
+    "weakHint": "нужна проверка",
+    "noDecision": "Без решения",
+    "noDecisionHint": "ждут решения HR"
+  },
+  "searchPlaceholder": "Поиск по имени, email, вакансии или компании…",
+  "allCandidates": "Все кандидаты",
+  "hiringFilter": "Решение по найму",
+  "interviewFilter": "Статус интервью"
+}

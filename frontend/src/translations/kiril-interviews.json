@@ -1,0 +1,42 @@
+{
+  "interviews": {
+    "title": "Сухбаттар",
+    "description": "Сухбаттарды пландап көзөмөлдөө",
+    "createInterview": "Сухбат пландашуу",
+    "noInterviews": "Азыры сухбат жок",
+    "noInterviewsDescription": "Кандидаттуулар учун сухбаттарды пландаган да мүмкүн.",
+    "noMatchingInterviews": "Моосутурулган сухбат жок",
+    "candidate": "Кандидат",
+    "job": "Иш",
+    "interviewer": "Сухбатчы",
+    "scheduled": "Агымга которулган",
+    "duration": "Узактыгы",
+    "status": {
+      "in_process": "Жайылганда",
+      "completed": "Бийиктүүлүндө",
+      "not_completed": "Бийиктүүлүнбөгөн"
+    },
+    "actions": "Ишилдер",
+    "view": "Көрүү",
+    "schedule": "Пландашуу",
+    "loading": "Сухбаттар жүктөлүүдэ...",
+    "error": "Сухбаттар жүктөлмөдү",
+    "filters": {
+      "all": "Бардык сухбаттар",
+      "upcoming": "Келечектеги",
+      "completed": "Бийиктүүлөнкөлөр",
+      "cancelled": "Бекемдөөлөр"
+    }
+  },
+  "stats": {
+    "total": "Суҳатлар",
+    "totalHint": "жами",
+    "upcoming": "Кутилаётган",
+    "upcomingHint": "режалаштирилган",
+    "completed": "Якунланган",
+    "completedHint": "фикр кутилмоқда",
+    "cancelled": "Бекор қилинган",
+    "cancelledHint": "ўтказилмаган"
+  },
+  "searchPlaceholder": "Номзод, вакансия ёки суҳат олиб борувчи бўйича қидириш…"
+}

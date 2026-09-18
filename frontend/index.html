@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#fafaf9" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0b0b0d" media="(prefers-color-scheme: dark)" />
+    <meta
+      name="description"
+      content="Resume Analyzer — AI-assisted recruitment platform for HR teams: publish vacancies, collect applications and review candidates."
+    />
+    <title>Resume Analyzer</title>
+    <!--
+      Theme bootstrap. Runs before the CSS/JS bundle so the very first paint
+      already uses the persisted theme (or the OS preference when the user chose
+      "System"). Without this the app would render light for one frame and then
+      flip to dark, which looks like a flash/bug.
+      Kept inline and dependency-free on purpose.
+    -->
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem("resume-analyzer-theme");
+          var theme =
+            stored === "light" || stored === "dark" || stored === "system"
+              ? stored
+              : "system";
+          var resolved = theme;
+          if (theme === "system") {
+            resolved = window.matchMedia("(prefers-color-scheme: dark)").matches
+              ? "dark"
+              : "light";
+          }
+          document.documentElement.setAttribute("data-theme", resolved);
+          document.documentElement.setAttribute("data-theme-preference", theme);
+          var lang = localStorage.getItem("resume-analyzer-language");
+          if (lang) {
+            document.documentElement.lang =
+              lang === "kiril" ? "uz-Cyrl" : lang === "uz" ? "uz" : lang;
+          }
+        } catch (e) {
+          /* localStorage can throw in private mode — fall back to CSS defaults. */
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

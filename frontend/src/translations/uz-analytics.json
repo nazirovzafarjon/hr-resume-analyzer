@@ -1,0 +1,21 @@
+{
+  "analytics": {
+    "title": "Tahlil",
+    "description": "Narxlovchi namunaOverview",
+    "openJobs": "Ochilgan ishlar",
+    "candidates": "Kandidatlar",
+    "avgScore": "O'rtacha AI balli",
+    "strongHires": "Kuchli namuna",
+    "hiringFunnel": "Narxlovchi funnels",
+    "scoreDistribution": "AI balli taqsimoti",
+    "weeklyVolume": "Haftalik hajm",
+    "applied": "Ariza berilgan",
+    "screening": "Ko'rib chiqilmoqda",
+    "interview": "Suhtat",
+    "shortlisted": "Qisqartirilgan",
+    "hired": "Nanza",
+    "rejected": "Rad etilgan",
+    "loading": "Tahlil yuklanmoqda...",
+    "error": "Tahlil yuklanmadi"
+  }
+}

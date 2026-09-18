@@ -1,0 +1,34 @@
+{
+  "candidates": {
+    "title": "Candidates",
+    "description": "View and manage candidates",
+    "noCandidates": "No candidates yet",
+    "noCandidatesDescription": "Candidates will appear here after applications are received.",
+    "noMatchingCandidates": "No matching candidates",
+    "name": "Name",
+    "email": "Email",
+    "position": "Position",
+    "company": "Company",
+    "aiScore": "AI Score",
+    "hiringStatus": "Hiring Status",
+    "created": "Created",
+    "actions": "Actions",
+    "view": "View",
+    "loading": "Loading candidates...",
+    "error": "Failed to load candidates"
+  },
+  "candStats": {
+    "total": "Candidates",
+    "totalHint": "in the pipeline",
+    "strong": "Strong hires",
+    "strongHint": "top AI recommendations",
+    "weak": "Weak hires",
+    "weakHint": "need review",
+    "noDecision": "No decision",
+    "noDecisionHint": "awaiting HR review"
+  },
+  "searchPlaceholder": "Search by name, email, position or company…",
+  "allCandidates": "All candidates",
+  "hiringFilter": "Hiring status",
+  "interviewFilter": "Interview status"
+}

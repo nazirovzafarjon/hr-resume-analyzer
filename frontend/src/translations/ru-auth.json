@@ -1,0 +1,27 @@
+{
+  "auth": {
+    "login": "Войти",
+    "register": "Создать аккаунт",
+    "logout": "Выйти",
+    "email": "Email",
+    "password": "Пароль",
+    "confirmPassword": "Подтвердите пароль",
+    "name": "Полное имя",
+    "forgotPassword": "Забыли пароль?",
+    "noAccount": "Нет аккаунта?",
+    "haveAccount": "Уже есть аккаунт?",
+    "loginSuccess": "Добро пожаловать!",
+    "registerSuccess": "Аккаунт успешно создан!",
+    "invalidCredentials": "Неверный email или пароль",
+    "emailExists": "Аккаунт с этим email уже существует",
+    "passwordTooShort": "Пароль должен содержать минимум 8 символов",
+    "passwordMismatch": "Пароли не совпадают",
+    "resetPassword": "Сбросить пароль",
+    "resetPasswordSuccess": "Ссылка для сброса пароля отправлена на email",
+    "skip": "Пропустить",
+    "changePassword": "Изменить пароль",
+    "currentPassword": "Текущий пароль",
+    "newPassword": "Новый пароль",
+    "passwordChanged": "Пароль успешно изменен"
+  }
+}

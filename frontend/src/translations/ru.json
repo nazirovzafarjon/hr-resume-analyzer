@@ -1,0 +1,15 @@
+{
+  "app": {
+    "name": "Resume Analyzer",
+    "tagline": "HR-платформа для найма"
+  },
+  "nav": {
+    "dashboard": "Панель управления",
+    "jobs": "Вакансии",
+    "applications": "Заявки",
+    "candidates": "Кандидаты",
+    "interviews": "Собеседования",
+    "analytics": "Аналитика",
+    "settings": "Настройки"
+  }
+}

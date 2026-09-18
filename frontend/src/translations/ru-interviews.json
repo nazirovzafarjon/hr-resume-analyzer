@@ -1,0 +1,42 @@
+{
+  "interviews": {
+    "title": "Собеседования",
+    "description": "Управление собеседованиями",
+    "createInterview": "Запланировать",
+    "noInterviews": "Собеседований пока нет",
+    "noInterviewsDescription": "Запланируйте собеседования для ваших кандидатов.",
+    "noMatchingInterviews": "Нет подходящих собеседований",
+    "candidate": "Кандидат",
+    "job": "Вакансия",
+    "interviewer": "Собеседующий",
+    "scheduled": "Расписание",
+    "duration": "Длительность",
+    "status": {
+      "in_process": "В процессе",
+      "completed": "Завершено",
+      "not_completed": "Не завершено"
+    },
+    "actions": "Действия",
+    "view": "Просмотреть",
+    "schedule": "Запланировать",
+    "loading": "Загрузка собеседований...",
+    "error": "Ошибка загрузки собеседований",
+    "filters": {
+      "all": "Все собеседования",
+      "upcoming": "Предстоящие",
+      "completed": "Завершенные",
+      "cancelled": "Отмененные"
+    }
+  },
+  "stats": {
+    "total": "Интервью",
+    "totalHint": "за всё время",
+    "upcoming": "Предстоящие",
+    "upcomingHint": "запланированы",
+    "completed": "Завершённые",
+    "completedHint": "нужна оценка",
+    "cancelled": "Отменённые",
+    "cancelledHint": "не состоялись"
+  },
+  "searchPlaceholder": "Поиск по кандидату, вакансии или интервьюеру…"
+}

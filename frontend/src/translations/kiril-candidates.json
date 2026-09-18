@@ -1,0 +1,34 @@
+{
+  "candidates": {
+    "title": "Кандидаттар",
+    "description": "Кандидаттарды көрсөтүү жана көзөмөлдөө",
+    "noCandidates": "Азыры кандидаттар жок",
+    "noCandidatesDescription": "Кандидаттар аризalar bowronубунан кийин ошолордо чыгарылат.",
+    "noMatchingCandidates": "Моосутурулган кандидаттар жок",
+    "name": "Аты",
+    "email": "Эл поштасы",
+    "position": "Лавозима",
+    "company": "Компания",
+    "aiScore": "АИ мөрү",
+    "hiringStatus": "Кадрлуу туруму",
+    "created": "Жаратылганы",
+    "actions": "Ишилдер",
+    "view": "Көрүү",
+    "loading": "Кандидаттар жүктөлүүдэ...",
+    "error": "Кандидаттар жүктөлмөдү"
+  },
+  "candStats": {
+    "total": "Номзодлар",
+    "totalHint": "жараёнда",
+    "strong": "Кучли номзодлар",
+    "strongHint": "СИМ тавсияси юқори",
+    "weak": "Кучсиз номзодлар",
+    "weakHint": "кўриб чиқиш керак",
+    "noDecision": "Қарор йўқ",
+    "noDecisionHint": "HR кўришини кутмоқда"
+  },
+  "searchPlaceholder": "Исм, email, лавозим ёки компания бўйича қидириш…",
+  "allCandidates": "Ҳамма номзодлар",
+  "hiringFilter": "Ёллаш ҳолати",
+  "interviewFilter": "Суҳат ҳолати"
+}

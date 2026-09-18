@@ -1,0 +1,27 @@
+{
+  "settings": {
+    "title": "Sozlamalar",
+    "description": "Hesab va afzalliklarni boshqarish",
+    "profile": "Profil",
+    "password": "Parol",
+    "appearance": "Ko'rinish",
+    "language": "Til",
+    "theme": "Mavzu",
+    "themeLight": "Yorug'",
+    "themeDark": "Qorong'u",
+    "themeSystem": "Tizim",
+    "languages": {
+      "uz": "O'zbekcha",
+      "en": "English",
+      "ru": "Русский",
+      "kiril": "Ўзбекча"
+    },
+    "saveChanges": "O'zgarishlarni saqlash",
+    "saving": "Saqlovchi...",
+    "saved": "Sozlamalar saqlandi",
+    "name": "To'liq ism",
+    "email": "Email",
+    "loading": "Sozlamalar yuklanmoqda...",
+    "error": "Sozlamalar yuklanmadi"
+  }
+}
