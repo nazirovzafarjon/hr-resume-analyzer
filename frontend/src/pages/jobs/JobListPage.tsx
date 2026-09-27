@@ -1,21 +1,41 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
-import { Plus, Search } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Copy,
+  Eye,
+  ExternalLink,
+  MoreHorizontal,
+  Pencil,
+  Plus,
+  Search,
+  Trash2,
+  Users,
+  X,
+} from "lucide-react";
 import { fetchJobs, deleteJob as deleteJobApi } from "../../services/jobsService";
 import { formatDate } from "../../utils/date";
+import { copyToClipboard } from "../../utils/clipboard";
+import { jobStatusFromToken } from "../../utils/statusLabels";
+import { applicationUrl } from "../../components/application-form/ApplicationLinkCard";
 import PageHeader from "../../components/ui/PageHeader";
+import PageMeta from "../../components/seo/PageMeta";
 import Button from "../../components/ui/Button";
 import Card from "../../components/ui/Card";
 import EmptyState from "../../components/ui/EmptyState";
 import ConfirmDialog from "../../components/ui/ConfirmDialog";
+import StatusBadge from "../../components/ui/StatusBadge";
+import Dropdown, { DropdownItem, DropdownSeparator } from "../../components/ui/Dropdown";
 import Table, { type TableColumn } from "../../components/ui/Table";
-import { SkeletonTable } from "../../components/ui/Skeleton";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { useNotify } from "../../contexts/ToastContext";
 import { getErrorMessage } from "../../utils/apiError";
 import type { JobInput } from "../../types/job";
 
 type SortKey = "newest" | "leads" | "company";
+
+const PAGE_SIZE = 20;
 
 /**
  * /jobs — search, filter and manage job vacancies.
@@ -27,6 +47,7 @@ type SortKey = "newest" | "leads" | "company";
 export default function JobListPage() {
   const { t } = useLanguage();
   const notify = useNotify();
+  const navigate = useNavigate();
 
   const [jobs, setJobs] = useState<JobInput[]>([]);
   const [loading, setLoading] = useState(true);
@@ -35,28 +56,24 @@ export default function JobListPage() {
   const [companyFilter, setCompanyFilter] = useState("all");
   const [positionFilter, setPositionFilter] = useState("all");
   const [sortKey, setSortKey] = useState<SortKey>("newest");
+  const [page, setPage] = useState(1);
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
   const [deleting, setDeleting] = useState(false);
 
-  useEffect(() => {
-    let mounted = true;
-    async function loadJobs() {
-      setLoading(true);
-      setError(null);
-      try {
-        const data = await fetchJobs();
-        if (mounted) setJobs(data);
-      } catch (err) {
-        if (mounted) setError(getErrorMessage(err, t("errors.loadMessage")));
-      } finally {
-        if (mounted) setLoading(false);
-      }
-    }
-    loadJobs();
+  function loadJobs() {
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    fetchJobs()
+      .then((data) => !cancelled && setJobs(data))
+      .catch((err) => !cancelled && setError(getErrorMessage(err, t("errors.loadMessage"))))
+      .finally(() => !cancelled && setLoading(false));
     return () => {
-      mounted = false;
+      cancelled = true;
     };
-  }, [t]);
+  }
+
+  useEffect(() => loadJobs(), []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const companies = useMemo(
     () => Array.from(new Set(jobs.map((job) => job.company_name))).sort(),
@@ -86,11 +103,25 @@ export default function JobListPage() {
         case "company":
           return a.company_name.localeCompare(b.company_name);
         case "newest":
-        default:
-          return b.created_at < a.created_at ? -1 : 1;
+        default: {
+          const delta = new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+          return delta !== 0 ? delta : b.id - a.id;
+        }
       }
     });
   }, [jobs, search, companyFilter, positionFilter, sortKey]);
+
+  // Reset to page 1 whenever the visible set changes shape.
+  useEffect(() => {
+    setPage(1);
+  }, [search, companyFilter, positionFilter, sortKey]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredJobs.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const pagedJobs = useMemo(
+    () => filteredJobs.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE),
+    [filteredJobs, safePage],
+  );
 
   const deleteTargetJob = jobs.find((job) => job.id === deleteTarget);
 
@@ -110,6 +141,17 @@ export default function JobListPage() {
     }
   }
 
+  async function handleCopyLink(job: JobInput) {
+    const token = job.application_form?.public_token;
+    if (!token) return;
+    const ok = await copyToClipboard(applicationUrl(token));
+    if (ok) {
+      notify.success(t("applicationForm.link.copiedToast") || "Link copied");
+    } else {
+      notify.error(t("applicationForm.link.copyFailedToast") || "Couldn't copy the link");
+    }
+  }
+
   const columns = useMemo<TableColumn<JobInput>[]>(
     () => [
       {
@@ -124,46 +166,77 @@ export default function JobListPage() {
           </div>
         ),
       },
-      { header: t("jobs.experience"), render: (job) => job.required_experience || "—" },
       {
-        header: t("jobs.skills"),
-        render: (job) => <span className="table-muted">{job.required_skills || "—"}</span>,
+        header: t("labels.status") || "Status",
+        render: (job) => <StatusBadge kind="job" value={jobStatusFromToken(job.application_form?.public_token)} />,
       },
       {
         header: t("jobs.leads"),
         sort: (a, b) => a.leads_count - b.leads_count,
-        headerClassName: "table-actions-cell",
         render: (job) => <span className="table-number">{job.leads_count}</span>,
       },
       {
         header: t("jobs.created"),
         sort: (a, b) => a.created_at.localeCompare(b.created_at),
+        hideOnMobile: true,
         render: (job) => <span className="table-muted">{formatDate(job.created_at)}</span>,
       },
       {
         header: t("jobs.actions"),
         headerClassName: "table-actions-cell",
-        render: (job) => (
-          <div className="row-actions">
-            <Link className="row-action" to={`/jobs/${job.id}`}>
-              {t("jobs.view")}
-            </Link>
-            <Link className="row-action" to={`/jobs/${job.id}/edit`}>
-              {t("jobs.edit")}
-            </Link>
-            <button
-              type="button"
-              className="row-action row-action--danger"
-              onClick={() => setDeleteTarget(job.id)}
-              disabled={deleting}
+        className: "table-actions-cell",
+        render: (job) => {
+          const published = Boolean(job.application_form?.public_token);
+          return (
+            <Dropdown
+              trigger={({ toggle, id }) => (
+                <button
+                  type="button"
+                  className="row-action row-action--icon"
+                  id={id}
+                  onClick={toggle}
+                  aria-label={
+                    t("jobs.rowActionsAriaLabel", { position: job.position }) ||
+                    `Actions for ${job.position}`
+                  }
+                >
+                  <MoreHorizontal size={16} />
+                </button>
+              )}
             >
-              {t("jobs.delete")}
-            </button>
-          </div>
-        ),
+              <DropdownItem icon={<Eye size={14} />} onClick={() => navigate(`/jobs/${job.id}`)}>
+                {t("jobs.view")}
+              </DropdownItem>
+              <DropdownItem icon={<Pencil size={14} />} onClick={() => navigate(`/jobs/${job.id}/edit`)}>
+                {t("jobs.edit")}
+              </DropdownItem>
+              <DropdownItem icon={<Users size={14} />} onClick={() => navigate(`/applications?job=${job.id}`)}>
+                {t("jobs.viewApplications") || "View Applications"}
+              </DropdownItem>
+              {published && (
+                <>
+                  <DropdownSeparator />
+                  <DropdownItem icon={<Copy size={14} />} onClick={() => handleCopyLink(job)}>
+                    {t("jobs.copyPublicLink") || "Copy Public Link"}
+                  </DropdownItem>
+                  <DropdownItem
+                    icon={<ExternalLink size={14} />}
+                    onClick={() => window.open(applicationUrl(job.application_form!.public_token), "_blank", "noreferrer")}
+                  >
+                    {t("jobs.openPublicLink") || "Open Public Link"}
+                  </DropdownItem>
+                </>
+              )}
+              <DropdownSeparator />
+              <DropdownItem icon={<Trash2 size={14} />} danger onClick={() => setDeleteTarget(job.id)}>
+                {t("jobs.delete")}
+              </DropdownItem>
+            </Dropdown>
+          );
+        },
       },
     ],
-    [t, deleting],
+    [t, navigate], // eslint-disable-line react-hooks/exhaustive-deps
   );
 
   const clearFilters = () => {
@@ -172,11 +245,14 @@ export default function JobListPage() {
     setPositionFilter("all");
   };
 
+  const hasActiveFilters = search.trim() !== "" || companyFilter !== "all" || positionFilter !== "all";
+
   return (
     <div className="page">
+      <PageMeta title={t("nav.jobs")} noindex />
       <PageHeader
         title={t("jobs.title")}
-        description={t("jobs.description")}
+        description={t("jobs.pageDescription") || "Manage your job vacancies"}
         action={
           <Button to="/jobs/create" icon={<Plus size={16} />}>
             {t("jobs.createJob")}
@@ -188,7 +264,7 @@ export default function JobListPage() {
         <div className="toolbar" style={{ padding: "var(--space-xl) var(--space-xl) 0" }}>
           <label className="toolbar-label toolbar-label--grow">
             {t("common.search")}
-            <span className="search-field">
+            <span className={`search-field${search ? " search-field--clearable" : ""}`}>
               <span className="search-field-icon" aria-hidden="true">
                 <Search size={15} />
               </span>
@@ -200,6 +276,16 @@ export default function JobListPage() {
                 placeholder={t("jobs.searchPlaceholder")}
                 aria-label={t("jobs.searchPlaceholder")}
               />
+              {search && (
+                <button
+                  type="button"
+                  className="search-field-clear"
+                  onClick={() => setSearch("")}
+                  aria-label={t("jobs.clearSearch") || "Clear search"}
+                >
+                  <X size={13} />
+                </button>
+              )}
             </span>
           </label>
 
@@ -249,46 +335,77 @@ export default function JobListPage() {
           </label>
         </div>
 
-        {loading ? (
-          <SkeletonTable rows={5} columns={4} />
-        ) : error ? (
-          <EmptyState
-            tone="error"
-            title={t("errors.loadTitle")}
-            message={error}
-            action={
-              <Button variant="secondary" onClick={() => window.location.reload()}>
-                {t("common.retry")}
+        <Table
+          rows={pagedJobs}
+          rowKey={(job) => job.id}
+          columns={columns}
+          caption={t("jobs.title")}
+          loading={loading}
+          loadingRows={6}
+          emptyState={
+            error ? (
+              <EmptyState
+                tone="error"
+                title={t("errors.loadTitle")}
+                message={error}
+                action={
+                  <Button variant="secondary" onClick={loadJobs}>
+                    {t("common.retry")}
+                  </Button>
+                }
+              />
+            ) : jobs.length === 0 ? (
+              <EmptyState
+                title={t("empty.jobsTitle")}
+                message={t("empty.jobsMessage")}
+                action={
+                  <Button to="/jobs/create" icon={<Plus size={16} />}>
+                    {t("jobs.createJob")}
+                  </Button>
+                }
+              />
+            ) : (
+              <EmptyState
+                title={t("empty.noMatchingTitle")}
+                message={t("empty.noMatchingMessage")}
+                action={
+                  <Button variant="secondary" onClick={clearFilters} disabled={!hasActiveFilters}>
+                    {t("jobs.clearFilters") || "Clear filters"}
+                  </Button>
+                }
+              />
+            )
+          }
+        />
+
+        {!loading && !error && filteredJobs.length > PAGE_SIZE && (
+          <div className="pagination-bar">
+            <span className="pagination-status">
+              {(t("jobs.pagination.pageOf") || "Page {page} of {total}")
+                .replace("{page}", String(safePage))
+                .replace("{total}", String(totalPages))}
+            </span>
+            <div className="pagination-controls">
+              <Button
+                variant="secondary"
+                size="sm"
+                icon={<ChevronLeft size={14} />}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={safePage <= 1}
+              >
+                {t("jobs.pagination.previous") || "Previous"}
               </Button>
-            }
-          />
-        ) : jobs.length === 0 ? (
-          <EmptyState
-            title={t("empty.jobsTitle")}
-            message={t("empty.jobsMessage")}
-            action={
-              <Button to="/jobs/create" icon={<Plus size={16} />}>
-                {t("jobs.createJob")}
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={safePage >= totalPages}
+              >
+                {t("jobs.pagination.next") || "Next"}
+                <ChevronRight size={14} style={{ marginLeft: 4 }} />
               </Button>
-            }
-          />
-        ) : filteredJobs.length === 0 ? (
-          <EmptyState
-            title={t("empty.noMatchingTitle")}
-            message={t("empty.noMatchingMessage")}
-            action={
-              <Button variant="secondary" onClick={clearFilters}>
-                {t("common.filters")}
-              </Button>
-            }
-          />
-        ) : (
-          <Table
-            rows={filteredJobs}
-            rowKey={(job) => job.id}
-            columns={columns}
-            caption={t("jobs.title")}
-          />
+            </div>
+          </div>
         )}
       </Card>
 
@@ -305,6 +422,7 @@ export default function JobListPage() {
         onConfirm={handleConfirmDelete}
         onCancel={() => setDeleteTarget(null)}
         disabled={deleting}
+        loading={deleting}
       />
     </div>
   );

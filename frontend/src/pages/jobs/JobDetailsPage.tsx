@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Edit3, Trash2, Plus, Sparkles } from "lucide-react";
+import { ArrowLeft, Copy, Edit3, ExternalLink, MoreHorizontal, Plus, Trash2, Users } from "lucide-react";
 import {
   fetchJob,
   fetchApplicationForm,
@@ -11,16 +11,23 @@ import {
 import { fetchCandidatesByJob } from "../../services/workersService";
 import { formatDate } from "../../utils/date";
 import { buildDefaultApplicationFields, validateApplicationFields } from "../../utils/applicationFields";
+import { jobStatusFromToken } from "../../utils/statusLabels";
+import { copyToClipboard } from "../../utils/clipboard";
+import { applicationUrl } from "../../components/application-form/ApplicationLinkCard";
 import PageHeader from "../../components/ui/PageHeader";
+import PageMeta from "../../components/seo/PageMeta";
 import Button from "../../components/ui/Button";
 import Card from "../../components/ui/Card";
 import EmptyState from "../../components/ui/EmptyState";
+import ErrorState from "../../components/ui/ErrorState";
 import StatusBadge from "../../components/ui/StatusBadge";
 import ConfirmDialog from "../../components/ui/ConfirmDialog";
+import Dropdown, { DropdownItem, DropdownSeparator } from "../../components/ui/Dropdown";
 import Table from "../../components/ui/Table";
-import JobAIAnalysisCard from "../../components/jobs/JobAIAnalysisCard";
+import Tabs, { TabPanel } from "../../components/ui/Tabs";
 import ApplicationFormBuilder from "../../components/application-form/ApplicationFormBuilder";
 import ApplicationLinkCard from "../../components/application-form/ApplicationLinkCard";
+import { Skeleton, SkeletonText } from "../../components/ui/Skeleton";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { useNotify } from "../../contexts/ToastContext";
 import { ApiError, getErrorMessage } from "../../utils/apiError";
@@ -28,13 +35,11 @@ import type { JobInput, JobAnalytics } from "../../types/job";
 import type { ApplicationFormConfig, ApplicationFieldDef } from "../../types/applicationForm";
 import type { Candidate } from "../../types/worker";
 
-const SOURCE_LABELS: Record<string, string> = {
-  manual: "Manual input",
-  file: "Requirement file",
-  both: "Manual + file",
-};
+type SaveStatus = "idle" | "saving" | "saved" | "error";
 
-/** /jobs/:id — overview, requirement source, AI analysis, form, candidates. */
+const SAVE_DEBOUNCE_MS = 700;
+
+/** /jobs/:id — overview, AI-generated form, candidates. */
 export default function JobDetailsPage() {
   const { t } = useLanguage();
   const notify = useNotify();
@@ -46,13 +51,34 @@ export default function JobDetailsPage() {
   const [jobCandidates, setJobCandidates] = useState<Candidate[]>([]);
   const [appFormConfig, setAppFormConfig] = useState<ApplicationFormConfig | null>(null);
   const [appFormLoading, setAppFormLoading] = useState(true);
+  const [appFormError, setAppFormError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState("overview");
   const [confirmDeleteJob, setConfirmDeleteJob] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
   const [creatingForm, setCreatingForm] = useState(false);
   const [formSaveError, setFormSaveError] = useState<string | null>(null);
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
+
+  const saveTimerRef = useRef<number | null>(null);
+  const savedIndicatorTimerRef = useRef<number | null>(null);
+
+  function loadApplicationForm() {
+    setAppFormLoading(true);
+    setAppFormError(null);
+    fetchApplicationForm(id)
+      .then((formConfig) => setAppFormConfig(formConfig))
+      .catch((err) => {
+        if (err instanceof ApiError && err.status === 404) {
+          setAppFormConfig(null); // Genuinely no form configured yet.
+        } else {
+          setAppFormError(getErrorMessage(err, t("errors.loadMessage")));
+        }
+      })
+      .finally(() => setAppFormLoading(false));
+  }
 
   useEffect(() => {
     let mounted = true;
@@ -81,20 +107,20 @@ export default function JobDetailsPage() {
       } finally {
         if (mounted) setLoading(false);
       }
-      try {
-        const formConfig = await fetchApplicationForm(id);
-        if (mounted) setAppFormConfig(formConfig);
-      } catch {
-        // No form yet
-      } finally {
-        if (mounted) setAppFormLoading(false);
-      }
     }
     loadData();
     return () => {
       mounted = false;
     };
-  }, [id, t]);
+  }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    loadApplicationForm();
+    return () => {
+      if (saveTimerRef.current) window.clearTimeout(saveTimerRef.current);
+      if (savedIndicatorTimerRef.current) window.clearTimeout(savedIndicatorTimerRef.current);
+    };
+  }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const analytics = useMemo(() => {
     const counts: JobAnalytics = {
@@ -130,7 +156,8 @@ export default function JobDetailsPage() {
       <div className="page">
         <PageHeader title={t("pages.jobDetails") || "Job Details"} description={t("common.loading") || "Loading…"} />
         <Card>
-          <div className="loading-state">{t("common.loading") || "Loading job details…"}</div>
+          <Skeleton variant="title" />
+          <SkeletonText lines={3} />
         </Card>
       </div>
     );
@@ -161,10 +188,14 @@ export default function JobDetailsPage() {
       <div className="page">
         <PageHeader title={t("common.error") || "Error"} description={t("errors.loadMessage") || "Failed to load job details."} />
         <Card>
-          <div className="error-center">
-            <p>{error}</p>
-            <Button onClick={() => window.location.reload()}>{t("common.retry") || "Retry"}</Button>
-          </div>
+          <ErrorState
+            message={error}
+            action={
+              <Button variant="secondary" onClick={() => window.location.reload()}>
+                {t("common.retry") || "Retry"}
+              </Button>
+            }
+          />
         </Card>
       </div>
     );
@@ -184,36 +215,44 @@ export default function JobDetailsPage() {
     }
   }
 
-  async function handleFormFieldsChange(nextFields: ApplicationFieldDef[]) {
-    if (!appFormConfig) return;
-    setAppFormConfig({ ...appFormConfig, fields: nextFields });
+  function handleFormFieldsChange(nextFields: ApplicationFieldDef[]) {
+    setAppFormConfig((prev) => (prev ? { ...prev, fields: nextFields } : prev));
     setFormSaveError(null);
-    if (validateApplicationFields(nextFields).length > 0) return;
-    try {
-      const updated = await updateApplicationForm(id, nextFields);
-      setAppFormConfig(updated);
-      notify.success(t("toast.settingsSaved") || "Application form saved");
-    } catch (err) {
-      setFormSaveError(
-        getErrorMessage(err, "Failed to save the application form. Please try again.")
-      );
+
+    if (saveTimerRef.current) window.clearTimeout(saveTimerRef.current);
+    if (savedIndicatorTimerRef.current) window.clearTimeout(savedIndicatorTimerRef.current);
+
+    if (validateApplicationFields(nextFields).length > 0) {
+      // Invalid draft: keep it visible locally, don't save yet.
+      setSaveStatus("idle");
+      return;
     }
+
+    setSaveStatus("saving");
+    saveTimerRef.current = window.setTimeout(async () => {
+      try {
+        const updated = await updateApplicationForm(id, nextFields);
+        setAppFormConfig(updated);
+        setSaveStatus("saved");
+        savedIndicatorTimerRef.current = window.setTimeout(() => {
+          setSaveStatus((current) => (current === "saved" ? "idle" : current));
+        }, 2000);
+      } catch (err) {
+        setFormSaveError(getErrorMessage(err, t("applicationForm.saveFailed") || "Failed to save the application form. Please try again."));
+        setSaveStatus("error");
+      }
+    }, SAVE_DEBOUNCE_MS);
   }
 
   async function handleCreateForm() {
     setCreatingForm(true);
     setFormSaveError(null);
     try {
-      const created = await updateApplicationForm(
-        id,
-        buildDefaultApplicationFields()
-      );
+      const created = await updateApplicationForm(id, buildDefaultApplicationFields());
       setAppFormConfig(created);
       notify.success(t("toast.jobCreated") || "Application form created");
     } catch (err) {
-      setFormSaveError(
-        getErrorMessage(err, "Failed to create the application form. Please try again.")
-      );
+      setFormSaveError(getErrorMessage(err, t("applicationForm.createFailed") || "Failed to create the application form. Please try again."));
     } finally {
       setCreatingForm(false);
     }
@@ -227,177 +266,247 @@ export default function JobDetailsPage() {
       setAppFormConfig(updated);
       notify.success(t("toast.settingsSaved") || "Application link regenerated");
     } catch (err) {
-      setFormSaveError(
-        getErrorMessage(err, "Failed to regenerate the application link. Please try again.")
+      notify.error(
+        t("applicationForm.link.regenerateFailed") || "Failed to regenerate the application link",
+        getErrorMessage(err),
       );
     } finally {
       setRegenerating(false);
     }
   }
 
+  async function handleCopyLink() {
+    const token = appFormConfig?.public_token;
+    if (!token) return;
+    const ok = await copyToClipboard(applicationUrl(token));
+    if (ok) {
+      notify.success(t("applicationForm.link.copiedToast") || "Link copied");
+    } else {
+      notify.error(t("applicationForm.link.copyFailedToast") || "Couldn't copy the link");
+    }
+  }
+
+  const publicToken = appFormConfig?.public_token;
+  const jobStatus = jobStatusFromToken(publicToken);
+  const previewJobInfo = {
+    company_name: job.company_name,
+    position: job.position,
+    description: job.description,
+    required_skills: job.required_skills,
+    required_experience: job.required_experience,
+  };
+
   return (
     <div className="page">
+      <PageMeta title={job.position} noindex />
       <PageHeader
         title={job.position}
-        description={`${job.company_name} · ${job.leads_count} ${t("jobs.leads") || "leads"} · ${t("jobs.created") || "Created"} ${formatDate(job.created_at)}`}
+        description={`${job.company_name} · ${t("jobs.created") || "Created"} ${formatDate(job.created_at)}`}
         action={
           <>
+            <StatusBadge kind="job" value={jobStatus} />
             <Button variant="secondary" to={`/jobs/${job.id}/edit`} icon={<Edit3 size={15} />}>
               {t("common.edit") || "Edit"}
             </Button>
-            <Button variant="danger" onClick={() => setConfirmDeleteJob(true)} disabled={deleting} icon={<Trash2 size={15} />}>
-              {t("common.delete") || "Delete"}
+            <Button variant="secondary" onClick={() => navigate(`/applications?job=${job.id}`)} icon={<Users size={15} />}>
+              {t("jobs.viewApplications") || "View Applications"}
             </Button>
+            <Dropdown
+              trigger={({ toggle, id: triggerId }) => (
+                <button
+                  type="button"
+                  className="btn btn--secondary btn--icon"
+                  id={triggerId}
+                  onClick={toggle}
+                  aria-label={t("jobs.moreActions") || "More actions"}
+                >
+                  <MoreHorizontal size={16} />
+                </button>
+              )}
+            >
+              {publicToken && (
+                <>
+                  <DropdownItem icon={<Copy size={14} />} onClick={handleCopyLink}>
+                    {t("jobs.copyPublicLink") || "Copy Public Link"}
+                  </DropdownItem>
+                  <DropdownItem
+                    icon={<ExternalLink size={14} />}
+                    onClick={() => window.open(applicationUrl(publicToken), "_blank", "noreferrer")}
+                  >
+                    {t("jobs.openPublicLink") || "Open Public Link"}
+                  </DropdownItem>
+                  <DropdownSeparator />
+                </>
+              )}
+              <DropdownItem icon={<Trash2 size={14} />} danger onClick={() => setConfirmDeleteJob(true)}>
+                {t("common.delete") || "Delete"}
+              </DropdownItem>
+            </Dropdown>
           </>
         }
       />
 
-      <div className="job-summary-grid">
-        <Card title={t("jobs.details") || "Job information"}>
-          <dl className="detail-list">
-            <dt>{t("jobs.company") || "Company"}</dt>
-            <dd>{job.company_name}</dd>
-            <dt>{t("jobs.position") || "Position"}</dt>
-            <dd>{job.position}</dd>
-            <dt>{t("jobs.experience") || "Required experience"}</dt>
-            <dd>{job.required_experience || "—"}</dd>
-            <dt>{t("jobs.skills") || "Required skills"}</dt>
-            <dd>{job.required_skills || "—"}</dd>
-          </dl>
-          <p className="detail-description">{job.description || (t("common.noData") || "No description provided.")}</p>
-        </Card>
+      <Tabs
+        items={[
+          { id: "overview", label: t("jobs.tabs.overview") || "Overview" },
+          { id: "form", label: t("jobs.tabs.applicationForm") || "Application Form" },
+          { id: "applications", label: t("jobs.tabs.applications") || "Applications" },
+        ]}
+        activeId={activeTab}
+        onChange={setActiveTab}
+        ariaLabel={t("pages.jobDetails") || "Job details sections"}
+        idPrefix="job-details"
+      />
 
-        <Card title="Candidate summary">
-          <ul className="summary-list">
-            <li><span>{t("candidates.total") || "Total candidates"}</span><strong>{analytics.total}</strong></li>
-            <li className="success"><span>{t("statusMeta.hiring.strong_hire") || "Strong hires"}</span><strong>{analytics.strong_hires}</strong></li>
-            <li className="info"><span>{t("statusMeta.hiring.hire") || "Hires"}</span><strong>{analytics.hires}</strong></li>
-            <li className="warning"><span>{t("statusMeta.hiring.weak_hire") || "Weak hires"}</span><strong>{analytics.weak_hires}</strong></li>
-            <li className="danger"><span>{t("statusMeta.hiring.do_not_hire") || "Do not hire"}</span><strong>{analytics.do_not_hires}</strong></li>
-          </ul>
-        </Card>
-      </div>
+      <TabPanel id="overview" idPrefix="job-details" activeId={activeTab}>
+        <div className="job-summary-grid">
+          <Card title={t("jobs.details") || "Job information"}>
+            <dl className="detail-list">
+              <dt>{t("jobs.company") || "Company"}</dt>
+              <dd>{job.company_name}</dd>
+              <dt>{t("jobs.position") || "Position"}</dt>
+              <dd>{job.position}</dd>
+              <dt>{t("jobs.experience") || "Required experience"}</dt>
+              <dd>{job.required_experience || "—"}</dd>
+              <dt>{t("jobs.skills") || "Required skills"}</dt>
+              <dd>{job.required_skills || "—"}</dd>
+            </dl>
+            <p className="detail-description">{job.description || (t("common.noData") || "No description provided.")}</p>
+          </Card>
 
-      <Card title={t("jobs.requirementSource") || "Requirement source"} subtitle="How this vacancy was created.">
-        <div className="chip-row">
-          <span className="chip chip--info">
-            {SOURCE_LABELS[job.requirement_source ?? "manual"]}
-          </span>
-          {job.requirement_file_name && (
-            <span className="chip">File: {job.requirement_file_name}</span>
-          )}
+          <Card title={t("jobs.candidateSummary") || "Candidate summary"}>
+            <ul className="summary-list">
+              <li><span>{t("candidates.total") || "Total candidates"}</span><strong>{analytics.total}</strong></li>
+              <li className="success"><span>{t("statusMeta.hiring.strong_hire") || "Strong hires"}</span><strong>{analytics.strong_hires}</strong></li>
+              <li className="info"><span>{t("statusMeta.hiring.hire") || "Hires"}</span><strong>{analytics.hires}</strong></li>
+              <li className="warning"><span>{t("statusMeta.hiring.weak_hire") || "Weak hires"}</span><strong>{analytics.weak_hires}</strong></li>
+              <li className="danger"><span>{t("statusMeta.hiring.do_not_hire") || "Do not hire"}</span><strong>{analytics.do_not_hires}</strong></li>
+            </ul>
+          </Card>
         </div>
-        {job.ai_instructions ? (
-          <p className="detail-description">AI instructions: {job.ai_instructions}</p>
+      </TabPanel>
+
+      <TabPanel id="form" idPrefix="job-details" activeId={activeTab}>
+        {appFormLoading ? (
+          <Card>
+            <SkeletonText lines={4} />
+          </Card>
+        ) : appFormError ? (
+          <Card>
+            <ErrorState
+              message={appFormError}
+              action={
+                <Button variant="secondary" onClick={loadApplicationForm}>
+                  {t("common.retry") || "Retry"}
+                </Button>
+              }
+            />
+          </Card>
+        ) : appFormConfig ? (
+          <>
+            <ApplicationLinkCard
+              token={appFormConfig.public_token}
+              jobTitle={job.position}
+              onRegenerate={handleRegenerateLink}
+              regenerating={regenerating}
+            />
+            <div className="form-save-status" aria-live="polite">
+              {saveStatus === "saving" && (t("applicationForm.savingIndicator") || "Saving…")}
+              {saveStatus === "saved" && (t("applicationForm.savedIndicator") || "Saved")}
+            </div>
+            <ApplicationFormBuilder
+              fields={appFormConfig.fields}
+              errors={formProblems}
+              onFieldsChange={handleFormFieldsChange}
+              previewJobInfo={previewJobInfo}
+            />
+          </>
         ) : (
-          <p className="muted-note">No extra AI instructions were provided.</p>
+          <Card>
+            <EmptyState
+              title={t("jobs.noFormYet") || "No application form yet"}
+              message={t("jobs.noFormYetMessage") || "Start from the standard question set and customize each field right here."}
+              action={
+                <Button onClick={handleCreateForm} loading={creatingForm} disabled={creatingForm} icon={<Plus size={16} />}>
+                  {creatingForm ? (t("common.loading") || "Creating…") : (t("jobs.createForm") || "Create application form")}
+                </Button>
+              }
+            />
+            {formSaveError && (
+              <p className="field-error" role="alert">
+                {formSaveError}
+              </p>
+            )}
+          </Card>
         )}
-      </Card>
+      </TabPanel>
 
-      {job.ai_analysis ? (
-        <JobAIAnalysisCard analysis={job.ai_analysis} />
-      ) : (
-        <Card title={t("jobs.aiAnalysis") || "AI Vacancy Analysis"} subtitle="No AI analysis for this vacancy yet.">
-          <EmptyState
-            title={t("jobs.noAiAnalysis") || "No AI analysis yet"}
-            message="Jobs created with the AI flow include a structured vacancy analysis."
-            action={<Button to="/jobs/create" icon={<Sparkles size={16} />}>{t("jobs.createWithAi") || "Create with AI"}</Button>}
-          />
-        </Card>
-      )}
-
-      {/* Public application form builder */}
-      {appFormLoading ? (
-        <Card><p className="muted-note">{t("common.loading") || "Loading application form…"}</p></Card>
-      ) : appFormConfig ? (
-        <>
-          <ApplicationLinkCard
-            token={appFormConfig.public_token}
-            jobTitle={job?.position || undefined}
-            onRegenerate={handleRegenerateLink}
-            regenerating={regenerating}
-          />
-          <ApplicationFormBuilder
-            fields={appFormConfig.fields}
-            errors={formProblems}
-            onFieldsChange={handleFormFieldsChange}
-          />
-        </>
-      ) : (
-        <Card>
-          <EmptyState
-            title={t("jobs.noFormYet") || "No application form yet"}
-            message="Start from the standard question set and customize each field right here."
-            action={
-              <Button onClick={handleCreateForm} loading={creatingForm} disabled={creatingForm} icon={<Plus size={16} />}>
-                {creatingForm ? (t("common.loading") || "Creating…") : (t("jobs.createForm") || "Create application form")}
-              </Button>
-            }
-          />
-          {formSaveError && (
-            <p className="field-error" role="alert">
-              {formSaveError}
-            </p>
+      <TabPanel id="applications" idPrefix="job-details" activeId={activeTab}>
+        <Card title={t("nav.applications") || "Applications for this job"} subtitle={t("jobs.applicationsSubtitle") || "AI-screened submissions."}>
+          {jobCandidates.length === 0 ? (
+            <EmptyState
+              title={t("empty.applicationsTitle") || "No applications yet"}
+              message={t("empty.applicationsMessage") || "Applications will appear here when candidates apply."}
+            />
+          ) : (
+            <Table
+              rows={jobCandidates}
+              rowKey={(application) => application.id}
+              columns={[
+                {
+                  header: t("candidates.name") || "Candidate",
+                  render: (application) => (
+                    <div>
+                      <Link
+                        className="table-primary"
+                        to={`/candidates/${application.id}`}
+                      >
+                        {application.name}
+                      </Link>
+                      <div className="table-secondary">{application.email}</div>
+                    </div>
+                  ),
+                },
+                {
+                  header: t("candidates.aiScore") || "AI score",
+                  render: (application) => (
+                    <span className="table-number">
+                      {Math.round(application.ai_score)}%
+                    </span>
+                  ),
+                },
+                {
+                  header: t("labels.status") || "Hiring status",
+                  render: (application) => (
+                    <StatusBadge kind="hiring" value={application.hiring_status} />
+                  ),
+                },
+                {
+                  header: t("applications.submittedAt") || "Submitted",
+                  hideOnMobile: true,
+                  render: (application) => formatDate(application.submitted_at),
+                },
+              ]}
+            />
           )}
         </Card>
-      )}
-
-      <Card title={t("nav.applications") || "Applications for this job"} subtitle="AI-screened submissions.">
-        {jobCandidates.length === 0 ? (
-          <EmptyState
-            title={t("empty.applicationsTitle") || "No applications yet"}
-            message={t("empty.applicationsMessage") || "Applications will appear here when candidates apply."}
-          />
-        ) : (
-          <Table
-            rows={jobCandidates}
-            rowKey={(application) => application.id}
-            columns={[
-              {
-                header: t("candidates.name") || "Candidate",
-                render: (application) => (
-                  <div>
-                    <Link
-                      className="table-primary"
-                      to={`/candidates/${application.id}`}
-                    >
-                      {application.name}
-                    </Link>
-                    <div className="table-secondary">{application.email}</div>
-                  </div>
-                ),
-              },
-              {
-                header: t("candidates.aiScore") || "AI score",
-                render: (application) => (
-                  <span className="table-number">
-                    {Math.round(application.ai_score)}%
-                  </span>
-                ),
-              },
-              {
-                header: t("labels.status") || "Hiring status",
-                render: (application) => (
-                  <StatusBadge kind="hiring" value={application.hiring_status} />
-                ),
-              },
-              {
-                header: t("applications.submittedAt") || "Submitted",
-                render: (application) => formatDate(application.submitted_at),
-              },
-            ]}
-          />
-        )}
-      </Card>
+      </TabPanel>
 
       <ConfirmDialog
         open={confirmDeleteJob}
         title={t("jobs.deleteConfirm") || "Delete this job?"}
-        message={`This will permanently remove "${job.position}" at ${job.company_name} and all its candidates.`}
+        message={
+          (t("jobs.deleteConfirmDetailedMessage") ||
+            'This will permanently remove "{position}" at {company} and all its candidates.')
+            .replace("{position}", job.position)
+            .replace("{company}", job.company_name)
+        }
         confirmLabel={t("jobs.deleteJobBtn") || "Delete"}
+        cancelLabel={t("common.cancel") || "Cancel"}
         onConfirm={handleDeleteJob}
         onCancel={() => setConfirmDeleteJob(false)}
         disabled={deleting}
+        loading={deleting}
       />
     </div>
   );

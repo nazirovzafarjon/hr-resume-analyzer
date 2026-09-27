@@ -2,15 +2,22 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { fetchJob, updateJob } from "../../services/jobsService";
 import PageHeader from "../../components/ui/PageHeader";
+import PageMeta from "../../components/seo/PageMeta";
 import Card from "../../components/ui/Card";
 import Button from "../../components/ui/Button";
 import EmptyState from "../../components/ui/EmptyState";
+import ErrorState from "../../components/ui/ErrorState";
+import { Skeleton, SkeletonText } from "../../components/ui/Skeleton";
 import JobForm from "../../components/jobs/JobForm";
-import { ApiError } from "../../utils/apiError";
+import { useLanguage } from "../../contexts/LanguageContext";
+import { useNotify } from "../../contexts/ToastContext";
+import { ApiError, getErrorMessage } from "../../utils/apiError";
 import type { JobInput } from "../../types/job";
 
 /** /jobs/:id/edit — edit an existing job, reusing the shared job form. */
 export default function JobEditPage() {
+  const { t } = useLanguage();
+  const notify = useNotify();
   const navigate = useNavigate();
   const params = useParams();
   const id = Number(params.id);
@@ -18,40 +25,35 @@ export default function JobEditPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let mounted = true;
-    async function loadJob() {
-      setLoading(true);
-      setError(null);
-      try {
-        const data = await fetchJob(id);
-        if (mounted) setJob(data);
-      } catch (err) {
-        if (mounted) {
-          if (err instanceof ApiError && err.status === 404) {
-            setError("not_found");
-          } else if (err instanceof ApiError) {
-            setError(err.message);
-          } else {
-            setError("Failed to load job. Please try again.");
-          }
+  function loadJob() {
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    fetchJob(id)
+      .then((data) => !cancelled && setJob(data))
+      .catch((err) => {
+        if (cancelled) return;
+        if (err instanceof ApiError && err.status === 404) {
+          setError("not_found");
+        } else {
+          setError(getErrorMessage(err, t("jobs.error")));
         }
-      } finally {
-        if (mounted) setLoading(false);
-      }
-    }
-    loadJob();
+      })
+      .finally(() => !cancelled && setLoading(false));
     return () => {
-      mounted = false;
+      cancelled = true;
     };
-  }, [id]);
+  }
+
+  useEffect(() => loadJob(), [id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (loading) {
     return (
       <div className="page">
-        <PageHeader title="Edit Job" description="Loading job details…" />
+        <PageHeader title={t("jobs.editJob")} description={t("jobs.loading")} />
         <Card>
-          <div className="loading-center">Loading…</div>
+          <Skeleton variant="title" />
+          <SkeletonText lines={3} />
         </Card>
       </div>
     );
@@ -60,11 +62,11 @@ export default function JobEditPage() {
   if (error === "not_found" || !job) {
     return (
       <div className="page">
-        <PageHeader title="Job not found" description="This job may have been removed." />
+        <PageHeader title={t("jobs.jobNotFound")} description={t("jobs.jobNotFoundDescription")} />
         <Card>
           <EmptyState
-            title="Job not found"
-            message="The job you are trying to edit may have been deleted."
+            title={t("jobs.jobNotFound")}
+            message={t("jobs.jobNotFoundEditMessage")}
           />
         </Card>
       </div>
@@ -74,12 +76,16 @@ export default function JobEditPage() {
   if (error) {
     return (
       <div className="page">
-        <PageHeader title="Error" description="Failed to load job." />
+        <PageHeader title={t("common.error")} description={t("jobs.error")} />
         <Card>
-          <div className="error-center">
-            <p>{error}</p>
-            <Button onClick={() => window.location.reload()}>Retry</Button>
-          </div>
+          <ErrorState
+            message={error}
+            action={
+              <Button variant="secondary" onClick={loadJob}>
+                {t("common.retry")}
+              </Button>
+            }
+          />
         </Card>
       </div>
     );
@@ -87,14 +93,15 @@ export default function JobEditPage() {
 
   return (
     <div className="page">
+      <PageMeta title={t("jobs.editPageTitle", { position: job.position })} noindex />
       <PageHeader
-        title="Edit Job"
-        description={`Update the vacancy details for ${job.company_name}.`}
+        title={t("jobs.editJob")}
+        description={t("jobs.editPageDescription", { company: job.company_name })}
       />
       <Card>
         <JobForm
-          title={`Edit ${job.position}`}
-          submitLabel="Save Changes"
+          key={job.id}
+          submitLabel={t("jobs.saveChanges")}
           initial={{
             company_name: job.company_name,
             position: job.position,
@@ -105,13 +112,10 @@ export default function JobEditPage() {
           onSubmit={async (input) => {
             try {
               await updateJob(id, input);
+              notify.success(t("toast.jobUpdated"));
               navigate(`/jobs/${id}`);
             } catch (err) {
-              if (err instanceof ApiError) {
-                alert(err.message);
-              } else {
-                alert("Failed to update job. Please try again.");
-              }
+              notify.error(t("jobs.updateFailed"), getErrorMessage(err));
             }
           }}
         />
