@@ -45,14 +45,23 @@ class RecentJob(BaseModel):
     created_at: datetime
 
 
-class HiringFunnel(BaseModel):
-    """Hiring funnel counts by application status."""
-    applied: int
-    screening: int
-    interview: int
-    shortlisted: int
-    hired: int
-    rejected: int
+class TrendPoint(BaseModel):
+    """Applications and interviews recorded in one time bucket (day or week)."""
+    date: str
+    applications: int
+    interviews: int
+
+
+class PreviousPeriod(BaseModel):
+    """Totals for the period immediately preceding the selected range."""
+    applications: int
+    interviews: int
+
+
+class StatusCount(BaseModel):
+    """Count of applications currently in one real `ApplicationStatus` value."""
+    status: str
+    count: int
 
 
 class ScoreDistribution(BaseModel):
@@ -61,11 +70,13 @@ class ScoreDistribution(BaseModel):
     count: int
 
 
-class WeeklyVolume(BaseModel):
-    """Weekly applications and interviews count."""
-    week: str
-    applications: int
-    interviews: int
+class AnalysisStatusCounts(BaseModel):
+    """Counts by AI analysis processing state."""
+    new: int
+    pending: int
+    analyzing: int
+    completed: int
+    failed: int
 
 
 class HiringStatusCounts(BaseModel):
@@ -83,13 +94,26 @@ class InterviewStatusCounts(BaseModel):
     not_completed: int
 
 
+class TopJob(BaseModel):
+    """A job ranked by how many applications it has received."""
+    job_id: int
+    position: str
+    company_name: str
+    applications_count: int
+
+
 class AnalyticsData(BaseModel):
-    """Comprehensive analytics data for the Analytics page."""
-    funnel: HiringFunnel
+    """Comprehensive analytics data for the Dashboard and Analytics pages."""
+    range: str
+    trend: list[TrendPoint]
+    previous_period: PreviousPeriod
+    status_distribution: list[StatusCount]
+    analysis_status_counts: AnalysisStatusCounts
     score_distribution: list[ScoreDistribution]
-    weekly_volume: list[WeeklyVolume]
     hiring_status_counts: HiringStatusCounts
     interview_status_counts: InterviewStatusCounts
     avg_ai_score: float
     total_jobs: int
+    total_applications: int
     total_candidates: int
+    top_jobs: list[TopJob]

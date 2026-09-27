@@ -73,6 +73,15 @@ class TestOverview:
         assert breakdown["Backend Developer"] == {"category": "Backend Developer", "jobs": 1, "candidates": 2}
         assert breakdown["Data Engineer"] == {"category": "Data Engineer", "jobs": 1, "candidates": 1}
 
+    def test_overview_group_by_experience_alias(self, client, user):
+        """"experience" is accepted as an alias of "required_experience"."""
+        _create_job(client, user["headers"], required_experience="3+ years")
+        response = client.get("/api/dashboard/overview?category=experience", headers=user["headers"])
+        assert response.status_code == 200
+        body = response.json()
+        assert body["group_by"] == "experience"
+        assert body["breakdown"][0]["category"] == "3+ years"
+
 # ---------------------------------------------------------------------------
 # /dashboard/recent-leads
 # ---------------------------------------------------------------------------
@@ -168,16 +177,20 @@ class TestAnalytics:
         response = client.get("/api/dashboard/analytics", headers=user["headers"])
         assert response.status_code == 200
         body = response.json()
+        assert body["range"] == "30d"
         assert body["total_jobs"] == 0
+        assert body["total_applications"] == 0
         assert body["total_candidates"] == 0
         assert body["avg_ai_score"] == 0.0
-        assert body["funnel"] == {
-            "applied": 0,
-            "screening": 0,
-            "interview": 0,
-            "shortlisted": 0,
-            "hired": 0,
-            "rejected": 0,
+        assert body["top_jobs"] == []
+        assert body["previous_period"] == {"applications": 0, "interviews": 0}
+        # Real ApplicationStatus values only — no fabricated "hired" stage.
+        assert {row["status"] for row in body["status_distribution"]} == {
+            "new", "reviewing", "shortlisted", "interview", "rejected", "withdrawn",
+        }
+        assert all(row["count"] == 0 for row in body["status_distribution"])
+        assert body["analysis_status_counts"] == {
+            "new": 0, "pending": 0, "analyzing": 0, "completed": 0, "failed": 0,
         }
         assert body["hiring_status_counts"] == {
             "strong_hire": 0,
@@ -198,7 +211,22 @@ class TestAnalytics:
             {"bucket": "80-89", "count": 0},
             {"bucket": "90-100", "count": 0},
         ]
-        assert len(body["weekly_volume"]) == 6
+        # 30-day range, day-granularity buckets: inclusive of both endpoints.
+        assert len(body["trend"]) == 31
+
+    def test_analytics_range_param_controls_bucket_count(self, client, user):
+        body_7d = client.get("/api/dashboard/analytics?range=7d", headers=user["headers"]).json()
+        assert body_7d["range"] == "7d"
+        assert len(body_7d["trend"]) == 8
+
+        body_90d = client.get("/api/dashboard/analytics?range=90d", headers=user["headers"]).json()
+        assert body_90d["range"] == "90d"
+        # Weekly buckets over ~90 days: roughly 13-14 depending on week alignment.
+        assert 12 <= len(body_90d["trend"]) <= 14
+
+    def test_analytics_invalid_range_rejected(self, client, user):
+        response = client.get("/api/dashboard/analytics?range=45d", headers=user["headers"])
+        assert response.status_code == 422
 
     def test_analytics_aggregates_correctly(self, client, user):
         job1 = _create_job(client, user["headers"], company_name="Acme Corp", position="Backend Developer")
@@ -207,36 +235,39 @@ class TestAnalytics:
         worker2 = _create_worker(client, user["headers"], job1["id"], "Worker B")
         worker3 = _create_worker(client, user["headers"], job2["id"], "Worker C")
 
-        # Update some workers with different statuses and scores
+        # Only "completed" analyses should count toward score aggregates.
         client.patch(
             f"/api/workers/{worker1['id']}",
-            json={"hiring_status": "strong_hire", "interview_status": "completed", "ai_score": 95},
+            json={"hiring_status": "strong_hire", "interview_status": "completed", "ai_score": 95, "analysis_status": "completed"},
             headers=user["headers"],
         )
         client.patch(
             f"/api/workers/{worker2['id']}",
-            json={"hiring_status": "hire", "interview_status": "in_process", "ai_score": 82},
+            json={"hiring_status": "hire", "interview_status": "in_process", "ai_score": 82, "analysis_status": "completed"},
             headers=user["headers"],
         )
         client.patch(
             f"/api/workers/{worker3['id']}",
-            json={"hiring_status": "weak_hire", "interview_status": "not_completed", "ai_score": 65},
+            json={"hiring_status": "weak_hire", "interview_status": "not_completed", "ai_score": 65, "analysis_status": "completed"},
             headers=user["headers"],
         )
 
         body = client.get("/api/dashboard/analytics", headers=user["headers"]).json()
 
         assert body["total_jobs"] == 2
-        assert body["total_candidates"] == 3
+        assert body["total_applications"] == 3
+        assert body["total_candidates"] == 0  # none promoted via candidate_at
         assert body["avg_ai_score"] == 80.7  # (95 + 82 + 65) / 3
 
-        # Hiring funnel
-        assert body["funnel"]["applied"] == 3  # all are "new" by default
-        assert body["funnel"]["screening"] == 0
-        assert body["funnel"]["interview"] == 0
-        assert body["funnel"]["shortlisted"] == 0
-        assert body["funnel"]["hired"] == 0
-        assert body["funnel"]["rejected"] == 0
+        # Real application-status distribution: all default to "new".
+        status_map = {row["status"]: row["count"] for row in body["status_distribution"]}
+        assert status_map["new"] == 3
+        assert status_map["reviewing"] == 0
+        assert status_map["rejected"] == 0
+        assert status_map["withdrawn"] == 0
+
+        assert body["analysis_status_counts"]["completed"] == 3
+        assert body["analysis_status_counts"]["new"] == 0
 
         # Hiring status counts
         assert body["hiring_status_counts"]["strong_hire"] == 1
@@ -258,6 +289,56 @@ class TestAnalytics:
         assert score_dist["80-89"] == 1  # Worker B with 82
         assert score_dist["90-100"] == 1  # Worker A with 95
 
+        # Top jobs by application count, descending.
+        assert body["top_jobs"][0] == {
+            "job_id": job1["id"], "position": "Backend Developer",
+            "company_name": "Acme Corp", "applications_count": 2,
+        }
+        assert body["top_jobs"][1] == {
+            "job_id": job2["id"], "position": "Data Engineer",
+            "company_name": "Globex", "applications_count": 1,
+        }
+
+        # All 3 applications were created "now", inside the default 30d trend.
+        assert sum(point["applications"] for point in body["trend"]) == 3
+        assert sum(point["interviews"] for point in body["trend"]) == 0
+
+    def test_analytics_avg_score_excludes_non_completed_analysis(self, client, user):
+        job = _create_job(client, user["headers"])
+        analyzed = _create_worker(client, user["headers"], job["id"], "Analyzed")
+        unanalyzed = _create_worker(client, user["headers"], job["id"], "Unanalyzed")
+
+        client.patch(
+            f"/api/workers/{analyzed['id']}",
+            json={"ai_score": 80, "analysis_status": "completed"},
+            headers=user["headers"],
+        )
+        # ai_score set but analysis never marked "completed" — must not dilute the average.
+        client.patch(
+            f"/api/workers/{unanalyzed['id']}",
+            json={"ai_score": 10},
+            headers=user["headers"],
+        )
+
+        body = client.get("/api/dashboard/analytics", headers=user["headers"]).json()
+        assert body["avg_ai_score"] == 80.0
+
+    def test_analytics_status_distribution_includes_withdrawn(self, client, user):
+        job = _create_job(client, user["headers"])
+        worker = _create_worker(client, user["headers"], job["id"], "Candidate")
+        client.patch(
+            f"/api/workers/{worker['id']}",
+            json={"application_status": "withdrawn"},
+            headers=user["headers"],
+        )
+
+        body = client.get("/api/dashboard/analytics", headers=user["headers"]).json()
+        status_map = {row["status"]: row["count"] for row in body["status_distribution"]}
+        assert status_map["withdrawn"] == 1
+        assert status_map["new"] == 0
+        # No fabricated status outside the real ApplicationStatus enum.
+        assert set(status_map) == {"new", "reviewing", "shortlisted", "interview", "rejected", "withdrawn"}
+
     def test_analytics_requires_auth(self, client):
         assert client.get("/api/dashboard/analytics").status_code == 401
 
@@ -267,5 +348,5 @@ class TestAnalytics:
 
         body = client.get("/api/dashboard/analytics", headers=other_user["headers"]).json()
         assert body["total_jobs"] == 0
-        assert body["total_candidates"] == 0
-        assert body["funnel"]["applied"] == 0
+        assert body["total_applications"] == 0
+        assert all(row["count"] == 0 for row in body["status_distribution"])
