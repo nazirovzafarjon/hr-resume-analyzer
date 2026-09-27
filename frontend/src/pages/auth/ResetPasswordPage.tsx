@@ -6,6 +6,8 @@ import PasswordInput from "../../components/auth/PasswordInput";
 import AuthButton from "../../components/auth/AuthButton";
 import AuthMessage from "../../components/auth/AuthMessage";
 import PasswordRequirements from "../../components/auth/PasswordRequirements";
+import PageMeta from "../../components/seo/PageMeta";
+import { useLanguage } from "../../contexts/LanguageContext";
 import { getPasswordError } from "../../utils/validate";
 import {
   resetPassword,
@@ -46,6 +48,7 @@ type Mode = "choice" | "change";
  * is reported before the user wastes time filling in the form.
  */
 export default function ResetPasswordPage() {
+  const { t } = useLanguage();
   const [searchParams] = useSearchParams();
   const token = searchParams.get("token");
   const navigate = useNavigate();
@@ -98,11 +101,14 @@ export default function ResetPasswordPage() {
   );
 
   /** Map a rejected reset token to one consistent, actionable message. */
-  const describeFailure = useCallback((error: unknown) => {
-    return error instanceof ApiError && error.status === 400
-      ? "This reset link is invalid or has expired. Please request a new one."
-      : getErrorMessage(error);
-  }, []);
+  const describeFailure = useCallback(
+    (error: unknown) => {
+      return error instanceof ApiError && error.status === 400
+        ? t("auth.resetLinkInvalid")
+        : getErrorMessage(error);
+    },
+    [t],
+  );
 
   const handleSkip = useCallback(async () => {
     if (!token) return;
@@ -129,9 +135,9 @@ export default function ResetPasswordPage() {
       nextErrors.newPassword = passwordError;
     }
     if (!confirmPassword) {
-      nextErrors.confirmPassword = "Please confirm your new password.";
+      nextErrors.confirmPassword = t("auth.confirmPasswordRequired");
     } else if (confirmPassword !== newPassword) {
-      nextErrors.confirmPassword = "Passwords do not match.";
+      nextErrors.confirmPassword = t("auth.passwordMismatch");
     }
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) return;
@@ -151,16 +157,16 @@ export default function ResetPasswordPage() {
     account && !account.has_password && account.is_google_account,
   );
   const title = isGoogleOnlyAccount
-    ? "Add a password to your account"
-    : "Create a new password";
+    ? t("auth.addPasswordTitle")
+    : t("auth.createNewPasswordTitle");
   const subtitle = account
-    ? `Resetting access for ${account.email}. Choose a new password, or keep your current one.`
-    : "Choose a new password for your Resume Analyzer account, or keep your current one.";
+    ? t("auth.resetSubtitleWithEmail", { email: account.email })
+    : t("auth.resetSubtitleGeneric");
   const footer = (
     <>
-      Remembered it?{" "}
+      {t("auth.rememberedIt")}{" "}
       <Link className="auth-link" to="/login">
-        Back to sign in
+        {t("auth.backToSignIn")}
       </Link>
     </>
   );
@@ -170,14 +176,12 @@ export default function ResetPasswordPage() {
   if (linkState === "invalid") {
     return (
       <AuthLayout>
+        <PageMeta title={t("auth.resetPassword")} />
         <AuthCard title={title} subtitle={subtitle} footer={footer}>
-          <AuthMessage type="error">
-            This password reset link is invalid or has expired. Please request
-            a new one.
-          </AuthMessage>
+          <AuthMessage type="error">{t("auth.resetLinkInvalid")}</AuthMessage>
           <p className="auth-forgot">
             <Link className="auth-link" to="/forgot-password">
-              Request a new reset link
+              {t("auth.requestNewResetLink")}
             </Link>
           </p>
         </AuthCard>
@@ -188,9 +192,10 @@ export default function ResetPasswordPage() {
   if (linkState === "checking") {
     return (
       <AuthLayout>
+        <PageMeta title={t("auth.resetPassword")} />
         <AuthCard title={title} subtitle={subtitle} footer={footer}>
           <p className="auth-subtitle" role="status">
-            Checking your reset link…
+            {t("auth.checkingResetLink")}
           </p>
         </AuthCard>
       </AuthLayout>
@@ -199,21 +204,18 @@ export default function ResetPasswordPage() {
 
   return (
     <AuthLayout>
+      <PageMeta title={t("auth.resetPassword")} />
       <AuthCard title={title} subtitle={subtitle} footer={footer}>
         {serverError && <AuthMessage type="error">{serverError}</AuthMessage>}
         {isGoogleOnlyAccount && mode === "choice" && (
-          <AuthMessage type="success">
-            This account signs in with Google. Setting a password adds a second
-            way to sign in — your Google button keeps working either way, and
-            you can skip this entirely.
-          </AuthMessage>
+          <AuthMessage type="success">{t("auth.googleOnlyAccountNotice")}</AuthMessage>
         )}
 
         {mode === "change" ? (
           <form className="auth-form" onSubmit={handleSubmit} noValidate>
             <div className="field-group">
               <PasswordInput
-                label="New password"
+                label={t("auth.newPassword")}
                 value={newPassword}
                 onChange={(value) => {
                   setNewPassword(value);
@@ -228,7 +230,7 @@ export default function ResetPasswordPage() {
               <PasswordRequirements password={newPassword} />
             </div>
             <PasswordInput
-              label="Confirm new password"
+              label={t("auth.confirmNewPassword")}
               value={confirmPassword}
               onChange={(value) => {
                 setConfirmPassword(value);
@@ -245,10 +247,10 @@ export default function ResetPasswordPage() {
             />
             <AuthButton loading={loading} fullWidth>
               {loading
-                ? "Updating…"
+                ? t("auth.updating")
                 : isGoogleOnlyAccount
-                  ? "Set password & sign in"
-                  : "Change password"}
+                  ? t("auth.setPasswordAndSignIn")
+                  : t("auth.changePassword")}
             </AuthButton>
             <AuthButton
               type="button"
@@ -257,22 +259,19 @@ export default function ResetPasswordPage() {
               disabled={loading}
               onClick={() => setMode("choice")}
             >
-              Back
+              {t("auth.back")}
             </AuthButton>
           </form>
         ) : (
           <div className="auth-choice">
-            <p className="auth-choice-hint">
-              Your password has not been changed yet. Both options below sign
-              you straight into the dashboard.
-            </p>
+            <p className="auth-choice-hint">{t("auth.notChangedYetHint")}</p>
             <AuthButton
               type="button"
               fullWidth
               disabled={loading}
               onClick={() => setMode("change")}
             >
-              {isGoogleOnlyAccount ? "Set a password" : "Change password"}
+              {isGoogleOnlyAccount ? t("auth.setAPassword") : t("auth.changePassword")}
             </AuthButton>
             <AuthButton
               type="button"
@@ -281,7 +280,7 @@ export default function ResetPasswordPage() {
               loading={loading}
               onClick={handleSkip}
             >
-              {loading ? "Signing you in…" : "Skip — keep my current password"}
+              {loading ? t("auth.signingYouIn") : t("auth.skipKeepPassword")}
             </AuthButton>
           </div>
         )}
@@ -289,4 +288,3 @@ export default function ResetPasswordPage() {
     </AuthLayout>
   );
 }
-

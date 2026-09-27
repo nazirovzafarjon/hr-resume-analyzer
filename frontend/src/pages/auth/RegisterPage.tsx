@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import AuthLayout from "../../components/auth/AuthLayout";
+import PageMeta from "../../components/seo/PageMeta";
 import AuthCard from "../../components/auth/AuthCard";
 import AuthInput from "../../components/auth/AuthInput";
 import PasswordInput from "../../components/auth/PasswordInput";
@@ -81,6 +82,7 @@ export default function RegisterPage() {
 
   return (
     <AuthLayout>
+      <PageMeta title={t("auth.register")} />
       <AuthCard
         title={t("auth.register") || "Create your account"}
         subtitle={t("auth.registerSubtitle") || "Start managing your hiring workflow with Resume Analyzer."}
@@ -105,7 +107,7 @@ export default function RegisterPage() {
                 setErrors((prev) => ({ ...prev, fullName: undefined }));
               }
             }}
-            placeholder="Jane Doe"
+            placeholder={t("auth.namePlaceholder")}
             autoComplete="name"
             error={errors.fullName}
             disabled={loading}

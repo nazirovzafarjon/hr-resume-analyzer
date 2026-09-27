@@ -3,6 +3,8 @@ import { Link } from "react-router-dom";
 import { Search } from "lucide-react";
 import { fetchCandidates } from "../../services/workersService";
 import PageHeader from "../../components/ui/PageHeader";
+import PageMeta from "../../components/seo/PageMeta";
+import Button from "../../components/ui/Button";
 import Card from "../../components/ui/Card";
 import EmptyState from "../../components/ui/EmptyState";
 import StatusBadge from "../../components/ui/StatusBadge";
@@ -119,6 +121,7 @@ export default function CandidatesPage() {
     {
       header: t("labels.actions"),
       headerClassName: "table-actions-cell",
+      className: "table-actions-cell",
       render: (candidate) => (
         <Link className="row-action" to={`/candidates/${candidate.id}`}>
           {t("candidates.view")}
@@ -129,6 +132,7 @@ export default function CandidatesPage() {
 
   return (
     <div className="page">
+      <PageMeta title={t("nav.candidates")} noindex />
       <PageHeader title={t("candidates.title")} description={t("candidates.description")} />
 
       {loading ? <SkeletonCards count={4} /> : (
@@ -158,14 +162,14 @@ export default function CandidatesPage() {
                 type="search"
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder={t("candidates.searchPlaceholder")}
-                aria-label={t("candidates.searchPlaceholder")}
+                placeholder={t("searchPlaceholder")}
+                aria-label={t("searchPlaceholder")}
               />
             </span>
           </label>
 
           <label className="toolbar-label">
-            {t("candidates.hiringFilter")}
+            {t("hiringFilter")}
             <select
               className="field-select"
               value={hiringFilter}
@@ -181,7 +185,7 @@ export default function CandidatesPage() {
           </label>
 
           <label className="toolbar-label">
-            {t("candidates.interviewFilter")}
+            {t("interviewFilter")}
             <select
               className="field-select"
               value={interviewFilter}
@@ -198,8 +202,16 @@ export default function CandidatesPage() {
         </div>
 
         {error ? (
-          <EmptyState tone="error" title={t("errors.loadTitle")} message={error}
-            action={<button type="button" className="btn btn--secondary" onClick={() => setReload((v) => v + 1)}>{t("common.retry")}</button>} />
+          <EmptyState
+            tone="error"
+            title={t("errors.loadTitle")}
+            message={error}
+            action={
+              <Button variant="secondary" onClick={() => setReload((v) => v + 1)}>
+                {t("common.retry")}
+              </Button>
+            }
+          />
         ) : (
           <Table
             rows={filteredCandidates}

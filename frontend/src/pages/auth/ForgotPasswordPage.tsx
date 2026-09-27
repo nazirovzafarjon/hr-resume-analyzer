@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import AuthLayout from "../../components/auth/AuthLayout";
+import PageMeta from "../../components/seo/PageMeta";
 import AuthCard from "../../components/auth/AuthCard";
 import AuthInput from "../../components/auth/AuthInput";
 import AuthButton from "../../components/auth/AuthButton";
@@ -46,6 +47,7 @@ export default function ForgotPasswordPage() {
 
   return (
     <AuthLayout>
+      <PageMeta title={t("auth.forgotPassword")} />
       <AuthCard
         title={t("auth.forgotPassword") || "Forgot your password?"}
         subtitle={t("auth.forgotPasswordSubtitle") || "Enter your email and we'll help you reset your password."}

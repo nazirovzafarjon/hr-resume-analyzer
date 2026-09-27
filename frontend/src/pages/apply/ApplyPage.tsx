@@ -6,17 +6,20 @@
  * locally for fast feedback, then POSTs to the public submission
  * endpoint (no JWT — the token is the credential).
  */
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useParams } from "react-router-dom";
 import { getPublicApplication, submitPublicApplication } from "../../services/publicService";
 import PublicApplicationFormTemplate from "../../components/application-form/PublicApplicationFormTemplate";
 import ApplicationSuccess from "../../components/application-form/ApplicationSuccess";
+import PageMeta from "../../components/seo/PageMeta";
+import { useLanguage } from "../../contexts/LanguageContext";
 import { validateApplicationValues } from "../../utils/applicationFields";
 import { ApiError, getErrorMessage } from "../../utils/apiError";
 import type { PublicApplication } from "../../types/applicationForm";
 import type { ApplicationValues, ApplicationFieldErrors } from "../../types/applicationForm";
 
 export default function ApplyPage() {
+  const { t } = useLanguage();
   const params = useParams();
   const token = params.token as string;
   const [application, setApplication] = useState<PublicApplication | null>(null);
@@ -28,30 +31,40 @@ export default function ApplyPage() {
   const [values, setValues] = useState<ApplicationValues>({});
   const [files, setFiles] = useState<Record<string, File | null>>({});
   const [fieldErrors, setFieldErrors] = useState<ApplicationFieldErrors>({});
-  let mounted = true;
+
+  // Idiomatic unmount guard: a plain `let` at component scope does not reset
+  // between React 18 StrictMode's dev-mode double mount/cleanup/mount, which
+  // can leave `loading` stuck forever. A ref reset on every effect run does.
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   const loadApplication = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const data = await getPublicApplication(token);
-      setApplication(data);
+      if (mountedRef.current) setApplication(data);
     } catch (err) {
+      if (!mountedRef.current) return;
       if (err instanceof ApiError && err.status === 404) {
         setError("not_found");
       } else if (err instanceof ApiError) {
         setError(err.message);
       } else {
-        setError("Failed to load the application form. Please try again.");
+        setError(t("apply.loadFailed"));
       }
     } finally {
-      if (mounted) setLoading(false);
+      if (mountedRef.current) setLoading(false);
     }
-  }, [token]);
+  }, [token, t]);
 
   useEffect(() => {
     loadApplication();
-    return () => { mounted = false; };
   }, [loadApplication]);
 
   useEffect(() => {
@@ -97,31 +110,33 @@ export default function ApplyPage() {
     setSubmitting(true);
     try {
       await submitPublicApplication(token, application.fields, values, files);
-      setSubmitSuccess(true);
+      if (mountedRef.current) setSubmitSuccess(true);
     } catch (err) {
-      if (mounted) {
+      if (mountedRef.current) {
         // ApiError already carries the backend's friendly `detail` message.
-        setSubmitError(getErrorMessage(err, "Submission failed. Please try again."));
+        setSubmitError(getErrorMessage(err, t("apply.submitFailed")));
       }
     } finally {
-      if (mounted) setSubmitting(false);
+      if (mountedRef.current) setSubmitting(false);
     }
   }
 
   if (loading) {
     return (
-      <section className="apply-template" aria-label="Loading application">
-        <p className="muted-note">Loading the application form...</p>
+      <section className="apply-template" aria-label={t("apply.loadingAriaLabel")}>
+        <PageMeta title={t("apply.defaultTitle")} />
+        <p className="muted-note">{t("apply.loading")}</p>
       </section>
     );
   }
 
   if (error === "not_found") {
     return (
-      <section className="apply-template" aria-label="Application not found">
+      <section className="apply-template" aria-label={t("apply.notFoundAriaLabel")}>
+        <PageMeta title={t("apply.notFoundTitle")} />
         <div className="apply-success">
-          <h1 className="apply-title">Application not found</h1>
-          <p className="apply-description">The application link you followed is invalid or has expired.</p>
+          <h1 className="apply-title">{t("apply.notFoundTitle")}</h1>
+          <p className="apply-description">{t("apply.notFoundMessage")}</p>
         </div>
       </section>
     );
@@ -129,9 +144,10 @@ export default function ApplyPage() {
 
   if (error) {
     return (
-      <section className="apply-template" aria-label="Error loading application">
+      <section className="apply-template" aria-label={t("apply.errorAriaLabel")}>
+        <PageMeta title={t("apply.errorTitle")} />
         <div className="apply-success">
-          <h1 className="apply-title">Something went wrong</h1>
+          <h1 className="apply-title">{t("apply.errorTitle")}</h1>
           <p className="apply-description">{error}</p>
         </div>
       </section>
@@ -139,25 +155,30 @@ export default function ApplyPage() {
   }
 
   if (!application) return null;
+
+  const position = application.job.position || t("apply.defaultTitle");
+  const company = application.job.company_name;
+  const pageTitle = company ? t("apply.pageTitleTemplate", { position, company }) : position;
+  const metaDescription = company
+    ? t("apply.metaDescriptionTemplate", { position, company })
+    : undefined;
+
   if (submitSuccess) {
-    return <ApplicationSuccess position={application.job.position} company={application.job.company_name} />;
+    return (
+      <>
+        <PageMeta title={pageTitle} noindex />
+        <ApplicationSuccess position={application.job.position} company={application.job.company_name} />
+      </>
+    );
   }
 
   return (
-    <section className="apply-template" aria-label="Application form">
-      <header className="apply-header">
-        {application.job.company_name && <p className="apply-company">{application.job.company_name}</p>}
-        <h1 className="apply-title">{application.job.position || "Application"}</h1>
-        {application.job.description && <p className="apply-description">{application.job.description}</p>}
-        {(application.job.required_skills || application.job.required_experience) && (
-          <div className="apply-meta">
-            {application.job.required_experience && <span className="chip">{application.job.required_experience}</span>}
-            {application.job.required_skills.split(",").map((s) => s.trim()).filter(Boolean).slice(0, 8).map((skill) => (
-              <span key={skill} className="chip chip--info">{skill}</span>
-            ))}
-          </div>
-        )}
-      </header>
+    <section className="apply-template" aria-label={t("apply.formAriaLabel")}>
+      <PageMeta
+        title={pageTitle}
+        description={metaDescription}
+        og={{ title: pageTitle, description: metaDescription }}
+      />
       <PublicApplicationFormTemplate
         job={application.job}
         fields={application.fields}

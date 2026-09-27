@@ -4,6 +4,7 @@ import { Plus, Search, Video } from "lucide-react";
 import { formatDateTime } from "../../utils/date";
 import { getErrorMessage } from "../../utils/apiError";
 import PageHeader from "../../components/ui/PageHeader";
+import PageMeta from "../../components/seo/PageMeta";
 import Button from "../../components/ui/Button";
 import Card from "../../components/ui/Card";
 import EmptyState from "../../components/ui/EmptyState";
@@ -229,6 +230,7 @@ export default function InterviewsPage() {
 
   return (
     <div className="page">
+      <PageMeta title={t("nav.interviews")} noindex />
       <PageHeader
         title={t("interviews.title") || "Interviews"}
         description={t("interviews.description") || "Schedule and track manual HR interviews for your candidates."}
@@ -257,8 +259,8 @@ export default function InterviewsPage() {
               type="search"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder={t("interviews.searchPlaceholder") || "Search candidate or interviewer…"}
-              aria-label="Search interviews"
+              placeholder={t("searchPlaceholder") || "Search candidate or interviewer…"}
+              aria-label={t("searchPlaceholder")}
             />
           </div>
           <Select
@@ -336,6 +338,8 @@ export default function InterviewsPage() {
               },
               {
                 header: t("labels.actions") || "Actions",
+                headerClassName: "table-actions-cell",
+                className: "table-actions-cell",
                 render: (interview) => (
                   <Link className="row-action" to={`/interviews/${interview.id}`}>
                     {t("common.view") || "View"}

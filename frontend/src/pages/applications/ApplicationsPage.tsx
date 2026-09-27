@@ -5,6 +5,7 @@ import { fetchApplications } from "../../services/workersService";
 import { fetchJobs } from "../../services/jobsService";
 import { formatDate } from "../../utils/date";
 import PageHeader from "../../components/ui/PageHeader";
+import PageMeta from "../../components/seo/PageMeta";
 import Button from "../../components/ui/Button";
 import Card from "../../components/ui/Card";
 import EmptyState from "../../components/ui/EmptyState";
@@ -106,6 +107,7 @@ export default function ApplicationsPage() {
 
   return (
     <div className="page">
+      <PageMeta title={t("nav.applications")} noindex />
       <PageHeader
         title={t("applications.title")}
         description={t("applications.description")}
@@ -147,8 +149,8 @@ export default function ApplicationsPage() {
                 type="search"
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder={t("applications.searchPlaceholder")}
-                aria-label={t("applications.searchPlaceholder")}
+                placeholder={t("searchPlaceholder")}
+                aria-label={t("searchPlaceholder")}
               />
             </span>
           </label>
@@ -160,7 +162,7 @@ export default function ApplicationsPage() {
               value={jobFilter}
               onChange={(event) => setJobFilter(event.target.value)}
             >
-              <option value="all">{t("applications.allJobs")}</option>
+              <option value="all">{t("allJobs")}</option>
               {jobs.map((job) => (
                 <option key={job.id} value={String(job.id)}>
                   {job.company_name} — {job.position}
@@ -256,7 +258,7 @@ function buildColumns(t: (key: string) => string): TableColumn<Candidate>[] {
       },
     },
     {
-      header: t("applications.aiStatus"),
+      header: t("applications.aiStatusColumn"),
       render: (app) => <AnalysisStatusBadge value={app.analysis_status} />,
     },
     {
@@ -273,6 +275,7 @@ function buildColumns(t: (key: string) => string): TableColumn<Candidate>[] {
     {
       header: t("labels.actions"),
       headerClassName: "table-actions-cell",
+      className: "table-actions-cell",
       render: (app) => (
         <Link className="row-action" to={`/applications/${app.id}`}>
           {t("applications.view")}

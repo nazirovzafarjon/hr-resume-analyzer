@@ -4,10 +4,12 @@ import { ArrowLeft, Video, Edit3, Trash2 } from "lucide-react";
 import { formatDateTime } from "../../utils/date";
 import { getErrorMessage } from "../../utils/apiError";
 import PageHeader from "../../components/ui/PageHeader";
+import PageMeta from "../../components/seo/PageMeta";
 import Button from "../../components/ui/Button";
 import Card from "../../components/ui/Card";
 import EmptyState from "../../components/ui/EmptyState";
 import ErrorState from "../../components/ui/ErrorState";
+import { Skeleton, SkeletonText } from "../../components/ui/Skeleton";
 import Modal from "../../components/ui/Modal";
 import Select from "../../components/forms/Select";
 import FormField from "../../components/forms/FormField";
@@ -167,7 +169,8 @@ export default function InterviewDetailsPage() {
       <div className="page">
         <PageHeader title={t("pages.interviewDetails") || "Interview"} description={t("common.loading") || "Loading interview details."} />
         <Card>
-          <div className="loading-state">{t("common.loading") || "Loading interview…"}</div>
+          <Skeleton variant="title" />
+          <SkeletonText lines={3} />
         </Card>
       </div>
     );
@@ -195,6 +198,7 @@ export default function InterviewDetailsPage() {
 
   return (
     <div className="page">
+      <PageMeta title={interview.candidate_name} noindex />
       <PageHeader
         title={interview.candidate_name}
         description={`${interview.job_title} at ${interview.company_name}`}

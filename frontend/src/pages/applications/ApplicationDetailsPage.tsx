@@ -10,6 +10,7 @@ import {
 } from "../../services/workersService";
 import { formatDate } from "../../utils/date";
 import PageHeader from "../../components/ui/PageHeader";
+import PageMeta from "../../components/seo/PageMeta";
 import Button from "../../components/ui/Button";
 import Card from "../../components/ui/Card";
 import EmptyState from "../../components/ui/EmptyState";
@@ -19,6 +20,7 @@ import ApplicationStatusBadge, {
 import StatusBadge from "../../components/ui/StatusBadge";
 import Select from "../../components/forms/Select";
 import ConfirmDialog from "../../components/ui/ConfirmDialog";
+import { Skeleton, SkeletonText } from "../../components/ui/Skeleton";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { useNotify } from "../../contexts/ToastContext";
 import type {
@@ -160,7 +162,8 @@ export default function ApplicationDetailsPage() {
       <div className="page">
         <PageHeader title={t("pages.applicationDetails") || "Application Details"} description={t("common.loading") || "Loading submission…"} />
         <Card>
-          <div className="loading-state">{t("common.loading") || "Loading application details…"}</div>
+          <Skeleton variant="title" />
+          <SkeletonText lines={3} />
         </Card>
       </div>
     );
@@ -194,6 +197,7 @@ export default function ApplicationDetailsPage() {
 
   return (
     <div className="page">
+      <PageMeta title={application.name} noindex />
       <div className="candidate-hero">
         <PageHeader
           title={application.name}
@@ -223,13 +227,13 @@ export default function ApplicationDetailsPage() {
       </div>
 
       {actionError && (
-        <div className="notice notice--danger" style={{ marginBottom: "1.5rem" }}>
+        <div className="alert alert--error" style={{ marginBottom: "1.5rem" }}>
           {actionError}
         </div>
       )}
 
       {application.analysis_status === "failed" && (
-        <div className="notice notice--warning" style={{ marginBottom: "1.5rem" }}>
+        <div className="alert alert--warning" style={{ marginBottom: "1.5rem" }}>
           <strong>{t("toast.analysisFailed") || "AI Analysis Failed"}:</strong> {application.analysis_error || "Unknown error occurred."}
           <div style={{ marginTop: "0.5rem" }}>
             <Button
@@ -321,8 +325,8 @@ export default function ApplicationDetailsPage() {
 
       {/* AI Analysis Section */}
       <Card
-        title={t("applications.aiAnalysisTitle") || "AI Screening & Match Analysis"}
-        subtitle="Objective comparison of applicant resume and submitted answers against job requirements."
+        title={t("applications.aiAnalysisTitle")}
+        subtitle={t("applications.aiAnalysisSubtitle")}
         action={
           application.analysis_status !== "analyzing" ? (
             <Button
@@ -379,7 +383,7 @@ export default function ApplicationDetailsPage() {
             {/* Advisory AI Recommendation */}
             {aiRec && (
               <div
-                className="notice notice--info"
+                className="alert alert--info"
                 style={{ marginTop: "1rem", marginBottom: "1.5rem" }}
               >
                 <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>

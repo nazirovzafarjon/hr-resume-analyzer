@@ -8,6 +8,7 @@ import {
 } from "../../services/workersService";
 import { formatDate } from "../../utils/date";
 import PageHeader from "../../components/ui/PageHeader";
+import PageMeta from "../../components/seo/PageMeta";
 import Button from "../../components/ui/Button";
 import Card from "../../components/ui/Card";
 import EmptyState from "../../components/ui/EmptyState";
@@ -15,6 +16,7 @@ import StatusBadge from "../../components/ui/StatusBadge";
 import ApplicationStatusBadge from "../../components/ui/ApplicationStatusBadge";
 import Select from "../../components/forms/Select";
 import ConfirmDialog from "../../components/ui/ConfirmDialog";
+import { Skeleton, SkeletonText } from "../../components/ui/Skeleton";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { useNotify } from "../../contexts/ToastContext";
 import type {
@@ -116,7 +118,8 @@ export default function CandidateDetailsPage() {
       <div className="page">
         <PageHeader title={t("pages.candidateDetails") || "Candidate Details"} description={t("common.loading") || "Loading candidate…"} />
         <Card>
-          <div className="loading-state">{t("common.loading") || "Loading candidate details…"}</div>
+          <Skeleton variant="title" />
+          <SkeletonText lines={3} />
         </Card>
       </div>
     );
@@ -147,6 +150,7 @@ export default function CandidateDetailsPage() {
 
   return (
     <div className="page">
+      <PageMeta title={candidate.name} noindex />
       <div className="candidate-hero">
         <PageHeader
           title={candidate.name}
@@ -165,7 +169,7 @@ export default function CandidateDetailsPage() {
       </div>
 
       {actionError && (
-        <div className="notice notice--danger" style={{ marginBottom: "1.5rem" }}>
+        <div className="alert alert--error" style={{ marginBottom: "1.5rem" }}>
           {actionError}
         </div>
       )}

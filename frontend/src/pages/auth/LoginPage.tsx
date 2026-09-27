@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import AuthLayout from "../../components/auth/AuthLayout";
+import PageMeta from "../../components/seo/PageMeta";
 import AuthCard from "../../components/auth/AuthCard";
 import AuthInput from "../../components/auth/AuthInput";
 import PasswordInput from "../../components/auth/PasswordInput";
@@ -71,6 +72,7 @@ export default function LoginPage() {
 
   return (
     <AuthLayout>
+      <PageMeta title={t("auth.login")} />
       <AuthCard
         title={t("auth.welcomeBack") || "Welcome back"}
         subtitle={t("auth.loginSubtitle") || "Sign in to continue managing your hiring workflow."}

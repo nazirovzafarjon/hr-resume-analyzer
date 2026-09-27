@@ -1,6 +1,7 @@
 import { useEffect, useState, type ChangeEvent } from "react";
 import { User, Palette, Globe, Shield, Sun, Moon, Monitor, Check, Upload, Trash2 } from "lucide-react";
 import PageHeader from "../../components/ui/PageHeader";
+import PageMeta from "../../components/seo/PageMeta";
 import Card from "../../components/ui/Card";
 import Button from "../../components/ui/Button";
 import TextInput from "../../components/forms/TextInput";
@@ -8,6 +9,7 @@ import PasswordInput from "../../components/auth/PasswordInput";
 import PasswordRequirements from "../../components/auth/PasswordRequirements";
 import AuthMessage from "../../components/auth/AuthMessage";
 import ErrorState from "../../components/ui/ErrorState";
+import { Skeleton, SkeletonText } from "../../components/ui/Skeleton";
 import Tabs from "../../components/ui/Tabs";
 import { useAuth } from "../../context/AuthContext";
 import { useTheme, type Theme } from "../../contexts/ThemeContext";
@@ -239,9 +241,10 @@ export default function SettingsPage() {
     return (
       <div className="page">
         <PageHeader title={t("settings.title") || "Settings"} description={t("settings.description") || "Manage your account and preferences."} />
-        <p className="muted-note" role="status">
-          {t("common.loading") || "Loading your profile…"}
-        </p>
+        <Card>
+          <Skeleton variant="title" />
+          <SkeletonText lines={3} />
+        </Card>
       </div>
     );
   }
@@ -284,6 +287,7 @@ export default function SettingsPage() {
 
   return (
     <div className="page">
+      <PageMeta title={t("nav.settings")} noindex />
       <PageHeader
         title={t("settings.title") || "Settings"}
         description={t("settings.description") || "Manage your account, theme, language, and security settings."}

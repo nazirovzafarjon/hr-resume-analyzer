@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { loginWithGoogle } from "../../services/authService";
 import { useAuth } from "../../context/AuthContext";
+import { useLanguage } from "../../contexts/LanguageContext";
 import { getErrorMessage } from "../../utils/apiError";
 import AuthMessage from "./AuthMessage";
 import {
@@ -26,6 +27,7 @@ type GoogleAuthButtonProps = {
  * server-side.
  */
 export default function GoogleAuthButton({ disabled = false }: GoogleAuthButtonProps) {
+  const { t } = useLanguage();
   if (!GOOGLE_AUTH_ENABLED) {
     return null;
   }
@@ -33,7 +35,7 @@ export default function GoogleAuthButton({ disabled = false }: GoogleAuthButtonP
     <>
       <GoogleSignInButton disabled={disabled} />
       <div className="auth-divider" role="separator">
-        or sign in with your email
+        {t("auth.orSignInWithEmail")}
       </div>
     </>
   );
@@ -53,6 +55,7 @@ export default function GoogleAuthButton({ disabled = false }: GoogleAuthButtonP
 function GoogleSignInButton({ disabled }: { disabled: boolean }) {
   const navigate = useNavigate();
   const { signIn } = useAuth();
+  const { t } = useLanguage();
   const [error, setError] = useState<string | null>(null);
 
   const googleLogin = useGoogleLogin({
@@ -75,13 +78,13 @@ function GoogleSignInButton({ disabled }: { disabled: boolean }) {
       }
     },
     onError: (errorResponse) => {
-      setError(errorResponse.error_description || "Google sign-in failed. Please try again.");
+      setError(errorResponse.error_description || t("auth.googleSignInFailed"));
     },
     onNonOAuthError: (nonOAuthError) => {
       setError(
         nonOAuthError.type === "popup_failed_to_open"
-          ? "Google sign-in could not open. Please allow pop-ups and try again."
-          : "Google sign-in was cancelled.",
+          ? t("auth.googlePopupBlocked")
+          : t("auth.googleCancelled"),
       );
     },
   });
@@ -99,7 +102,7 @@ function GoogleSignInButton({ disabled }: { disabled: boolean }) {
         }}
       >
         <GoogleLogo />
-        <span>Continue with Google</span>
+        <span>{t("auth.continueWithGoogle")}</span>
       </button>
     </>
   );
