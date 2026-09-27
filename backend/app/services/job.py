@@ -8,10 +8,13 @@ from app.models.job import Job
 from app.models.worker import Worker
 
 # Mapping exposed analytics category names to groupable Job columns.
+# "experience" is accepted as an alias of "required_experience" because the
+# frontend's groupBy control sends the shorter, user-facing value.
 _GROUPABLE_COLUMNS = {
     "company": Job.company_name,
     "position": Job.position,
     "required_experience": Job.required_experience,
+    "experience": Job.required_experience,
 }
 
 
