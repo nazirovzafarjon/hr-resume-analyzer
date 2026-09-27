@@ -1,23 +1,80 @@
 {
   "dashboard": {
-    "title": "Dashboard",
-    "description": "Narxlovchi qurilmasi ko'rib chiqish",
-    "totalJobs": "Jami Ishlar",
-    "totalCandidates": "Jami Kandidatlar",
-    "totalLeads": "Jami Leadlar",
-    "recentJobs": "So'nggi Ishlar",
-    "recentCandidates": "So'nggi Kandidatlar",
+    "title": "Boshqaruv paneli",
+    "description": "Ishga qabul qilish jarayoniga umumiy nazar",
+    "totalJobs": "Jami ishlar",
+    "totalCandidates": "Jami nomzodlar",
+    "totalLeads": "Jami lidlar",
+    "recentJobs": "So'nggi ishlar",
+    "recentCandidates": "So'nggi nomzodlar",
+    "viewApplications": "Arizalarni ko'rish",
     "viewAll": "Hammasini ko'rish",
-    "noJobs": "Hala ish yo'q",
-    "noJobsDescription": "Birinchi joy e'lonini yaratib, ariza yutuplarni boshlang.",
-    "noCandidates": "Hala kandidatlar yo'q",
-    "analytics": "Taslifiy tahlil",
-    "groupBy": "Guruhga bo'lish",
+    "noJobs": "Hali ish yo'q",
+    "noJobsDescription": "Arizalar qabul qilishni boshlash uchun birinchi vakansiyangizni yarating.",
+    "noCandidates": "Hali nomzodlar yo'q",
+    "analytics": "Yollash tahlili",
+    "groupBy": "Guruhlash",
     "company": "Kompaniya",
     "position": "Lavozim",
     "experience": "Tajriba",
-    "loading": "Dashboard yuklanmoqda...",
-    "error": "Dashboard yuklanmadi"
+    "loading": "Boshqaruv paneli yuklanmoqda...",
+    "error": "Boshqaruv panelini yuklab bo'lmadi",
+    "partialErrorMessage": "Panel ma'lumotlarining bir qismini yuklab bo'lmadi.",
+    "tableCreated": "Yaratildi",
+    "period": {
+      "label": "Davr"
+    },
+    "kpi": {
+      "applications": "Arizalar",
+      "applicationsHint": "shu davrda qabul qilingan",
+      "jobs": "Jami ishlar",
+      "jobsHint": "barcha vakansiyalar bo'yicha",
+      "candidates": "Nomzodlar",
+      "candidatesHint": "yollash jarayoniga o'tkazilgan",
+      "interviews": "Kelgusi suhbatlar",
+      "interviewsHint": "jami rejalashtirilgan",
+      "aiAnalyzed": "AI tahlil qilgan",
+      "aiAnalyzedHint": "tahlil kutilmoqda",
+      "recommendedHire": "Yollash tavsiya etiladi",
+      "recommendedHireHint": "kuchli va oddiy tavsiyalar",
+      "vsPreviousPeriod": "oldingi davrga nisbatan"
+    },
+    "trend": {
+      "title": "Yollash faolligi",
+      "subtitle": "Tanlangan davrdagi arizalar va suhbatlar",
+      "emptyTitle": "Hali faollik yo'q",
+      "emptyMessage": "Nomzodlar ariza topshira boshlashi bilan bu yerda yollash dinamikasi ko'rinadi."
+    },
+    "statusChart": {
+      "title": "Ariza holati",
+      "subtitle": "Barcha arizalarning joriy taqsimoti",
+      "emptyTitle": "Hali arizalar yo'q",
+      "emptyMessage": "Nomzodlar ariza topshirgach, ariza holatlari shu yerda ko'rinadi."
+    },
+    "pipelineChart": {
+      "title": "Yollash bosqichlari",
+      "subtitle": "Nomzodlar hozir qaysi bosqichda",
+      "emptyTitle": "Bosqichlar bo'sh",
+      "emptyMessage": "Arizalar kelib tushishi bilan yollash bosqichlari orqali o'tadi."
+    },
+    "performance": {
+      "title": "Yollash samaradorligi",
+      "byJob": "Ish bo'yicha",
+      "bySegment": "Segment bo'yicha",
+      "emptyTitle": "Hali ma'lumot yo'q",
+      "emptyMessage": "Bu diagrammani ko'rish uchun ish yarating va arizalar qabul qilishni boshlang."
+    },
+    "activity": {
+      "title": "So'nggi faoliyat",
+      "jobCreated": "Ish yaratildi",
+      "newApplication": "Yangi ariza",
+      "emptyTitle": "Hali faoliyat yo'q",
+      "emptyMessage": "So'nggi ishlar va arizalar shu yerda ko'rinadi."
+    },
+    "quickActions": {
+      "reviewApplications": "Arizalarni ko'rib chiqish",
+      "scheduleInterview": "Suhbat belgilash"
+    }
   },
   "stats": {
     "jobs": "Ochiq vakansiyalar",

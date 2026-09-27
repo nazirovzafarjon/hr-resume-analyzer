@@ -7,12 +7,13 @@
     "skipToContent": "Tarkibga o'tish",
     "accountMenu": "Hisob",
     "profile": "Profil",
-    "fallbackName": "HR xodimi"
+    "fallbackName": "HR xodimi",
+    "selectLanguage": "Tilni tanlash"
   },
   "appearance": {
     "title": "Mavzu",
-    "light": "Yorqin",
-    "dark": "Tungi",
+    "light": "Yorug'",
+    "dark": "Qorong'u",
     "system": "Tizim bo'yicha"
   },
   "palette": {
@@ -48,8 +49,8 @@
     "applicationsMessage": "Ommaviy havola orqali yuborilgan arizalar shu yerda paydo bo'ladi.",
     "candidatesTitle": "Hozircha nomzodlar yo'q",
     "candidatesMessage": "Nomzodlar arizalar qabul qilingandan keyin paydo bo'ladi.",
-    "interviewsTitle": "Suhat rejalashtirilmagan",
-    "interviewsMessage": "Tanlangan nomzodlar uchun suhatni profilidan rejalashtiring.",
+    "interviewsTitle": "Suhbat rejalashtirilmagan",
+    "interviewsMessage": "Tanlangan nomzodlar uchun suhbatni profilidan rejalashtiring.",
     "genericTitle": "Hozircha bo'sh",
     "genericMessage": "Ma'lumot paydo bo'lishi bilan shu yerda ko'rinadi."
   },
@@ -74,16 +75,17 @@
     "analysisFailed": "AI tahlili bajarilmadi",
     "statusUpdated": "Holat yangilandi",
     "loginFailed": "Kirish amalga oshmadi",
-    "saveFailed": "O'zgarishlarni saqlab bo'lmadi"
+    "saveFailed": "O'zgarishlarni saqlab bo'lmadi",
+    "dismiss": "Bildirishnomani yopish"
   },
   "statusMeta": {
     "application": {
       "new": "Yangi",
       "reviewing": "Ko'rilmoqda",
       "shortlisted": "Tanlangan",
-      "interview": "Suhat",
+      "interview": "Suhbat",
       "rejected": "Rad etilgan",
-      "withdrawn": "Qaytarilgan"
+      "withdrawn": "Qaytarib olingan"
     },
     "analysis": {
       "new": "Tahlil qilinmagan",
@@ -118,6 +120,6 @@
     "jobDetails": "Vakansiya tafsilotlari",
     "applicationDetails": "Ariza tafsilotlari",
     "candidateDetails": "Nomzod tafsilotlari",
-    "interviewDetails": "Suhat tafsilotlari"
+    "interviewDetails": "Suhbat tafsilotlari"
   }
 }

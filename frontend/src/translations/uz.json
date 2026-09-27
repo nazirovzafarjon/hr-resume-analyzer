@@ -1,14 +1,14 @@
 {
   "app": {
     "name": "Resume Analyzer",
-    "tagline": "HR Narxlovchi Platformasi"
+    "tagline": "HR Ishga Qabul Qilish Platformasi"
   },
   "nav": {
-    "dashboard": "Dashboard",
+    "dashboard": "Boshqaruv paneli",
     "jobs": "Ishlar",
-    "applications": "Ariza lar",
-    "candidates": "Kandidatlar",
-    "interviews": "Suhbatlars",
+    "applications": "Arizalar",
+    "candidates": "Nomzodlar",
+    "interviews": "Suhbatlar",
     "analytics": "Tahlil",
     "settings": "Sozlamalar"
   }

@@ -1,7 +1,7 @@
 {
   "settings": {
     "title": "Sozlamalar",
-    "description": "Hesab va afzalliklarni boshqarish",
+    "description": "Hisobingiz va sozlamalaringizni boshqaring",
     "profile": "Profil",
     "password": "Parol",
     "appearance": "Ko'rinish",
@@ -17,7 +17,7 @@
       "kiril": "Ўзбекча"
     },
     "saveChanges": "O'zgarishlarni saqlash",
-    "saving": "Saqlovchi...",
+    "saving": "Saqlanmoqda...",
     "saved": "Sozlamalar saqlandi",
     "name": "To'liq ism",
     "email": "Email",

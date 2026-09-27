@@ -1,30 +1,30 @@
 {
   "interviews": {
-    "title": "Suhtatlar",
-    "description": "Suhtatlarni rejalashtirish va boshqarish",
-    "createInterview": "Suhtatni rejalashtirish",
-    "noInterviews": "Hala suhtatlar yo'q",
-    "noInterviewsDescription": "Kandidatlar uchun suhtatlarni rejalashtiring.",
-    "noMatchingInterviews": "Mos keluvchi suhtatlar yo'q",
-    "candidate": "Kandidat",
+    "title": "Suhbatlar",
+    "description": "Suhbatlarni rejalashtirish va boshqarish",
+    "createInterview": "Suhbat rejalashtirish",
+    "noInterviews": "Hali suhbatlar yo'q",
+    "noInterviewsDescription": "Nomzodlar uchun suhbatlarni rejalashtiring.",
+    "noMatchingInterviews": "Mos keluvchi suhbat topilmadi",
+    "candidate": "Nomzod",
     "job": "Ish",
-    "interviewer": "Intervyu beruvchi",
-    "scheduled": "Sheduallya",
+    "interviewer": "Suhbat o'tkazuvchi",
+    "scheduled": "Rejalashtirilgan vaqt",
     "duration": "Davomiyligi",
     "status": {
       "in_process": "Jarayonda",
-      "completed": "Tasdiqlangan",
-      "not_completed": "Tasdiqlanmagan"
+      "completed": "Yakunlangan",
+      "not_completed": "Yakunlanmagan"
     },
-    "actions": "Harakatlar",
+    "actions": "Amallar",
     "view": "Ko'rish",
     "schedule": "Rejalashtirish",
-    "loading": "Suhtatlar yuklanmoqda...",
-    "error": "Suhtatlar yuklanmadi",
+    "loading": "Suhbatlar yuklanmoqda...",
+    "error": "Suhbatlarni yuklab bo'lmadi",
     "filters": {
-      "all": "Barcha suhtatlar",
-      "upcoming": "Yaqinlashtirilgan",
-      "completed": "Tasdiqlangan",
+      "all": "Barcha suhbatlar",
+      "upcoming": "Kutilayotgan",
+      "completed": "Yakunlangan",
       "cancelled": "Bekor qilingan"
     }
   },
@@ -38,5 +38,5 @@
     "cancelled": "Bekor qilingan",
     "cancelledHint": "o'tkazilmagan"
   },
-  "searchPlaceholder": "Nomzod, vakansiya yoki suhbat olib boruvchi bo'yicha qidirish…"
+  "searchPlaceholder": "Nomzod, vakansiya yoki suhbat o'tkazuvchi bo'yicha qidirish…"
 }

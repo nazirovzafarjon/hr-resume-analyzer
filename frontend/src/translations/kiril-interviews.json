@@ -1,35 +1,35 @@
 {
   "interviews": {
-    "title": "Сухбаттар",
-    "description": "Сухбаттарды пландап көзөмөлдөө",
-    "createInterview": "Сухбат пландашуу",
-    "noInterviews": "Азыры сухбат жок",
-    "noInterviewsDescription": "Кандидаттуулар учун сухбаттарды пландаган да мүмкүн.",
-    "noMatchingInterviews": "Моосутурулган сухбат жок",
-    "candidate": "Кандидат",
+    "title": "Суҳбатлар",
+    "description": "Суҳбатларни режалаштириш ва бошқариш",
+    "createInterview": "Суҳбат режалаштириш",
+    "noInterviews": "Ҳали суҳбатлар йўқ",
+    "noInterviewsDescription": "Номзодлар учун суҳбатларни режалаштиринг.",
+    "noMatchingInterviews": "Мос келувчи суҳбат топилмади",
+    "candidate": "Номзод",
     "job": "Иш",
-    "interviewer": "Сухбатчы",
-    "scheduled": "Агымга которулган",
-    "duration": "Узактыгы",
+    "interviewer": "Суҳбат ўтказувчи",
+    "scheduled": "Режалаштирилган вақт",
+    "duration": "Давомийлиги",
     "status": {
-      "in_process": "Жайылганда",
-      "completed": "Бийиктүүлүндө",
-      "not_completed": "Бийиктүүлүнбөгөн"
+      "in_process": "Жараёнда",
+      "completed": "Якунланган",
+      "not_completed": "Якунланмаган"
     },
-    "actions": "Ишилдер",
-    "view": "Көрүү",
-    "schedule": "Пландашуу",
-    "loading": "Сухбаттар жүктөлүүдэ...",
-    "error": "Сухбаттар жүктөлмөдү",
+    "actions": "Амаллар",
+    "view": "Кўриш",
+    "schedule": "Режалаштириш",
+    "loading": "Суҳбатлар юкланмоқда...",
+    "error": "Суҳбатларни юклаб бўлмади",
     "filters": {
-      "all": "Бардык сухбаттар",
-      "upcoming": "Келечектеги",
-      "completed": "Бийиктүүлөнкөлөр",
-      "cancelled": "Бекемдөөлөр"
+      "all": "Барча суҳбатлар",
+      "upcoming": "Кутилаётган",
+      "completed": "Якунланган",
+      "cancelled": "Бекор қилинган"
     }
   },
   "stats": {
-    "total": "Суҳатлар",
+    "total": "Суҳбатлар",
     "totalHint": "жами",
     "upcoming": "Кутилаётган",
     "upcomingHint": "режалаштирилган",
@@ -38,5 +38,5 @@
     "cancelled": "Бекор қилинган",
     "cancelledHint": "ўтказилмаган"
   },
-  "searchPlaceholder": "Номзод, вакансия ёки суҳат олиб борувчи бўйича қидириш…"
+  "searchPlaceholder": "Номзод, вакансия ёки суҳбат ўтказувчи бўйича қидириш…"
 }

@@ -7,7 +7,8 @@
     "skipToContent": "Перейти к содержимому",
     "accountMenu": "Аккаунт",
     "profile": "Профиль",
-    "fallbackName": "HR-специалист"
+    "fallbackName": "HR-специалист",
+    "selectLanguage": "Выбрать язык"
   },
   "appearance": {
     "title": "Тема",
@@ -74,7 +75,8 @@
     "analysisFailed": "ИИ-анализ не выполнен",
     "statusUpdated": "Статус обновлён",
     "loginFailed": "Ошибка входа",
-    "saveFailed": "Не удалось сохранить изменения"
+    "saveFailed": "Не удалось сохранить изменения",
+    "dismiss": "Скрыть уведомление"
   },
   "statusMeta": {
     "application": {

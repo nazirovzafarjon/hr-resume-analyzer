@@ -54,6 +54,35 @@ function interpolate(template: string, params?: Record<string, string | number>)
 
 type TranslationModules = Record<Language, Record<string, unknown>>;
 
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Deep-merges `source` into `target` (mutates and returns `target`).
+ *
+ * Several namespace files legitimately share root-level keys (e.g. both
+ * `-dashboard.json` and `-interviews.json` export a `stats` object). A
+ * shallow `merged[key] = value` would let the later file silently replace
+ * the earlier one's whole object instead of combining them, which used to
+ * make DashboardPage's `t("stats.*")` calls resolve against interviews'
+ * stats and leak raw keys. Deep-merging keeps both.
+ */
+function deepMerge(
+  target: Record<string, unknown>,
+  source: Record<string, unknown>,
+): Record<string, unknown> {
+  for (const key of Object.keys(source)) {
+    const existing = target[key];
+    const incoming = source[key];
+    target[key] =
+      isPlainObject(existing) && isPlainObject(incoming)
+        ? deepMerge({ ...existing }, incoming)
+        : incoming;
+  }
+  return target;
+}
+
 async function loadAllTranslations(): Promise<TranslationModules> {
   try {
     const files = [
@@ -75,13 +104,12 @@ async function loadAllTranslations(): Promise<TranslationModules> {
         files.map(suffix => import(`../translations/${lang}${suffix}.json`).then(m => m.default))
       );
 
-      // Merge all modules into one object
+      // Deep-merge all modules into one object (see deepMerge doc comment —
+      // shared root keys like `stats` must combine, not overwrite).
       const merged: Record<string, unknown> = {};
       for (const mod of modules) {
         if (mod) {
-          for (const key of Object.keys(mod)) {
-            merged[key] = mod[key];
-          }
+          deepMerge(merged, mod);
         }
       }
       return merged;

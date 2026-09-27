@@ -1,15 +1,15 @@
 {
   "app": {
     "name": "Resume Analyzer",
-    "tagline": "HR найм платформаси"
+    "tagline": "HR Ишга Қабул Қилиш Платформаси"
   },
   "nav": {
-    "dashboard": "Панель башлаш",
+    "dashboard": "Бошқарув панели",
     "jobs": "Ишлар",
-    "applications": "Аризalar",
-    "candidates": "Кандидатлар",
-    "interviews": "Сухбатлар",
-    "analytics": "Тахлил",
-    "settings": "Тецерүүлөр"
+    "applications": "Аризалар",
+    "candidates": "Номзодлар",
+    "interviews": "Суҳбатлар",
+    "analytics": "Таҳлил",
+    "settings": "Созламалар"
   }
 }

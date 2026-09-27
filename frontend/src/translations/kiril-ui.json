@@ -1,25 +1,26 @@
 {
   "shell": {
-    "toggleNavigation": "Менюни көрсәтүш/йәшерү",
+    "toggleNavigation": "Менюни яшириш/кўрсатиш",
     "closeNavigation": "Менюни ёпиш",
-    "collapseSidebar": "Панелни торайтириш",
-    "expandSidebar": "Панелни кенгайтириш",
+    "collapseSidebar": "Панени торайтириш",
+    "expandSidebar": "Панени кенгайтириш",
     "skipToContent": "Таркибга ўтиш",
     "accountMenu": "Ҳисоб",
     "profile": "Профил",
-    "fallbackName": "HR ходими"
+    "fallbackName": "HR ходими",
+    "selectLanguage": "Тилни танлаш"
   },
   "appearance": {
     "title": "Мавзу",
     "light": "Ёруғ",
-    "dark": "Тунги",
+    "dark": "Қоронғу",
     "system": "Тизим бўйича"
   },
   "palette": {
     "title": "Қидирув ва буйруқлар",
     "placeholder": "Қидириш ёки ўтиш…",
     "noResults": "Мос натижа топилмади",
-    "groupNavigation": "Навигация",
+    "groupNavigation": "Навигатсия",
     "groupAppearance": "Кўриниш",
     "groupLanguage": "Тил",
     "hintNavigate": "ҳаракат учун",
@@ -27,7 +28,7 @@
   },
   "labels": {
     "actions": "Амаллар",
-    "all": "Ҳаммаси",
+    "all": "Барчаси",
     "close": "Ёпиш",
     "refresh": "Янгилаш",
     "optional": "Ихтиёрий",
@@ -47,9 +48,9 @@
     "applicationsTitle": "Ҳозирча аризалар йўқ",
     "applicationsMessage": "Оммавий ҳавола орқали юборилган аризалар шу ерда пайдо бўлади.",
     "candidatesTitle": "Ҳозирча номзодлар йўқ",
-    "candidatesMessage": "Номзодлар аризалар қабул қилинганидан кейин пайдо бўлади.",
-    "interviewsTitle": "Суҳат режалаштирилмаган",
-    "interviewsMessage": "Танланган номзодлар учун суҳатни профилидан режалаштиринг.",
+    "candidatesMessage": "Номзодлар аризалар қабул қилингандан кейин пайдо бўлади.",
+    "interviewsTitle": "Суҳбат режалаштирилмаган",
+    "interviewsMessage": "Танланган номзодлар учун суҳбатни профилидан режалаштиринг.",
     "genericTitle": "Ҳозирча бўш",
     "genericMessage": "Маълумот пайдо бўлиши билан шу ерда кўринади."
   },
@@ -69,21 +70,22 @@
     "profileSaved": "Профил янгиланди",
     "passwordChanged": "Парол ўзгартирилди",
     "settingsSaved": "Созламалар сақланди",
-    "analysisStarted": "СИМ таҳлили бошланди",
-    "analysisComplete": "СИМ таҳлили тугади",
-    "analysisFailed": "СИМ таҳлили бажарилмади",
+    "analysisStarted": "AI таҳлили бошланди",
+    "analysisComplete": "AI таҳлили тугади",
+    "analysisFailed": "AI таҳлили бажарилмади",
     "statusUpdated": "Ҳолат янгиланди",
     "loginFailed": "Кириш амалга ошмади",
-    "saveFailed": "Ўзгаришларни сақлаб бўлмади"
+    "saveFailed": "Ўзгаришларни сақлаб бўлмади",
+    "dismiss": "Билдиришномани ёпиш"
   },
   "statusMeta": {
     "application": {
       "new": "Янги",
       "reviewing": "Кўрилмоқда",
       "shortlisted": "Танланган",
-      "interview": "Суҳат",
+      "interview": "Суҳбат",
       "rejected": "Рад этилган",
-      "withdrawn": "Қайтарилган"
+      "withdrawn": "Қайтариб олинган"
     },
     "analysis": {
       "new": "Таҳлил қилинмаган",
@@ -118,6 +120,6 @@
     "jobDetails": "Вакансия тафсилотлари",
     "applicationDetails": "Ариза тафсилотлари",
     "candidateDetails": "Номзод тафсилотлари",
-    "interviewDetails": "Суҳат тафсилотлари"
+    "interviewDetails": "Суҳбат тафсилотлари"
   }
 }

@@ -1,21 +1,24 @@
 {
   "analytics": {
     "title": "Tahlil",
-    "description": "Narxlovchi namunaOverview",
-    "openJobs": "Ochilgan ishlar",
-    "candidates": "Kandidatlar",
+    "description": "Konveyer samaradorligiga bir qarash",
+    "openJobs": "Ochiq ishlar",
+    "candidates": "Nomzodlar",
     "avgScore": "O'rtacha AI balli",
-    "strongHires": "Kuchli namuna",
-    "hiringFunnel": "Narxlovchi funnels",
-    "scoreDistribution": "AI balli taqsimoti",
+    "strongHires": "Kuchli nomzodlar",
+    "hiringFunnel": "Yollash voronkasi",
+    "scoreDistribution": "AI ball taqsimoti",
     "weeklyVolume": "Haftalik hajm",
     "applied": "Ariza berilgan",
     "screening": "Ko'rib chiqilmoqda",
-    "interview": "Suhtat",
-    "shortlisted": "Qisqartirilgan",
-    "hired": "Nanza",
+    "interview": "Suhbat",
+    "shortlisted": "Tanlangan",
+    "hired": "Yollangan",
     "rejected": "Rad etilgan",
     "loading": "Tahlil yuklanmoqda...",
-    "error": "Tahlil yuklanmadi"
+    "error": "Tahlilni yuklab bo'lmadi",
+    "hiringFunnelSubtitle": "Nomzodlar bosqichlari bo'yicha konversiya.",
+    "scoreDistributionSubtitle": "Nomzod rezyumelari lavozim talablariga qanchalik mos kelgani.",
+    "weeklyVolumeSubtitle": "Haftalar bo'yicha qabul qilingan arizalar."
   }
 }

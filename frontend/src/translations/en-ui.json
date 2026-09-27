@@ -7,7 +7,8 @@
     "skipToContent": "Skip to content",
     "accountMenu": "Account",
     "profile": "Profile",
-    "fallbackName": "HR user"
+    "fallbackName": "HR user",
+    "selectLanguage": "Select language"
   },
   "appearance": {
     "title": "Theme",
@@ -74,7 +75,8 @@
     "analysisFailed": "AI analysis failed",
     "statusUpdated": "Status updated",
     "loginFailed": "Sign-in failed",
-    "saveFailed": "Couldn't save your changes"
+    "saveFailed": "Couldn't save your changes",
+    "dismiss": "Dismiss notification"
   },
   "statusMeta": {
     "application": {

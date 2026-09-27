@@ -19,7 +19,8 @@
     "retry": "Try Again",
     "noData": "No data available",
     "copied": "Copied!",
-    "copy": "Copy"
+    "copy": "Copy",
+    "filters": "Clear filters"
   },
   "notifications": {
     "success": "Success",

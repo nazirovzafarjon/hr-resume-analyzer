@@ -16,6 +16,9 @@
     "hired": "Hired",
     "rejected": "Rejected",
     "loading": "Loading analytics...",
-    "error": "Failed to load analytics"
+    "error": "Failed to load analytics",
+    "hiringFunnelSubtitle": "Conversion through candidate pipeline stages.",
+    "scoreDistributionSubtitle": "How candidate resumes scored against job criteria.",
+    "weeklyVolumeSubtitle": "Applications received per week."
   }
 }
