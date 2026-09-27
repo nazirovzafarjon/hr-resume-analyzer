@@ -1,5 +1,6 @@
 import { AlertTriangle, CheckCircle2, Info, X, XCircle } from "lucide-react";
 import { useToast, type ToastTone } from "../../contexts/ToastContext";
+import { useLanguage } from "../../contexts/LanguageContext";
 
 const TONE_ICONS: Record<ToastTone, typeof Info> = {
   success: CheckCircle2,
@@ -16,6 +17,7 @@ const TONE_ICONS: Record<ToastTone, typeof Info> = {
  */
 export default function Toaster() {
   const { toasts, dismiss } = useToast();
+  const { t } = useLanguage();
 
   if (toasts.length === 0) return null;
 
@@ -42,7 +44,7 @@ export default function Toaster() {
               type="button"
               className="toast-close"
               onClick={() => dismiss(toast.id)}
-              aria-label="Dismiss notification"
+              aria-label={t("toast.dismiss")}
             >
               <X size={14} aria-hidden="true" />
             </button>

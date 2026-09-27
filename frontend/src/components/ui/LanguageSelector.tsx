@@ -16,7 +16,7 @@ const LANGUAGE_CODES: Record<Language, string> = {
  * no reload — and the choice is persisted by the language provider.
  */
 export default function LanguageSelector({ compact = false }: { compact?: boolean }) {
-  const { language, setLanguage } = useLanguage();
+  const { language, setLanguage, t } = useLanguage();
 
   return (
     <Dropdown
@@ -25,8 +25,8 @@ export default function LanguageSelector({ compact = false }: { compact?: boolea
           type="button"
           className="language-selector-trigger"
           onClick={toggle}
-          aria-label="Select language"
-          title={`Language: ${LANGUAGE_LABELS[language]}`}
+          aria-label={t("shell.selectLanguage")}
+          title={`${t("palette.groupLanguage")}: ${LANGUAGE_LABELS[language]}`}
         >
           <Globe size={17} aria-hidden="true" />
           {!compact && <span>{LANGUAGE_LABELS[language]}</span>}
@@ -34,7 +34,7 @@ export default function LanguageSelector({ compact = false }: { compact?: boolea
         </button>
       )}
     >
-      <DropdownLabel>Language</DropdownLabel>
+      <DropdownLabel>{t("palette.groupLanguage")}</DropdownLabel>
       {LANGUAGES.map((code) => (
         <DropdownItem
           key={code}
