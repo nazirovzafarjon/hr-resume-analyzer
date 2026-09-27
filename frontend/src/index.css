@@ -164,6 +164,7 @@
 
   /* Score ring default so the conic-gradient degrades gracefully. */
   --score: 0deg;
+}
 /* ---------------------------------------------------------------------------
    3. Tokens — Dark theme (a designed hierarchy, not inverted black)
    ------------------------------------------------------------------------ */
@@ -458,6 +459,18 @@ hr {
   opacity: 0.55;
 }
 
+/* The label wraps the icon + text together as one flex row so a block-level
+   icon (SVGs are `display: block` by default) can never wrap onto its own
+   line above the text — icon and label always stay on one line. */
+.btn-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+  min-width: 0;
+}
+
+.btn-label svg { flex-shrink: 0; }
+
 /* Sizes */
 .btn--sm {
   height: 30px;
@@ -706,6 +719,49 @@ hr {
 }
 
 .search-field .field-input { padding-left: 34px; }
+.search-field--clearable .field-input { padding-right: 30px; }
+
+/* We render our own clear button, so hide the native one to avoid a
+   duplicate "x" affordance in WebKit/Blink browsers. */
+.search-field .field-input::-webkit-search-cancel-button { display: none; }
+
+.search-field-clear {
+  position: absolute;
+  right: var(--space-sm);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--color-text-subtle);
+  transition: background-color var(--transition-fast), color var(--transition-fast);
+}
+
+.search-field-clear:hover { background-color: var(--color-surface-sunken); color: var(--color-text); }
+
+/* Compact pagination bar used under long tables. */
+.pagination-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  padding: var(--space-lg) var(--space-xl);
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.pagination-status {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
 
 /* ---------------------------------------------------------------------------
    9. Inline alerts (page-level feedback banners)
@@ -797,6 +853,8 @@ hr {
   gap: var(--space-xs);
   font-variant-numeric: tabular-nums;
   font-weight: var(--font-semibold);
+  font-size: var(--text-base);
+}
 /* ---------------------------------------------------------------------------
    11. Cards & surfaces
    ------------------------------------------------------------------------ */
@@ -838,7 +896,9 @@ hr {
 .card-action {
   flex-shrink: 0;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
+  justify-content: flex-end;
   gap: var(--space-sm);
 }
 
@@ -902,10 +962,23 @@ hr {
 /* ---------------------------------------------------------------------------
    12. Tables
    ------------------------------------------------------------------------ */
+/*
+ * `overflow-x: auto` alone would compute `overflow-y` to `auto` too (per the
+ * CSS Overflow spec, a non-`visible` axis forces its `visible` sibling to
+ * `auto`), which silently turns .table-wrap into the nearest scrolling
+ * ancestor for any `position: sticky` header inside it - not the page. Since
+ * .table-wrap is never itself given a height, that sticky reference is inert
+ * (the header just sits in normal flow, never actually sticking).
+ *
+ * Instead we make .table-wrap a genuine, bounded scroll pane: its header
+ * sticks to `top: 0` of ITS OWN scrollport once the table's rows exceed
+ * max-height, independent of the page's own scroll and the app header above.
+ */
 .table-wrap {
   width: 100%;
-  overflow-x: auto;
-  overscroll-behavior-x: contain;
+  max-height: 65vh;
+  overflow: auto;
+  overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
 }
 
@@ -1002,8 +1075,6 @@ hr {
   border-radius: var(--radius-lg);
   overflow: hidden;
   background-color: var(--color-surface);
-}
-  font-size: var(--text-base);
 }
 
 .score-pill--high { color: var(--color-success-text); }
@@ -1654,6 +1725,8 @@ hr {
 
 .page-header-action {
   display: flex;
+  flex-wrap: wrap;
+  row-gap: var(--space-sm);
   gap: var(--space-sm);
   align-items: center;
   flex-shrink: 0;
