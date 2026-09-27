@@ -9,6 +9,7 @@ import Modal from "../ui/Modal";
 import Button from "../ui/Button";
 import type { ApplicationFieldDef, ApplicationFieldType } from "../../types/applicationForm";
 import { FIELD_TYPE_ORDER, FIELD_TYPE_REGISTRY, isOptionFieldType } from "../../utils/fieldTypes";
+import { useLanguage } from "../../contexts/LanguageContext";
 import OptionsEditor from "./OptionsEditor";
 
 type ApplicationFieldEditorProps = {
@@ -23,6 +24,7 @@ export default function ApplicationFieldEditor({
   onClose,
   onAdd,
 }: ApplicationFieldEditorProps) {
+  const { t } = useLanguage();
   const [label, setLabel] = useState("");
   const [type, setType] = useState<ApplicationFieldType>("text");
   const [required, setRequired] = useState(false);
@@ -46,11 +48,11 @@ export default function ApplicationFieldEditor({
 
   function handleAdd() {
     if (!label.trim()) {
-      setError("Enter a label for the question.");
+      setError(t("applicationForm.addFieldLabelRequired") || "Enter a label for the question.");
       return;
     }
     if (isOptionFieldType(type) && options.map((o) => o.trim()).filter(Boolean).length === 0) {
-      setError("Add at least one option for this field type.");
+      setError(t("applicationForm.addFieldOptionRequired") || "Add at least one option for this field type.");
       return;
     }
     onAdd({
@@ -70,7 +72,7 @@ export default function ApplicationFieldEditor({
   return (
     <Modal
       open={open}
-      title="Add field"
+      title={t("applicationForm.addFieldModalTitle") || "Add field"}
       onClose={() => {
         reset();
         onClose();
@@ -84,15 +86,15 @@ export default function ApplicationFieldEditor({
               onClose();
             }}
           >
-            Cancel
+            {t("jobs.cancel") || "Cancel"}
           </Button>
-          <Button onClick={handleAdd}>+ Add field</Button>
+          <Button onClick={handleAdd}>{t("applicationForm.addField") || "+ Add field"}</Button>
         </div>
       }
     >
       <div className="builder-edit-grid">
         <label>
-          Label
+          {t("applicationForm.label") || "Label"}
           <input
             className="field-input"
             value={label}
@@ -100,12 +102,12 @@ export default function ApplicationFieldEditor({
               setLabel(e.target.value);
               if (error) setError(null);
             }}
-            placeholder="e.g. Portfolio URL"
+            placeholder={t("applicationForm.addFieldLabelPlaceholder") || "e.g. Portfolio URL"}
             autoFocus
           />
         </label>
         <label>
-          Type
+          {t("applicationForm.type") || "Type"}
           <select
             className="field-select"
             value={type}
@@ -120,12 +122,12 @@ export default function ApplicationFieldEditor({
         </label>
         <p className="field-hint">{FIELD_TYPE_REGISTRY[type].help}</p>
         <label>
-          Description / help text
+          {t("applicationForm.descriptionHelp") || "Description / help text"}
           <input
             className="field-input"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder="Shown under the question (optional)"
+            placeholder={t("applicationForm.descriptionHelpPlaceholder") || "Shown under the question (optional)"}
           />
         </label>
         <label className="builder-required-toggle">
@@ -134,7 +136,7 @@ export default function ApplicationFieldEditor({
             checked={required}
             onChange={(e) => setRequired(e.target.checked)}
           />
-          <span>Required — candidates cannot submit without answering.</span>
+          <span>{t("applicationForm.requiredToggle") || "Required — candidates cannot submit without answering."}</span>
         </label>
         {isOptionFieldType(type) && (
           <OptionsEditor options={options} onChange={setOptions} />

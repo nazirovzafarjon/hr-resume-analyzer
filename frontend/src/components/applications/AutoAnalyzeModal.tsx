@@ -4,6 +4,7 @@ import Button from "../ui/Button";
 import Select from "../forms/Select";
 import TextInput from "../forms/TextInput";
 import Card from "../ui/Card";
+import { useLanguage } from "../../contexts/LanguageContext";
 import type { AutoAnalyzeStartRequest, AutoAnalyzeProgressResponse } from "../../services/workersService";
 import { getAutoAnalyzeAvailable, startAutoAnalyze, getAutoAnalyzeProgress, cancelAutoAnalyze } from "../../services/workersService";
 
@@ -15,12 +16,8 @@ type Props = {
   jobId?: number;
 };
 
-const ORDER_OPTIONS = [
-  { value: "oldest", label: "Oldest first" },
-  { value: "newest", label: "Newest first" },
-];
-
 export default function AutoAnalyzeModal({ open, onClose, jobId }: Props) {
+  const { t } = useLanguage();
   const [state, setState] = useState<ModalState>("setup");
   const [availableCount, setAvailableCount] = useState<number | null>(null);
   const [order, setOrder] = useState<"oldest" | "newest">("oldest");
@@ -30,6 +27,11 @@ export default function AutoAnalyzeModal({ open, onClose, jobId }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [currentApplication, setCurrentApplication] = useState<string | null>(null);
   const pollRef = useRef<number | null>(null);
+
+  const orderOptions = [
+    { value: "oldest", label: t("applications.autoAnalyzeModal.orderOldest") },
+    { value: "newest", label: t("applications.autoAnalyzeModal.orderNewest") },
+  ];
 
   useEffect(() => {
     if (open) {
@@ -44,11 +46,11 @@ export default function AutoAnalyzeModal({ open, onClose, jobId }: Props) {
       let cancelled = false;
       getAutoAnalyzeAvailable(jobId)
         .then((res) => { if (!cancelled) setAvailableCount(res.count); })
-        .catch(() => { if (!cancelled) setError("Failed to load available count"); });
+        .catch(() => { if (!cancelled) setError(t("applications.autoAnalyzeModal.loadCountFailed")); });
 
       return () => { cancelled = true; };
     }
-  }, [open, jobId]);
+  }, [open, jobId, t]);
 
   useEffect(() => {
     return () => {
@@ -66,7 +68,9 @@ export default function AutoAnalyzeModal({ open, onClose, jobId }: Props) {
         const p = await getAutoAnalyzeProgress(id);
         setProgress(p);
         if (p.current_application_id) {
-          setCurrentApplication(`Application #${p.current_application_id}`);
+          setCurrentApplication(
+            t("applications.autoAnalyzeModal.applicationNumber", { id: p.current_application_id }),
+          );
         }
         if (p.status === "completed" || p.status === "cancelled" || p.status === "failed") {
           if (pollRef.current) {
@@ -79,16 +83,16 @@ export default function AutoAnalyzeModal({ open, onClose, jobId }: Props) {
         }
       } catch { /* ignore */ }
     }, 2000);
-  }, []);
+  }, [t]);
 
   const handleStart = async () => {
     const countNum = parseInt(count, 10);
     if (isNaN(countNum) || countNum < 1) {
-      setError("Enter at least 1 resume.");
+      setError(t("applications.autoAnalyzeModal.minResumeError"));
       return;
     }
     if (countNum > 1000) {
-      setError("Maximum is 1,000 resumes per batch.");
+      setError(t("applications.autoAnalyzeModal.maxResumeError"));
       return;
     }
     if (availableCount === null) return;
@@ -118,7 +122,7 @@ export default function AutoAnalyzeModal({ open, onClose, jobId }: Props) {
       setState("running");
       startPolling(res.batch_id);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to start analysis");
+      setError(err instanceof Error ? err.message : t("applications.autoAnalyzeModal.startFailed"));
     }
   };
 
@@ -144,7 +148,7 @@ export default function AutoAnalyzeModal({ open, onClose, jobId }: Props) {
       setState("running");
       startPolling(res.batch_id);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to start analysis");
+      setError(err instanceof Error ? err.message : t("applications.autoAnalyzeModal.startFailed"));
       setState("setup");
     }
   };
@@ -190,12 +194,10 @@ export default function AutoAnalyzeModal({ open, onClose, jobId }: Props) {
   if (!open) return null;
 
   return (
-    <Modal open={open} title="Auto Analyze Applications" onClose={handleClose}>
+    <Modal open={open} title={t("applications.autoAnalyzeTitle")} onClose={handleClose}>
       {state === "setup" && (
         <div className="auto-analyze-setup">
-          <p className="auto-analyze-description">
-            Analyze new resumes automatically against their job requirements.
-          </p>
+          <p className="auto-analyze-description">{t("applications.autoAnalyzeDescription")}</p>
           {error && <div className="auto-analyze-error" role="alert">{error}</div>}
           <div className="auto-analyze-stat">
             <Card>
@@ -203,21 +205,23 @@ export default function AutoAnalyzeModal({ open, onClose, jobId }: Props) {
                 <span className="auto-analyze-count-value">
                   {availableCount !== null ? availableCount.toLocaleString() : "—"}
                 </span>
-                <span className="auto-analyze-count-label">New applications available</span>
+                <span className="auto-analyze-count-label">
+                  {t("applications.autoAnalyzeModal.newApplicationsAvailable")}
+                </span>
               </div>
             </Card>
           </div>
           <div className="auto-analyze-field">
             <Select
-              label="Processing order"
+              label={t("applications.autoAnalyzeModal.processingOrder")}
               value={order}
               onChange={(v) => setOrder(v as "oldest" | "newest")}
-              options={ORDER_OPTIONS}
+              options={orderOptions}
             />
           </div>
           <div className="auto-analyze-field">
             <TextInput
-              label="Number of resumes"
+              label={t("applications.autoAnalyzeModal.numberOfResumes")}
               type="number"
               value={count}
               onChange={setCount}
@@ -229,30 +233,33 @@ export default function AutoAnalyzeModal({ open, onClose, jobId }: Props) {
             <div className="auto-analyze-summary">
               {countNum > availableCount ? (
                 <p className="auto-analyze-warning">
-                  Only {availableCount.toLocaleString()} new applications are available.
-                  We&apos;ll analyze all {availableCount.toLocaleString()}.
+                  {t("applications.autoAnalyzeModal.onlyAvailable", { available: availableCount.toLocaleString() })}
                 </p>
               ) : (
                 <p className="auto-analyze-info">
-                  {countNum.toLocaleString()} of {availableCount.toLocaleString()} available
-                  resumes will be analyzed.
+                  {t("applications.autoAnalyzeModal.willBeAnalyzed", {
+                    count: countNum.toLocaleString(),
+                    available: availableCount.toLocaleString(),
+                  })}
                 </p>
               )}
             </div>
           )}
-          {count === "0" && <p className="auto-analyze-error">Enter at least 1 resume.</p>}
+          {count === "0" && (
+            <p className="auto-analyze-error">{t("applications.autoAnalyzeModal.minResumeError")}</p>
+          )}
           {count && !isNaN(countNum) && countNum > 1000 && (
-            <p className="auto-analyze-error">Maximum is 1,000 resumes per batch.</p>
+            <p className="auto-analyze-error">{t("applications.autoAnalyzeModal.maxResumeError")}</p>
           )}
           <div className="auto-analyze-actions">
-            <Button variant="secondary" onClick={handleClose}>Cancel</Button>
+            <Button variant="secondary" onClick={handleClose}>{t("common.cancel")}</Button>
             <Button
               variant="primary"
               onClick={handleStart}
               disabled={startDisabled}
               loading={availableCount === null}
             >
-              Start Analysis
+              {t("applications.autoAnalyzeModal.startAnalysis")}
             </Button>
           </div>
         </div>
@@ -260,39 +267,57 @@ export default function AutoAnalyzeModal({ open, onClose, jobId }: Props) {
 
       {state === "confirming" && availableCount !== null && (
         <div className="auto-analyze-confirm">
-          <h3 className="auto-analyze-confirm-title">Ready to analyze</h3>
+          <h3 className="auto-analyze-confirm-title">{t("applications.autoAnalyzeModal.readyToAnalyze")}</h3>
           <div className="auto-analyze-confirm-stats">
-            <p><strong>{availableCount.toLocaleString()}</strong> new applications</p>
-            <p>Order: <strong>{order === "oldest" ? "Oldest first" : "Newest first"}</strong></p>
+            <p>
+              <strong>{availableCount.toLocaleString()}</strong>{" "}
+              {t("applications.autoAnalyzeModal.newApplicationsLabel")}
+            </p>
+            <p>
+              {t("applications.autoAnalyzeModal.orderLabel")}{" "}
+              <strong>
+                {order === "oldest"
+                  ? t("applications.autoAnalyzeModal.orderOldest")
+                  : t("applications.autoAnalyzeModal.orderNewest")}
+              </strong>
+            </p>
           </div>
-          <p className="auto-analyze-confirm-note">
-            The resumes will be analyzed one by one against their job requirements.
-            You can continue working while analysis runs.
-          </p>
+          <p className="auto-analyze-confirm-note">{t("applications.autoAnalyzeModal.confirmNote")}</p>
           <div className="auto-analyze-actions">
-            <Button variant="secondary" onClick={() => setState("setup")}>Cancel</Button>
-            <Button variant="primary" onClick={handleConfirm}>Start Analysis</Button>
+            <Button variant="secondary" onClick={() => setState("setup")}>{t("common.cancel")}</Button>
+            <Button variant="primary" onClick={handleConfirm}>
+              {t("applications.autoAnalyzeModal.startAnalysis")}
+            </Button>
           </div>
         </div>
       )}
 
       {state === "running" && progress && (
         <div className="auto-analyze-progress">
-          <h3 className="auto-analyze-progress-title">AI analysis in progress</h3>
+          <h3 className="auto-analyze-progress-title">{t("applications.autoAnalyzeModal.inProgressTitle")}</h3>
           {progressBar(percentage)}
           <div className="auto-analyze-progress-stats">
-            <p><strong>{progress.processed}</strong> of {progress.total} analyzed</p>
+            <p>
+              <strong>{progress.processed}</strong>{" "}
+              {t("applications.autoAnalyzeModal.analyzedOfTotal", { total: progress.total })}
+            </p>
             <div className="auto-analyze-progress-results">
-              <span>✓ {progress.successful} successful</span>
-              {progress.failed > 0 && <span>⚠ {progress.failed} failed</span>}
+              <span>✓ {progress.successful} {t("applications.autoAnalyzeModal.successful")}</span>
+              {progress.failed > 0 && (
+                <span>⚠ {progress.failed} {t("applications.autoAnalyzeModal.failed")}</span>
+              )}
             </div>
           </div>
           {currentApplication && (
-            <p className="auto-analyze-current">Currently analyzing: {currentApplication}</p>
+            <p className="auto-analyze-current">
+              {t("applications.autoAnalyzeModal.currentlyAnalyzing", { name: currentApplication })}
+            </p>
           )}
           <div className="auto-analyze-actions">
-            <Button variant="secondary" onClick={handleCancel}>Cancel</Button>
-            <Button variant="ghost" onClick={handleClose}>View Applications</Button>
+            <Button variant="secondary" onClick={handleCancel}>{t("common.cancel")}</Button>
+            <Button variant="ghost" onClick={handleClose}>
+              {t("applications.autoAnalyzeModal.viewApplications")}
+            </Button>
           </div>
         </div>
       )}
@@ -301,44 +326,46 @@ export default function AutoAnalyzeModal({ open, onClose, jobId }: Props) {
         <div className="auto-analyze-completed">
           {progress.failed === 0 ? (
             <>
-              <h3 className="auto-analyze-success-title">Analysis complete 🎉</h3>
+              <h3 className="auto-analyze-success-title">
+                {t("applications.autoAnalyzeModal.successTitle")}
+              </h3>
               <p className="auto-analyze-success-message">
-                {progress.total.toLocaleString()} resumes have been analyzed successfully.
+                {t("applications.autoAnalyzeModal.successMessage", { count: progress.total.toLocaleString() })}
               </p>
             </>
           ) : (
             <>
               <h3 className="auto-analyze-success-title">
-                Analysis completed with {progress.failed} error{progress.failed !== 1 ? "s" : ""}
+                {t("applications.autoAnalyzeModal.completedWithErrors", { count: progress.failed })}
               </h3>
               <p className="auto-analyze-success-message">
-                {progress.successful.toLocaleString()} resumes analyzed successfully.
-                {progress.failed > 0 && (
-                  <> {progress.failed.toLocaleString()} resumes could not be analyzed.</>
-                )}
+                {t("applications.autoAnalyzeModal.partialSuccessMessage", {
+                  successful: progress.successful.toLocaleString(),
+                  failed: progress.failed.toLocaleString(),
+                })}
               </p>
             </>
           )}
           <div className="auto-analyze-completed-stats">
             <div className="auto-analyze-stat-item">
               <span className="auto-analyze-stat-value">{progress.total}</span>
-              <span className="auto-analyze-stat-label">Processed</span>
+              <span className="auto-analyze-stat-label">{t("applications.autoAnalyzeModal.processed")}</span>
             </div>
             <div className="auto-analyze-stat-item">
               <span className="auto-analyze-stat-value success">{progress.successful}</span>
-              <span className="auto-analyze-stat-label">Successful</span>
+              <span className="auto-analyze-stat-label">{t("applications.autoAnalyzeModal.successful")}</span>
             </div>
             {progress.failed > 0 && (
               <div className="auto-analyze-stat-item">
                 <span className="auto-analyze-stat-value error">{progress.failed}</span>
-                <span className="auto-analyze-stat-label">Failed</span>
+                <span className="auto-analyze-stat-label">{t("applications.autoAnalyzeModal.failed")}</span>
               </div>
             )}
           </div>
           <div className="auto-analyze-actions">
-            <Button variant="secondary" onClick={handleClose}>Close</Button>
+            <Button variant="secondary" onClick={handleClose}>{t("labels.close")}</Button>
             <Button variant="primary" onClick={() => window.location.href = "/applications"}>
-              View Applications
+              {t("applications.autoAnalyzeModal.viewApplications")}
             </Button>
           </div>
         </div>

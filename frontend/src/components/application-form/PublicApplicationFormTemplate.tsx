@@ -14,6 +14,7 @@
 
 import ApplicationField from "./ApplicationField";
 import Button from "../ui/Button";
+import { useLanguage } from "../../contexts/LanguageContext";
 import { sortedFields } from "../../utils/applicationFields";
 import type {
   ApplicationFieldDef,
@@ -51,6 +52,7 @@ export default function PublicApplicationFormTemplate({
   onFileChange,
   onSubmit,
 }: PublicApplicationFormTemplateProps) {
+  const { t } = useLanguage();
   const ordered = sortedFields(fields);
   const isPreview = mode === "preview";
 
@@ -65,7 +67,7 @@ export default function PublicApplicationFormTemplate({
         {job.company_name && (
           <p className="apply-company">{job.company_name}</p>
         )}
-        <h1 className="apply-title">{job.position || "Application"}</h1>
+        <h1 className="apply-title">{job.position || t("apply.defaultTitle") || "Application"}</h1>
         {job.description && <p className="apply-description">{job.description}</p>}
         {(job.required_skills || job.required_experience) && (
           <div className="apply-meta">
@@ -88,10 +90,14 @@ export default function PublicApplicationFormTemplate({
 
       <form className="apply-form" onSubmit={handleSubmit} noValidate>
         <h2 className="apply-form-title">
-          {isPreview ? "Application (preview)" : "Application"}
+          {isPreview
+            ? t("apply.applicationPreview") || "Application (preview)"
+            : t("apply.formHeading") || "Application"}
         </h2>
         <p className="apply-form-subtitle">
-          Fields marked with <span className="apply-required">*</span> are required.
+          {t("apply.requiredFieldsPrefix") || "Fields marked with"}{" "}
+          <span className="apply-required">*</span>{" "}
+          {t("apply.requiredFieldsSuffix") || "are required."}
         </p>
 
         <div className="apply-fields">
@@ -111,25 +117,25 @@ export default function PublicApplicationFormTemplate({
 
         {formError && (
           <div className="apply-form-error" role="alert">
-            <strong>We couldn't submit your application.</strong>
+            <strong>{t("apply.submitErrorHeading") || "We couldn't submit your application."}</strong>
             <p>{formError}</p>
-            <p className="muted-note">Please check your information and try again.</p>
+            <p className="muted-note">{t("apply.submitErrorHint") || "Please check your information and try again."}</p>
           </div>
         )}
 
         <div className="apply-submit">
           {isPreview ? (
             <Button type="button" disabled>
-              Submit Application
+              {t("apply.submit") || "Submit Application"}
             </Button>
           ) : (
             <Button type="submit" loading={submitting} disabled={submitting}>
-              {submitting ? "Submitting…" : "Submit Application"}
+              {submitting ? t("apply.submitting") || "Submitting…" : t("apply.submit") || "Submit Application"}
             </Button>
           )}
           {isPreview && (
             <p className="muted-note">
-              Live preview — candidates will see exactly this form.
+              {t("applicationForm.previewNote") || "Live preview — candidates will see exactly this form."}
             </p>
           )}
         </div>

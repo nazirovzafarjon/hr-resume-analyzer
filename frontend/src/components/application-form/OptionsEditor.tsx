@@ -4,6 +4,7 @@
  */
 
 import { useState } from "react";
+import { useLanguage } from "../../contexts/LanguageContext";
 
 type OptionsEditorProps = {
   options: string[];
@@ -11,6 +12,7 @@ type OptionsEditorProps = {
 };
 
 export default function OptionsEditor({ options, onChange }: OptionsEditorProps) {
+  const { t } = useLanguage();
   const [draft, setDraft] = useState("");
 
   function addOption() {
@@ -42,9 +44,11 @@ export default function OptionsEditor({ options, onChange }: OptionsEditorProps)
 
   return (
     <div className="options-editor">
-      <p className="mini-heading">Options</p>
+      <p className="mini-heading">{t("applicationForm.options.label") || "Options"}</p>
       {options.length === 0 && (
-        <p className="muted-note">No options yet — add the choices candidates can pick.</p>
+        <p className="muted-note">
+          {t("applicationForm.options.empty") || "No options yet — add the choices candidates can pick."}
+        </p>
       )}
       <ul className="options-list">
         {options.map((option, index) => (
@@ -56,7 +60,10 @@ export default function OptionsEditor({ options, onChange }: OptionsEditorProps)
               className="field-input"
               value={option}
               onChange={(e) => updateOption(index, e.target.value)}
-              aria-label={`Option ${index + 1}`}
+              aria-label={
+                t("applicationForm.options.optionAriaLabel", { index: String(index + 1) }) ||
+                `Option ${index + 1}`
+              }
             />
             <div className="option-actions">
               <button
@@ -64,7 +71,10 @@ export default function OptionsEditor({ options, onChange }: OptionsEditorProps)
                 className="row-action"
                 onClick={() => moveOption(index, -1)}
                 disabled={index === 0}
-                aria-label={`Move option ${index + 1} up`}
+                aria-label={
+                  t("applicationForm.options.moveUp", { index: String(index + 1) }) ||
+                  `Move option ${index + 1} up`
+                }
               >
                 ↑
               </button>
@@ -73,7 +83,10 @@ export default function OptionsEditor({ options, onChange }: OptionsEditorProps)
                 className="row-action"
                 onClick={() => moveOption(index, 1)}
                 disabled={index === options.length - 1}
-                aria-label={`Move option ${index + 1} down`}
+                aria-label={
+                  t("applicationForm.options.moveDown", { index: String(index + 1) }) ||
+                  `Move option ${index + 1} down`
+                }
               >
                 ↓
               </button>
@@ -81,9 +94,12 @@ export default function OptionsEditor({ options, onChange }: OptionsEditorProps)
                 type="button"
                 className="row-action row-action--danger"
                 onClick={() => removeOption(index)}
-                aria-label={`Delete option ${index + 1}`}
+                aria-label={
+                  t("applicationForm.options.delete", { index: String(index + 1) }) ||
+                  `Delete option ${index + 1}`
+                }
               >
-                Delete
+                {t("jobs.delete") || "Delete"}
               </button>
             </div>
           </li>
@@ -93,7 +109,7 @@ export default function OptionsEditor({ options, onChange }: OptionsEditorProps)
         <input
           className="field-input"
           value={draft}
-          placeholder="New option…"
+          placeholder={t("applicationForm.options.newOptionPlaceholder") || "New option…"}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter") {
@@ -101,10 +117,10 @@ export default function OptionsEditor({ options, onChange }: OptionsEditorProps)
               addOption();
             }
           }}
-          aria-label="New option"
+          aria-label={t("applicationForm.options.newOptionPlaceholder") || "New option"}
         />
         <button type="button" className="row-action" onClick={addOption}>
-          + Add option
+          {t("applicationForm.options.addOption") || "+ Add option"}
         </button>
       </div>
     </div>

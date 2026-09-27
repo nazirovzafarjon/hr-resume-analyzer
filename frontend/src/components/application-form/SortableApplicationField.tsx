@@ -6,8 +6,11 @@
  */
 
 import { useState } from "react";
+import { GripVertical } from "lucide-react";
 import type { ApplicationFieldDef, ApplicationFieldType } from "../../types/applicationForm";
 import { FIELD_TYPE_ORDER, FIELD_TYPE_REGISTRY, isOptionFieldType, fieldTypeLabel } from "../../utils/fieldTypes";
+import { useLanguage } from "../../contexts/LanguageContext";
+import ConfirmDialog from "../ui/ConfirmDialog";
 import OptionsEditor from "./OptionsEditor";
 
 type SortableApplicationFieldProps = {
@@ -20,7 +23,8 @@ type SortableApplicationFieldProps = {
   onRemove: (id: string) => void;
   // Drag wiring owned by the builder list.
   isDragging: boolean;
-  isDropTarget: boolean;
+  /** "before" | "after" the drop indicator line should render, or null. */
+  dropPosition: "before" | "after" | null;
   onDragStart: () => void;
   onDragOverItem: () => void;
   onDropOn: () => void;
@@ -35,12 +39,13 @@ export default function SortableApplicationField({
   onChange,
   onRemove,
   isDragging,
-  isDropTarget,
+  dropPosition,
   onDragStart,
   onDragOverItem,
   onDropOn,
   onDragEnd,
 }: SortableApplicationFieldProps) {
+  const { t } = useLanguage();
   const [dragEnabled, setDragEnabled] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -48,7 +53,7 @@ export default function SortableApplicationField({
   const classes = [
     "builder-item",
     isDragging ? "is-dragging" : "",
-    isDropTarget ? "is-drop-target" : "",
+    dropPosition ? `is-drop-target is-drop-target--${dropPosition}` : "",
   ]
     .filter(Boolean)
     .join(" ");
@@ -82,14 +87,7 @@ export default function SortableApplicationField({
     }
   }
 
-  function remove() {
-    if (!confirmingDelete) {
-      setConfirmingDelete(true);
-      window.setTimeout(() => setConfirmingDelete(false), 3000);
-      return;
-    }
-    onRemove(field.id);
-  }
+  const untitled = t("applicationForm.untitledQuestion") || "Untitled question";
 
   return (
     <li
@@ -117,27 +115,33 @@ export default function SortableApplicationField({
         <button
           type="button"
           className="builder-handle"
-          aria-label={`Reorder field ${index + 1}: ${field.label || "untitled"}. Use arrow keys to move.`}
-          title="Drag to reorder (or use arrow keys)"
+          aria-label={
+            t("applicationForm.reorderAriaLabel", { index: String(index + 1), label: field.label || untitled }) ||
+            `Reorder field ${index + 1}: ${field.label || untitled}. Use arrow keys to move.`
+          }
+          title={t("applicationForm.reorderTitle") || "Drag to reorder (or use arrow keys)"}
           onPointerDown={() => setDragEnabled(true)}
           onKeyDown={handleKeyDown}
         >
-          <span aria-hidden="true">⋮⋮</span>
+          <GripVertical size={15} aria-hidden="true" />
         </button>
         <span className="builder-index" aria-hidden="true">
           {index + 1}
         </span>
         <div className="builder-summary">
-          <span className="builder-label">{field.label || "Untitled question"}</span>
+          <span className="builder-label">{field.label || untitled}</span>
           <div className="form-editor-meta">
             <span className="chip">{fieldTypeLabel(field.type)}</span>
             {field.required ? (
-              <span className="chip chip--danger">Required</span>
+              <span className="chip chip--danger">{t("labels.required") || "Required"}</span>
             ) : (
-              <span className="chip">Optional</span>
+              <span className="chip">{t("labels.optional") || "Optional"}</span>
             )}
             {field.options.length > 0 && (
-              <span className="muted-note">{field.options.length} options</span>
+              <span className="muted-note">
+                {t("applicationForm.optionsCount", { count: String(field.options.length) }) ||
+                  `${field.options.length} options`}
+              </span>
             )}
           </div>
         </div>
@@ -148,19 +152,18 @@ export default function SortableApplicationField({
             onClick={() => setExpanded((value) => !value)}
             aria-expanded={expanded}
           >
-            {expanded ? "Done" : "Edit"}
+            {expanded ? t("applicationForm.done") || "Done" : t("applicationForm.edit") || "Edit"}
           </button>
           <button
             type="button"
-            className={`row-action${confirmingDelete ? " row-action--danger" : ""}`}
-            onClick={remove}
+            className="row-action row-action--danger"
+            onClick={() => setConfirmingDelete(true)}
             aria-label={
-              confirmingDelete
-                ? "Click again to confirm deleting this field"
-                : `Delete field ${index + 1}`
+              t("applicationForm.deleteFieldAriaLabel", { index: String(index + 1) }) ||
+              `Delete field ${index + 1}`
             }
           >
-            {confirmingDelete ? "Confirm delete?" : "Delete"}
+            {t("jobs.delete") || "Delete"}
           </button>
         </div>
       </div>
@@ -169,7 +172,7 @@ export default function SortableApplicationField({
         <div className="builder-edit-grid">
           <div className="builder-edit-row">
             <label>
-              Label
+              {t("applicationForm.label") || "Label"}
               <input
                 className="field-input"
                 value={field.label}
@@ -178,7 +181,7 @@ export default function SortableApplicationField({
               />
             </label>
             <label>
-              Type
+              {t("applicationForm.type") || "Type"}
               <select
                 className="field-select"
                 value={field.type}
@@ -194,12 +197,12 @@ export default function SortableApplicationField({
           </div>
           <p className="field-hint">{FIELD_TYPE_REGISTRY[field.type].help}</p>
           <label>
-            Description / help text
+            {t("applicationForm.descriptionHelp") || "Description / help text"}
             <input
               className="field-input"
               value={field.description}
               onChange={(e) => update({ description: e.target.value })}
-              placeholder="Shown under the question (optional)"
+              placeholder={t("applicationForm.descriptionHelpPlaceholder") || "Shown under the question (optional)"}
             />
           </label>
           <label className="builder-required-toggle">
@@ -208,7 +211,7 @@ export default function SortableApplicationField({
               checked={field.required}
               onChange={(e) => update({ required: e.target.checked })}
             />
-            <span>Required — candidates cannot submit without answering.</span>
+            <span>{t("applicationForm.requiredToggle") || "Required — candidates cannot submit without answering."}</span>
           </label>
           {isOptionFieldType(field.type) && (
             <OptionsEditor
@@ -223,7 +226,7 @@ export default function SortableApplicationField({
               onClick={() => moveBy(-1)}
               disabled={index === 0}
             >
-              ↑ Move up
+              {t("applicationForm.moveUp") || "↑ Move up"}
             </button>
             <button
               type="button"
@@ -231,11 +234,27 @@ export default function SortableApplicationField({
               onClick={() => moveBy(1)}
               disabled={index === total - 1}
             >
-              ↓ Move down
+              {t("applicationForm.moveDown") || "↓ Move down"}
             </button>
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={confirmingDelete}
+        title={t("applicationForm.deleteConfirmTitle") || "Delete this field?"}
+        message={
+          t("applicationForm.deleteConfirmMessage") ||
+          "This removes the question from the application form. This can't be undone."
+        }
+        confirmLabel={t("jobs.delete") || "Delete"}
+        cancelLabel={t("jobs.cancel") || "Cancel"}
+        onConfirm={() => {
+          setConfirmingDelete(false);
+          onRemove(field.id);
+        }}
+        onCancel={() => setConfirmingDelete(false)}
+      />
     </li>
   );
 }

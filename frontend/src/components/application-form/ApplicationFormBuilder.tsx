@@ -8,31 +8,48 @@
  */
 
 import { useState } from "react";
+import { Eye } from "lucide-react";
 import Button from "../ui/Button";
 import EmptyState from "../ui/EmptyState";
-import type { ApplicationFieldDef } from "../../types/applicationForm";
+import Modal from "../ui/Modal";
+import type { ApplicationFieldDef, ApplicationValues, PublicJobInfo } from "../../types/applicationForm";
 import {
   newFieldId,
   reindexFields,
   sortedFields,
   slugifyKey,
 } from "../../utils/applicationFields";
+import { useLanguage } from "../../contexts/LanguageContext";
 import SortableApplicationField from "./SortableApplicationField";
 import ApplicationFieldEditor from "./ApplicationFieldEditor";
+import PublicApplicationFormTemplate from "./PublicApplicationFormTemplate";
 
 type ApplicationFormBuilderProps = {
   fields: ApplicationFieldDef[];
   onFieldsChange: (fields: ApplicationFieldDef[]) => void;
   /** External problems (e.g. from the publish attempt) shown above the list. */
   errors?: string[] | null;
+  /** Job presentation fields for the "Preview form" action; omit to hide it. */
+  previewJobInfo?: PublicJobInfo;
 };
+
+function blankPreviewValues(fields: ApplicationFieldDef[]): ApplicationValues {
+  const values: ApplicationValues = {};
+  for (const field of fields) {
+    values[field.id] = field.type === "multi_select" ? [] : "";
+  }
+  return values;
+}
 
 export default function ApplicationFormBuilder({
   fields,
   onFieldsChange,
   errors,
+  previewJobInfo,
 }: ApplicationFormBuilderProps) {
+  const { t } = useLanguage();
   const [editorOpen, setEditorOpen] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [overIndex, setOverIndex] = useState<number | null>(null);
 
@@ -72,21 +89,25 @@ export default function ApplicationFormBuilder({
     <section className="card">
       <header className="card-header">
         <div>
-          <h2 className="card-title">Review application form</h2>
+          <h2 className="card-title">{t("applicationForm.builderTitle") || "Review application form"}</h2>
           <p className="card-subtitle">
-            Customize the information candidates will submit. AI drafted these
-            questions — you have the final say: edit, retype, reorder, add or
-            delete.
+            {t("applicationForm.builderSubtitle") ||
+              "Customize the information candidates will submit. AI drafted these questions — you have the final say: edit, retype, reorder, add or delete."}
           </p>
         </div>
         <div className="card-action">
-          <Button onClick={() => setEditorOpen(true)}>+ Add field</Button>
+          {previewJobInfo && ordered.length > 0 && (
+            <Button variant="secondary" icon={<Eye size={15} />} onClick={() => setPreviewOpen(true)}>
+              {t("applicationForm.preview") || "Preview form"}
+            </Button>
+          )}
+          <Button onClick={() => setEditorOpen(true)}>{t("applicationForm.addField") || "+ Add field"}</Button>
         </div>
       </header>
 
       {errors && errors.length > 0 && (
         <div className="apply-form-error" role="alert">
-          <strong>The application form needs attention:</strong>
+          <strong>{t("applicationForm.errorsHeading") || "The application form needs attention:"}</strong>
           <ul className="bullet-list">
             {errors.map((problem) => (
               <li key={problem}>{problem}</li>
@@ -97,34 +118,42 @@ export default function ApplicationFormBuilder({
 
       {ordered.length === 0 ? (
         <EmptyState
-          title="No application fields yet"
-          message="Add fields manually or analyse the vacancy with AI to get suggestions."
-          action={<Button onClick={() => setEditorOpen(true)}>+ Add field</Button>}
+          title={t("applicationForm.emptyTitle") || "No application fields yet"}
+          message={t("applicationForm.emptyMessage") || "Add fields manually or analyse the vacancy with AI to get suggestions."}
+          action={<Button onClick={() => setEditorOpen(true)}>{t("applicationForm.addField") || "+ Add field"}</Button>}
         />
       ) : (
         <ul className="builder-list">
-          {ordered.map((field, index) => (
-            <SortableApplicationField
-              key={field.id}
-              field={field}
-              index={index}
-              total={ordered.length}
-              onMove={moveField}
-              onChange={(updated) =>
-                replaceFields(ordered.map((f) => (f.id === updated.id ? updated : f)))
-              }
-              onRemove={(id) => replaceFields(ordered.filter((f) => f.id !== id))}
-              isDragging={dragIndex === index}
-              isDropTarget={dragIndex !== null && overIndex === index && dragIndex !== index}
-              onDragStart={() => setDragIndex(index)}
-              onDragOverItem={() => setOverIndex(index)}
-              onDropOn={() => {
-                if (dragIndex !== null && overIndex !== null) moveField(dragIndex, overIndex);
-                clearDrag();
-              }}
-              onDragEnd={clearDrag}
-            />
-          ))}
+          {ordered.map((field, index) => {
+            const dropPosition: "before" | "after" | null =
+              dragIndex !== null && overIndex === index && dragIndex !== index
+                ? dragIndex < index
+                  ? "after"
+                  : "before"
+                : null;
+            return (
+              <SortableApplicationField
+                key={field.id}
+                field={field}
+                index={index}
+                total={ordered.length}
+                onMove={moveField}
+                onChange={(updated) =>
+                  replaceFields(ordered.map((f) => (f.id === updated.id ? updated : f)))
+                }
+                onRemove={(id) => replaceFields(ordered.filter((f) => f.id !== id))}
+                isDragging={dragIndex === index}
+                dropPosition={dropPosition}
+                onDragStart={() => setDragIndex(index)}
+                onDragOverItem={() => setOverIndex(index)}
+                onDropOn={() => {
+                  if (dragIndex !== null && overIndex !== null) moveField(dragIndex, overIndex);
+                  clearDrag();
+                }}
+                onDragEnd={clearDrag}
+              />
+            );
+          })}
         </ul>
       )}
 
@@ -133,6 +162,23 @@ export default function ApplicationFormBuilder({
         onClose={() => setEditorOpen(false)}
         onAdd={addField}
       />
+
+      {previewJobInfo && (
+        <Modal
+          open={previewOpen}
+          title={t("applicationForm.previewTitle") || "Form preview"}
+          onClose={() => setPreviewOpen(false)}
+          size="lg"
+        >
+          <PublicApplicationFormTemplate
+            job={previewJobInfo}
+            fields={ordered}
+            values={blankPreviewValues(ordered)}
+            mode="preview"
+            onFieldChange={() => {}}
+          />
+        </Modal>
+      )}
     </section>
   );
 }
