@@ -1,33 +1,25 @@
-import { AI_PROCESSING_STEPS } from "../../data/mock/jobAi";
+import { Sparkles } from "lucide-react";
+import { useLanguage } from "../../contexts/LanguageContext";
 
 /**
- * Simulated AI checklist shown while a vacancy is being analysed.
- * `doneCount` is the number of completed steps (0..steps.length).
+ * Shown while the real POST /jobs/analyze request is in flight.
+ *
+ * Honest indeterminate state — the backend has no per-field progress signal,
+ * so this never fakes a percentage or a step checklist.
  */
-export default function AIProcessingCard({ doneCount }: { doneCount: number }) {
+export default function AIProcessingCard() {
+  const { t } = useLanguage();
   return (
-    <div className="ai-processing" role="status" aria-label="AI is analysing the vacancy">
+    <div className="ai-processing" role="status" aria-label={t("jobs.analyzingVacancy")}>
       <div className="ai-processing-header">
-        <span className="btn-spinner" aria-hidden="true" />
+        <span className="ai-processing-icon" aria-hidden="true">
+          <Sparkles size={20} />
+        </span>
         <div>
-          <h3>AI is analysing your vacancy…</h3>
-          <p>This usually takes a few seconds in the demo.</p>
+          <h3>{t("jobs.analyzingVacancy")}</h3>
+          <p>{t("jobs.analyzingHint")}</p>
         </div>
       </div>
-      <ul className="ai-steps">
-        {AI_PROCESSING_STEPS.map((step, index) => {
-          const done = index < doneCount;
-          const active = index === doneCount;
-          return (
-            <li key={step} className={done ? "is-done" : active ? "is-active" : ""}>
-              <span className="ai-step-icon" aria-hidden="true">
-                {done ? "✓" : active ? "…" : "○"}
-              </span>
-              {step}
-            </li>
-          );
-        })}
-      </ul>
     </div>
   );
 }
