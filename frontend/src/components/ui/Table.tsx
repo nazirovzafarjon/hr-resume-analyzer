@@ -95,7 +95,9 @@ export default function Table<T>({
                 <th
                   key={column.header}
                   scope="col"
-                  className={column.headerClassName}
+                  className={[column.headerClassName, column.hideOnMobile ? "table-col--hide-mobile" : null]
+                    .filter(Boolean)
+                    .join(" ") || undefined}
                   aria-sort={
                     isSorted ? (sortDirection === "asc" ? "ascending" : "descending") : undefined
                   }
@@ -131,7 +133,12 @@ export default function Table<T>({
           {sortedRows.map((row) => (
             <tr key={rowKey(row)}>
               {columns.map((column) => (
-                <td key={column.header} className={column.className}>
+                <td
+                  key={column.header}
+                  className={[column.className, column.hideOnMobile ? "table-col--hide-mobile" : null]
+                    .filter(Boolean)
+                    .join(" ") || undefined}
+                >
                   {column.render(row)}
                 </td>
               ))}

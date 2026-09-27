@@ -102,6 +102,27 @@ export function translateOr(
 }
 
 /**
+ * Job status, derived (never fabricated) from whether the job has a
+ * published application form — the backend has no `status` column, so this
+ * is a real, already-tracked fact rather than an invented pipeline stage.
+ */
+export type DerivedJobStatus = "published" | "draft";
+
+export const JOB_STATUS_TONES: Record<DerivedJobStatus, StatusTone> = {
+  published: "success",
+  draft: "neutral",
+};
+
+export const JOB_STATUS_LABELS: Record<DerivedJobStatus, string> = {
+  published: "Published",
+  draft: "Draft",
+};
+
+export function jobStatusFromToken(publicToken: string | null | undefined): DerivedJobStatus {
+  return publicToken ? "published" : "draft";
+}
+
+/**
  * Colour for an AI match score, so tables communicate quality consistently.
  * Returns "empty" when there is no score yet.
  */
