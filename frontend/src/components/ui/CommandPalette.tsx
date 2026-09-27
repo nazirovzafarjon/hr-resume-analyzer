@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { useLanguage, LANGUAGE_LABELS, type Language } from "../../contexts/LanguageContext";
 import { useTheme } from "../../contexts/ThemeContext";
+import { useFocusTrap } from "../../hooks/useFocusTrap";
 
 type CommandPaletteProps = {
   open: boolean;
@@ -48,6 +49,7 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
   const [query, setQuery] = useState("");
   const [highlight, setHighlight] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
 
   const actions = useMemo<PaletteAction[]>(() => {
     const go = (path: string) => () => {
@@ -126,15 +128,13 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
     setHighlight(0);
   }, [query]);
 
+  // Tab-traps the palette and restores focus to the trigger on close —
+  // shared with Modal so every overlay behaves the same for keyboard users.
+  useFocusTrap(dialogRef, open, { onEscape: onClose });
+
   if (!open) return null;
 
   function handleKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
-    if (event.key === "Escape") {
-      event.preventDefault();
-      onClose();
-      return;
-    }
-
     if (event.key === "ArrowDown" || event.key === "ArrowUp") {
       event.preventDefault();
       if (results.length === 0) return;
@@ -159,6 +159,7 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
       }}
     >
       <div
+        ref={dialogRef}
         className="palette"
         role="dialog"
         aria-modal="true"

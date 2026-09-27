@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, type ReactNode } from "react";
 import { X } from "lucide-react";
+import { useFocusTrap } from "../../hooks/useFocusTrap";
 
 type ModalProps = {
   open: boolean;
@@ -38,49 +39,18 @@ export default function Modal({
   const dialogRef = useRef<HTMLDivElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
 
+  useFocusTrap(dialogRef, open, { onEscape: onClose, disabled: busy });
+
   useEffect(() => {
     if (!open) return;
-
-    const previouslyFocused = document.activeElement as HTMLElement | null;
     closeButtonRef.current?.focus();
 
     const { overflow } = document.body.style;
     document.body.style.overflow = "hidden";
-
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape" && !busy) {
-        onClose();
-        return;
-      }
-
-      if (event.key !== "Tab" || !dialogRef.current) return;
-
-      const focusable = Array.from(
-        dialogRef.current.querySelectorAll<HTMLElement>(
-          'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])',
-        ),
-      ).filter((element) => element.offsetParent !== null);
-      if (focusable.length === 0) return;
-
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
-      }
-    }
-
-    document.addEventListener("keydown", handleKeyDown);
     return () => {
-      document.removeEventListener("keydown", handleKeyDown);
       document.body.style.overflow = overflow;
-      previouslyFocused?.focus?.();
     };
-  }, [open, onClose, busy]);
+  }, [open]);
 
   if (!open) return null;
 
