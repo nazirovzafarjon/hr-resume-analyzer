@@ -13,7 +13,7 @@ from app.crud import worker as worker_crud
 from app.crud import application_form as application_form_crud
 from app.models.job import Job
 from app.schemas.application_form import PublicApplicationResponse, PublicSubmissionResult
-from app.schemas.job import JobResponse
+from app.schemas.job import PublicJobSummary
 from app.schemas.worker import WorkerResponse
 from app.services import application_form as application_form_service
 from app.services import job as job_service
@@ -28,13 +28,20 @@ _LINK_UNAVAILABLE = "This application link is no longer available."
 
 @router.get(
     "/jobs/{job_id}",
-    response_model=JobResponse,
+    response_model=PublicJobSummary,
 )
 def public_get_job(
     job_id: str,
     db: Session = Depends(get_db),
-) -> JobResponse:
-    """Get job details for public application page (no auth)."""
+) -> PublicJobSummary:
+    """Get job presentation fields for a public application page (no auth).
+
+    Legacy lookup (superseded by the token-based ``/public/applications/{token}``
+    flow). Returns only presentation fields — never ``leads_count`` or the
+    application form (which carries its secret ``public_token``): this
+    endpoint accepts a guessable integer id, so nothing sensitive can ride
+    along with it.
+    """
     job: Job | None = None
     try:
         job_uuid = uuid.UUID(job_id)

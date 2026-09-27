@@ -61,6 +61,17 @@ class JobResponse(JobBase):
     model_config = ConfigDict(from_attributes=True)
 
 
+class PublicJobSummary(JobBase):
+    """Job presentation fields safe to expose without authentication.
+
+    Deliberately excludes ``id``/``public_id``, ``leads_count`` and
+    ``application_form`` (which carries the application form's secret
+    ``public_token``) — none of that belongs in an unauthenticated response.
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class JobAnalyzeRequest(BaseModel):
     """Request payload for AI vacancy analysis."""
 
