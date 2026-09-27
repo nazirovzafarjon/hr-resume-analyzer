@@ -1,0 +1,12 @@
+User-agent: *
+Disallow: /dashboard
+Disallow: /jobs
+Disallow: /candidates
+Disallow: /applications
+Disallow: /interviews
+Disallow: /analytics
+Disallow: /settings
+Disallow: /oauth/callback
+Allow: /apply/
+Allow: /login
+Allow: /register
