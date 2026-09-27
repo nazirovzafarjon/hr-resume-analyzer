@@ -1,323 +1,576 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Plus, Briefcase, Users, FileText, Building2, ArrowUpRight } from "lucide-react";
-import { fetchDashboardOverview, fetchRecentJobs, fetchRecentLeads } from "../../services/dashboardService";
+import {
+  Award,
+  Briefcase,
+  CalendarClock,
+  FileText,
+  Plus,
+  Sparkles,
+  Users,
+} from "lucide-react";
+import {
+  fetchAnalyticsData,
+  fetchDashboardOverview,
+  fetchRecentJobs,
+  fetchRecentLeads,
+  type AnalyticsData,
+  type AnalyticsRange,
+  type DashboardOverview,
+  type RecentJob,
+  type RecentLead,
+} from "../../services/dashboardService";
+import { fetchInterviewStats, type InterviewStats } from "../../services/interviewsService";
 import { formatDate } from "../../utils/date";
 import { ApiError } from "../../utils/apiError";
 import PageHeader from "../../components/ui/PageHeader";
+import PageMeta from "../../components/seo/PageMeta";
 import Card from "../../components/ui/Card";
 import Button from "../../components/ui/Button";
-import StatusBadge from "../../components/ui/StatusBadge";
-import EmptyState from "../../components/ui/EmptyState";
-import { SkeletonCards } from "../../components/ui/Skeleton";
+import Table, { type TableColumn } from "../../components/ui/Table";
 import { useLanguage } from "../../contexts/LanguageContext";
-import type { AnalyticsGroupBy } from "../../types/worker";
+import { useChartPalette } from "../../components/charts/chartTheme";
+import LineTrendChart from "../../components/charts/LineTrendChart";
+import BarComparisonChart, { type BarDatum } from "../../components/charts/BarComparisonChart";
+import DonutDistributionChart, { type DonutDatum } from "../../components/charts/DonutDistributionChart";
+import KpiCard, { type KpiDelta } from "../../components/dashboard/KpiCard";
+import SegmentedControl from "../../components/dashboard/SegmentedControl";
+import HiringPipeline, { type PipelineStage } from "../../components/dashboard/HiringPipeline";
+import RecentActivityList from "../../components/dashboard/RecentActivityList";
+import { APPLICATION_STATUS_LABELS, APPLICATION_STATUS_TONES, translateOr, type StatusTone } from "../../utils/statusLabels";
+import type { AnalyticsGroupBy, ApplicationStatus } from "../../types/worker";
 
-type DashboardData = {
-  total_jobs: number;
-  total_candidates: number;
-  total_leads: number;
-  group_by: string;
-  breakdown: Array<{
-    category: string;
-    jobs: number;
-    candidates: number;
-  }>;
+type SectionError = { detail: string | null } | null;
+
+function toSectionError(err: unknown): SectionError {
+  return { detail: err instanceof ApiError ? err.message : null };
+}
+
+const RANGE_OPTIONS: { value: AnalyticsRange; label: string }[] = [
+  { value: "7d", label: "7D" },
+  { value: "30d", label: "30D" },
+  { value: "90d", label: "90D" },
+];
+
+const STATUS_FLOW: ApplicationStatus[] = ["new", "reviewing", "shortlisted", "interview"];
+const STATUS_TERMINAL: ApplicationStatus[] = ["rejected", "withdrawn"];
+
+const LOCALE_MAP: Record<string, string> = {
+  en: "en-US",
+  ru: "ru-RU",
+  uz: "uz-Latn-UZ",
+  kiril: "uz-Cyrl-UZ",
 };
 
-type RecentJob = {
-  id: number;
-  company_name: string;
-  position: string;
-  leads_count: number;
-  created_at: string;
-};
+function toneToColor(tone: StatusTone, palette: ReturnType<typeof useChartPalette>): string {
+  switch (tone) {
+    case "success":
+      return palette.success;
+    case "warning":
+      return palette.warning;
+    case "danger":
+      return palette.error;
+    case "info":
+      return palette.info;
+    case "primary":
+      return palette.primary;
+    default:
+      return palette.neutral;
+  }
+}
 
-type RecentLead = {
-  id: number;
-  name: string;
-  email: string;
-  company_name: string;
-  position: string;
-  hiring_status: "strong_hire" | "hire" | "weak_hire" | "do_not_hire";
-  created_at: string;
-};
-
-/** /dashboard — hiring analytics, pipeline KPIs and recent activity. */
+/** /dashboard — the HR hiring overview: KPIs, trend, pipeline, jobs and activity. */
 export default function DashboardPage() {
-  const { t } = useLanguage();
-  const [groupBy, setGroupBy] = useState<AnalyticsGroupBy>("company");
-  const [data, setData] = useState<DashboardData | null>(null);
-  const [recentJobs, setRecentJobs] = useState<RecentJob[]>([]);
-  const [recentLeads, setRecentLeads] = useState<RecentLead[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { t, language } = useLanguage();
+  const palette = useChartPalette();
+  const locale = LOCALE_MAP[language] ?? "en-US";
 
-  const groupOptions: { value: AnalyticsGroupBy; label: string }[] = [
+  const [groupBy, setGroupBy] = useState<AnalyticsGroupBy>("company");
+  const [range, setRange] = useState<AnalyticsRange>("30d");
+  const [performanceMode, setPerformanceMode] = useState<"byJob" | "bySegment">("byJob");
+
+  const [overview, setOverview] = useState<DashboardOverview | null>(null);
+  const [overviewLoading, setOverviewLoading] = useState(true);
+  const [overviewError, setOverviewError] = useState<SectionError>(null);
+
+  const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(true);
+  const [analyticsError, setAnalyticsError] = useState<SectionError>(null);
+
+  const [recentJobs, setRecentJobs] = useState<RecentJob[]>([]);
+  const [recentJobsLoading, setRecentJobsLoading] = useState(true);
+  const [recentJobsError, setRecentJobsError] = useState<SectionError>(null);
+
+  const [recentLeads, setRecentLeads] = useState<RecentLead[]>([]);
+  const [recentLeadsLoading, setRecentLeadsLoading] = useState(true);
+  const [recentLeadsError, setRecentLeadsError] = useState<SectionError>(null);
+
+  const [interviewStats, setInterviewStats] = useState<InterviewStats | null>(null);
+  const [interviewStatsLoading, setInterviewStatsLoading] = useState(true);
+  const [interviewStatsError, setInterviewStatsError] = useState<SectionError>(null);
+
+  const loadOverview = useCallback((category: AnalyticsGroupBy) => {
+    let cancelled = false;
+    setOverviewLoading(true);
+    setOverviewError(null);
+    fetchDashboardOverview(category)
+      .then((data) => !cancelled && setOverview(data))
+      .catch((err) => !cancelled && setOverviewError(toSectionError(err)))
+      .finally(() => !cancelled && setOverviewLoading(false));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const loadAnalytics = useCallback((selectedRange: AnalyticsRange) => {
+    let cancelled = false;
+    setAnalyticsLoading(true);
+    setAnalyticsError(null);
+    fetchAnalyticsData(selectedRange)
+      .then((data) => !cancelled && setAnalytics(data))
+      .catch((err) => !cancelled && setAnalyticsError(toSectionError(err)))
+      .finally(() => !cancelled && setAnalyticsLoading(false));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const loadRecentJobs = useCallback(() => {
+    let cancelled = false;
+    setRecentJobsLoading(true);
+    setRecentJobsError(null);
+    fetchRecentJobs(6)
+      .then((data) => !cancelled && setRecentJobs(data))
+      .catch((err) => !cancelled && setRecentJobsError(toSectionError(err)))
+      .finally(() => !cancelled && setRecentJobsLoading(false));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const loadRecentLeads = useCallback(() => {
+    let cancelled = false;
+    setRecentLeadsLoading(true);
+    setRecentLeadsError(null);
+    fetchRecentLeads(6)
+      .then((data) => !cancelled && setRecentLeads(data))
+      .catch((err) => !cancelled && setRecentLeadsError(toSectionError(err)))
+      .finally(() => !cancelled && setRecentLeadsLoading(false));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const loadInterviewStats = useCallback(() => {
+    let cancelled = false;
+    setInterviewStatsLoading(true);
+    setInterviewStatsError(null);
+    fetchInterviewStats()
+      .then((data) => !cancelled && setInterviewStats(data))
+      .catch((err) => !cancelled && setInterviewStatsError(toSectionError(err)))
+      .finally(() => !cancelled && setInterviewStatsLoading(false));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => loadOverview(groupBy), [groupBy, loadOverview]);
+  useEffect(() => loadAnalytics(range), [range, loadAnalytics]);
+  useEffect(() => loadRecentJobs(), [loadRecentJobs]);
+  useEffect(() => loadRecentLeads(), [loadRecentLeads]);
+  useEffect(() => loadInterviewStats(), [loadInterviewStats]);
+
+  const hasPartialError = Boolean(
+    overviewError || analyticsError || recentJobsError || recentLeadsError || interviewStatsError,
+  );
+
+  function retryFailedSections() {
+    if (overviewError) loadOverview(groupBy);
+    if (analyticsError) loadAnalytics(range);
+    if (recentJobsError) loadRecentJobs();
+    if (recentLeadsError) loadRecentLeads();
+    if (interviewStatsError) loadInterviewStats();
+  }
+
+  const genericErrorMessage = t("dashboard.error") || "Failed to load.";
+  const overviewErrorMessage = overviewError ? overviewError.detail ?? genericErrorMessage : undefined;
+  const analyticsErrorMessage = analyticsError ? analyticsError.detail ?? genericErrorMessage : undefined;
+
+  // --- KPI derivations -----------------------------------------------------
+
+  const currentPeriodApplications = useMemo(
+    () => (analytics ? analytics.trend.reduce((sum, point) => sum + point.applications, 0) : 0),
+    [analytics],
+  );
+  const previousPeriodApplications = analytics?.previous_period.applications ?? 0;
+  const applicationsDelta: KpiDelta | undefined =
+    analytics && previousPeriodApplications > 0
+      ? {
+          value: Math.round(
+            (Math.abs(currentPeriodApplications - previousPeriodApplications) / previousPeriodApplications) * 100,
+          ),
+          direction:
+            currentPeriodApplications === previousPeriodApplications
+              ? "flat"
+              : currentPeriodApplications > previousPeriodApplications
+                ? "up"
+                : "down",
+          comparisonLabel: t("dashboard.kpi.vsPreviousPeriod") || "vs previous period",
+        }
+      : undefined;
+
+  const pendingAnalysisCount = analytics
+    ? analytics.analysis_status_counts.new + analytics.analysis_status_counts.pending + analytics.analysis_status_counts.analyzing
+    : 0;
+  const recommendedHireCount = analytics
+    ? analytics.hiring_status_counts.strong_hire + analytics.hiring_status_counts.hire
+    : 0;
+
+  // --- Trend chart -----------------------------------------------------
+
+  function formatTrendDate(iso: string): string {
+    const date = new Date(`${iso}T00:00:00Z`);
+    return new Intl.DateTimeFormat(locale, { month: "short", day: "numeric", timeZone: "UTC" }).format(date);
+  }
+
+  const trendData = useMemo(
+    () => (analytics ? analytics.trend.map((point) => ({ ...point })) : []),
+    [analytics],
+  );
+
+  // --- Status distribution -> donut + pipeline -----------------------------
+
+  const statusCountMap = useMemo(() => {
+    const map = new Map<string, number>();
+    analytics?.status_distribution.forEach((row) => map.set(row.status, row.count));
+    return map;
+  }, [analytics]);
+
+  const statusLabel = useCallback(
+    (status: ApplicationStatus) => translateOr(t, `statusMeta.application.${status}`, APPLICATION_STATUS_LABELS[status]),
+    [t],
+  );
+
+  const donutData: DonutDatum[] = useMemo(
+    () =>
+      [...STATUS_FLOW, ...STATUS_TERMINAL].map((status) => ({
+        key: status,
+        label: statusLabel(status),
+        value: statusCountMap.get(status) ?? 0,
+        color: toneToColor(APPLICATION_STATUS_TONES[status], palette),
+      })),
+    [statusCountMap, statusLabel, palette],
+  );
+
+  const pipelineStages: PipelineStage[] = useMemo(
+    () =>
+      [...STATUS_FLOW, ...STATUS_TERMINAL].map((status) => ({
+        status,
+        label: statusLabel(status),
+        tone: APPLICATION_STATUS_TONES[status],
+        count: statusCountMap.get(status) ?? 0,
+        isTerminal: STATUS_TERMINAL.includes(status),
+      })),
+    [statusCountMap, statusLabel],
+  );
+
+  // --- Recruitment performance bar chart -----------------------------------
+
+  const jobBarData: BarDatum[] = useMemo(
+    () => (analytics?.top_jobs ?? []).map((job) => ({ key: String(job.job_id), label: job.position, value: job.applications_count })),
+    [analytics],
+  );
+  const segmentBarData: BarDatum[] = useMemo(
+    () => (overview?.breakdown ?? []).map((row) => ({ key: row.category, label: row.category, value: row.candidates })),
+    [overview],
+  );
+
+  const dimensionOptions: { value: AnalyticsGroupBy; label: string }[] = [
     { value: "company", label: t("dashboard.company") || "Company" },
     { value: "position", label: t("dashboard.position") || "Position" },
     { value: "experience", label: t("dashboard.experience") || "Experience" },
   ];
 
-  useEffect(() => {
-    let mounted = true;
+  // --- Recent jobs table -----------------------------------------------------
 
-    async function loadDashboard() {
-      setLoading(true);
-      setError(null);
-
-      try {
-        const [overview, jobs, leads] = await Promise.all([
-          fetchDashboardOverview(groupBy),
-          fetchRecentJobs(4),
-          fetchRecentLeads(5),
-        ]);
-
-        if (mounted) {
-          setData(overview);
-          setRecentJobs(jobs);
-          setRecentLeads(leads);
-        }
-      } catch (err) {
-        if (mounted) {
-          if (err instanceof ApiError) {
-            setError(err.message);
-          } else {
-            setError(t("dashboard.error") || "Failed to load dashboard data. Please try again.");
-          }
-        }
-      } finally {
-        if (mounted) {
-          setLoading(false);
-        }
-      }
-    }
-
-    loadDashboard();
-    return () => {
-      mounted = false;
-    };
-  }, [groupBy, t]);
-
-  const handleGroupChange = async (newGroupBy: AnalyticsGroupBy) => {
-    setGroupBy(newGroupBy);
-    setLoading(true);
-    setError(null);
-
-    try {
-      const overview = await fetchDashboardOverview(newGroupBy);
-      if (data) {
-        setData({ ...overview });
-      }
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : t("dashboard.error") || "Failed to load analytics.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const breakdown = data?.breakdown ?? [];
-  const maxCandidates = Math.max(1, ...breakdown.map((entry) => entry.candidates));
-
-  if (loading && !data) {
-    return (
-      <div className="page">
-        <PageHeader
-          title={t("dashboard.title")}
-          description={t("dashboard.description")}
-          action={
-            <Button to="/jobs/create" icon={<Plus size={16} />}>
-              {t("jobs.createJob") || "Create Job"}
-            </Button>
-          }
-        />
-        <SkeletonCards count={4} />
-      </div>
-    );
-  }
-
-  if (error && !data) {
-    return (
-      <div className="page">
-        <PageHeader
-          title={t("dashboard.title")}
-          description={t("dashboard.description")}
-          action={
-            <Button to="/jobs/create" icon={<Plus size={16} />}>
-              {t("jobs.createJob") || "Create Job"}
-            </Button>
-          }
-        />
-        <Card>
-          <EmptyState
-            tone="error"
-            title={t("dashboard.error") || "Unable to load dashboard"}
-            message={error}
-            action={
-              <Button onClick={() => window.location.reload()}>{t("common.retry") || "Retry"}</Button>
-            }
-          />
-        </Card>
-      </div>
-    );
-  }
-
-  const selectedGroupLabel = groupOptions.find((o) => o.value === groupBy)?.label ?? groupBy;
+  const recentJobsColumns: TableColumn<RecentJob>[] = [
+    {
+      header: t("jobs.position") || "Position",
+      render: (job) => (
+        <div>
+          <Link to={`/jobs/${job.id}`} className="table-primary">
+            {job.position}
+          </Link>
+          <div className="table-secondary">{job.company_name}</div>
+        </div>
+      ),
+    },
+    {
+      header: t("jobs.leads") || "Applications",
+      render: (job) => <span className="table-number">{job.leads_count}</span>,
+    },
+    {
+      header: t("dashboard.tableCreated") || "Created",
+      render: (job) => <span className="table-muted">{formatDate(job.created_at)}</span>,
+      hideOnMobile: true,
+    },
+    {
+      header: "",
+      render: (job) => (
+        <Link to={`/jobs/${job.id}`} className="link">
+          {t("common.view") || "View"}
+        </Link>
+      ),
+      className: "table-actions-cell",
+    },
+  ];
 
   return (
     <div className="page">
+      <PageMeta title={t("nav.dashboard")} noindex />
       <PageHeader
         title={t("dashboard.title")}
         description={t("dashboard.description")}
         action={
-          <Button to="/jobs/create" icon={<Plus size={16} />}>
-            {t("jobs.createJob") || "Create Job"}
-          </Button>
+          <>
+            <SegmentedControl value={range} onChange={setRange} options={RANGE_OPTIONS} ariaLabel={t("dashboard.period.label") || "Date range"} />
+            <Button variant="secondary" to="/applications">
+              {t("dashboard.viewApplications") || "View Applications"}
+            </Button>
+            <Button to="/jobs/create" icon={<Plus size={16} />}>
+              {t("jobs.createJob") || "Create Job"}
+            </Button>
+          </>
         }
       />
 
+      {hasPartialError && (
+        <div
+          className="alert alert--warning"
+          role="alert"
+          style={{ alignItems: "center", justifyContent: "space-between", flexWrap: "wrap" }}
+        >
+          <span>{t("dashboard.partialErrorMessage") || "Some dashboard data couldn't load."}</span>
+          <Button size="sm" variant="secondary" onClick={retryFailedSections}>
+            {t("common.retry") || "Retry"}
+          </Button>
+        </div>
+      )}
+
       <div className="kpi-grid">
-        <div className="kpi-card">
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-            <p className="kpi-label">{t("stats.jobs") || "Open Jobs"}</p>
-            <span style={{ color: "var(--color-primary)", opacity: 0.8 }}><Briefcase size={16} /></span>
-          </div>
-          <p className="kpi-value">{data?.total_jobs ?? 0}</p>
-          <p className="kpi-hint">{t("stats.jobsHint") || "active vacancies"}</p>
-          <span className="kpi-trend">{data?.total_jobs ?? 0} {t("nav.jobs") || "jobs"}</span>
-        </div>
-
-        <div className="kpi-card">
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-            <p className="kpi-label">{t("stats.candidates") || "Candidates"}</p>
-            <span style={{ color: "var(--color-info)", opacity: 0.8 }}><Users size={16} /></span>
-          </div>
-          <p className="kpi-value">{data?.total_candidates ?? 0}</p>
-          <p className="kpi-hint">{t("stats.candidatesHint") || "in pipeline"}</p>
-          <span className="kpi-trend">{t("stats.applicationsHint") || "total received"}</span>
-        </div>
-
-        <div className="kpi-card">
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-            <p className="kpi-label">{t("stats.leads") || "Total Leads"}</p>
-            <span style={{ color: "var(--color-success)", opacity: 0.8 }}><FileText size={16} /></span>
-          </div>
-          <p className="kpi-value">{data?.total_leads ?? 0}</p>
-          <p className="kpi-hint">{t("stats.leadsHint") || "leads count"}</p>
-          <span className="kpi-trend">all time</span>
-        </div>
-
-        <div className="kpi-card">
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-            <p className="kpi-label">{t("dashboard.groupBy") || "Dimension"}</p>
-            <span style={{ color: "var(--color-warning)", opacity: 0.8 }}><Building2 size={16} /></span>
-          </div>
-          <p className="kpi-value">{breakdown.length}</p>
-          <p className="kpi-hint">{selectedGroupLabel}</p>
-          <span className="kpi-trend">{groupBy}</span>
-        </div>
+        <KpiCard
+          label={t("dashboard.kpi.applications") || "Applications"}
+          value={currentPeriodApplications}
+          hint={t("dashboard.kpi.applicationsHint") || "received in this period"}
+          delta={applicationsDelta}
+          icon={<FileText size={16} />}
+          tone="primary"
+          primary
+          loading={analyticsLoading && !analytics}
+          errorMessage={analyticsErrorMessage}
+        />
+        <KpiCard
+          label={t("dashboard.kpi.jobs") || "Total Jobs"}
+          value={overview?.total_jobs ?? 0}
+          hint={t("dashboard.kpi.jobsHint") || "across all vacancies"}
+          icon={<Briefcase size={16} />}
+          tone="info"
+          loading={overviewLoading && !overview}
+          errorMessage={overviewErrorMessage}
+        />
+        <KpiCard
+          label={t("dashboard.kpi.candidates") || "Candidates"}
+          value={analytics?.total_candidates ?? 0}
+          hint={t("dashboard.kpi.candidatesHint") || "moved into the hiring pipeline"}
+          icon={<Users size={16} />}
+          loading={analyticsLoading && !analytics}
+          errorMessage={analyticsErrorMessage}
+        />
+        <KpiCard
+          label={t("dashboard.kpi.interviews") || "Upcoming Interviews"}
+          value={interviewStats?.upcoming ?? 0}
+          hint={
+            interviewStats
+              ? `${interviewStats.total} ${t("dashboard.kpi.interviewsHint") || "scheduled in total"}`
+              : undefined
+          }
+          icon={<CalendarClock size={16} />}
+          tone="warning"
+          loading={interviewStatsLoading && !interviewStats}
+          errorMessage={interviewStatsError ? interviewStatsError.detail ?? genericErrorMessage : undefined}
+        />
+        <KpiCard
+          label={t("dashboard.kpi.aiAnalyzed") || "AI Analyzed"}
+          value={analytics?.analysis_status_counts.completed ?? 0}
+          hint={`${pendingAnalysisCount} ${t("dashboard.kpi.aiAnalyzedHint") || "pending analysis"}`}
+          icon={<Sparkles size={16} />}
+          tone="info"
+          loading={analyticsLoading && !analytics}
+          errorMessage={analyticsErrorMessage}
+        />
+        <KpiCard
+          label={t("dashboard.kpi.recommendedHire") || "Recommended Hire"}
+          value={recommendedHireCount}
+          hint={t("dashboard.kpi.recommendedHireHint") || "strong hire + hire recommendations"}
+          icon={<Award size={16} />}
+          tone="success"
+          loading={analyticsLoading && !analytics}
+          errorMessage={analyticsErrorMessage}
+        />
       </div>
+
+      <LineTrendChart
+        title={t("dashboard.trend.title") || "Hiring Activity"}
+        subtitle={t("dashboard.trend.subtitle") || "Applications and interviews over the selected period"}
+        data={trendData}
+        xKey="date"
+        series={[
+          { key: "applications", label: t("stats.applications") || "Applications", color: palette.primary },
+          { key: "interviews", label: t("nav.interviews") || "Interviews", color: palette.info },
+        ]}
+        formatX={formatTrendDate}
+        loading={analyticsLoading && !analytics}
+        error={analyticsErrorMessage}
+        onRetry={() => loadAnalytics(range)}
+        emptyTitle={t("dashboard.trend.emptyTitle") || "No activity yet"}
+        emptyMessage={
+          t("dashboard.trend.emptyMessage") ||
+          "Once candidates start applying, your hiring trend will appear here."
+        }
+      />
+
+      <div className="dashboard-grid">
+        <DonutDistributionChart
+          title={t("dashboard.statusChart.title") || "Application Status"}
+          subtitle={t("dashboard.statusChart.subtitle") || "Current distribution of all applications"}
+          data={donutData}
+          centerLabel={t("stats.applications") || "Applications"}
+          loading={analyticsLoading && !analytics}
+          error={analyticsErrorMessage}
+          onRetry={() => loadAnalytics(range)}
+          emptyTitle={t("dashboard.statusChart.emptyTitle") || "No applications yet"}
+          emptyMessage={
+            t("dashboard.statusChart.emptyMessage") ||
+            "Application statuses will appear here once candidates apply."
+          }
+        />
+
+        <Card
+          title={t("dashboard.pipelineChart.title") || "Hiring Pipeline"}
+          subtitle={t("dashboard.pipelineChart.subtitle") || "Where candidates currently stand"}
+        >
+          <HiringPipeline
+            stages={pipelineStages}
+            loading={analyticsLoading && !analytics}
+            emptyTitle={t("dashboard.pipelineChart.emptyTitle") || "Pipeline is empty"}
+            emptyMessage={
+              t("dashboard.pipelineChart.emptyMessage") ||
+              "Applications will move through your hiring pipeline as they arrive."
+            }
+          />
+        </Card>
+      </div>
+
+      <BarComparisonChart
+        title={t("dashboard.performance.title") || "Recruitment Performance"}
+        action={
+          <div style={{ display: "flex", gap: "var(--space-sm)", flexWrap: "wrap" }}>
+            <SegmentedControl
+              value={performanceMode}
+              onChange={setPerformanceMode}
+              options={[
+                { value: "byJob", label: t("dashboard.performance.byJob") || "By Job" },
+                { value: "bySegment", label: t("dashboard.performance.bySegment") || "By Segment" },
+              ]}
+              ariaLabel={t("dashboard.performance.title") || "Recruitment performance mode"}
+            />
+            {performanceMode === "bySegment" && (
+              <SegmentedControl
+                value={groupBy}
+                onChange={setGroupBy}
+                options={dimensionOptions}
+                ariaLabel={t("dashboard.groupBy") || "Grouping dimension"}
+                disabled={overviewLoading}
+              />
+            )}
+          </div>
+        }
+        data={performanceMode === "byJob" ? jobBarData : segmentBarData}
+        valueLabel={t("stats.applications") || "Applications"}
+        loading={performanceMode === "byJob" ? analyticsLoading && !analytics : overviewLoading && !overview}
+        error={performanceMode === "byJob" ? analyticsErrorMessage : overviewErrorMessage}
+        onRetry={performanceMode === "byJob" ? () => loadAnalytics(range) : () => loadOverview(groupBy)}
+        emptyTitle={t("dashboard.performance.emptyTitle") || "No data yet"}
+        emptyMessage={
+          t("dashboard.performance.emptyMessage") ||
+          "Create a job and start receiving applications to see this chart."
+        }
+      />
 
       <div className="dashboard-grid">
         <Card
-          title={`${t("nav.candidates") || "Candidates"} — ${selectedGroupLabel}`}
-          subtitle={`${t("dashboard.groupBy") || "Grouped by"}: ${selectedGroupLabel}`}
+          title={t("dashboard.recentJobs") || "Recent Jobs"}
           action={
-            <div className="segmented" role="group" aria-label="Analytics dimension">
-              {groupOptions.map((option) => (
-                <button
-                  key={option.value}
-                  type="button"
-                  className={`segmented-button${groupBy === option.value ? " is-active" : ""}`}
-                  onClick={() => handleGroupChange(option.value)}
-                  disabled={loading}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
+            <Link className="link" to="/jobs">
+              {t("dashboard.viewAll") || "View all"}
+            </Link>
           }
+          flush
         >
-          {loading ? (
-            <p className="muted-note">{t("common.loading") || "Loading analytics..."}</p>
-          ) : breakdown.length === 0 ? (
-            <p className="muted-note">{t("common.noData") || "No analytics to display yet."}</p>
-          ) : (
-            <ul className="bar-list">
-              {breakdown.map((entry) => (
-                <li key={entry.category} className="bar-item">
-                  <span className="bar-label" title={entry.category}>
-                    {entry.category}
-                  </span>
-                  <span className="bar-track">
-                    <span
-                      className="bar-fill"
-                      style={{ width: `${(entry.candidates / maxCandidates) * 100}%` }}
-                    />
-                  </span>
-                  <span className="bar-value">{entry.candidates}</span>
-                </li>
-              ))}
-            </ul>
-          )}
+          <Table
+            columns={recentJobsColumns}
+            rows={recentJobs}
+            rowKey={(job) => job.id}
+            loading={recentJobsLoading && recentJobs.length === 0}
+            loadingRows={4}
+            emptyState={
+              recentJobsError ? (
+                <div className="chart-state">
+                  <p className="error-state-message">{recentJobsError.detail ?? genericErrorMessage}</p>
+                  <Button size="sm" onClick={loadRecentJobs}>
+                    {t("common.retry") || "Retry"}
+                  </Button>
+                </div>
+              ) : (
+                <div className="chart-state">
+                  <p className="muted-note">{t("dashboard.noJobs") || "No jobs yet."}</p>
+                </div>
+              )
+            }
+          />
         </Card>
 
         <Card
-          title={t("dashboard.recentJobs") || "Recent Jobs"}
+          title={t("dashboard.activity.title") || "Recent Activity"}
           action={
-            <Link className="link" to="/jobs" style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}>
-              {t("dashboard.viewAll") || "View all"} <ArrowUpRight size={14} />
+            <Link className="link" to="/candidates">
+              {t("dashboard.viewAll") || "View all"}
             </Link>
           }
         >
-          {recentJobs.length === 0 ? (
-            <p className="muted-note">{t("dashboard.noJobs") || "No jobs yet."}</p>
-          ) : (
-            <ul className="recent-jobs">
-              {recentJobs.map((job) => (
-                <li key={job.id}>
-                  <Link className="recent-jobs-link" to={`/jobs/${job.id}`}>
-                    <span className="recent-jobs-title">{job.position}</span>
-                    <span className="recent-jobs-meta">
-                      {job.company_name} · {job.leads_count} {t("jobs.leads") || "leads"}
-                    </span>
-                  </Link>
-                  <span className="recent-jobs-date">{formatDate(job.created_at)}</span>
-                </li>
-              ))}
-            </ul>
-          )}
+          <RecentActivityList
+            jobs={recentJobs}
+            leads={recentLeads}
+            loading={(recentJobsLoading && recentJobs.length === 0) || (recentLeadsLoading && recentLeads.length === 0)}
+            jobLabel={t("dashboard.activity.jobCreated") || "Job created"}
+            applicationLabel={t("dashboard.activity.newApplication") || "New application"}
+            emptyTitle={t("dashboard.activity.emptyTitle") || "No recent activity"}
+            emptyMessage={t("dashboard.activity.emptyMessage") || "Recent jobs and applications will show up here."}
+          />
         </Card>
       </div>
 
-      <Card
-        title={t("dashboard.recentCandidates") || "Recent Candidates"}
-        action={
-          <Link className="link" to="/candidates" style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}>
-            {t("dashboard.viewAll") || "View all"} <ArrowUpRight size={14} />
-          </Link>
-        }
-      >
-        {recentLeads.length === 0 ? (
-          <p className="muted-note">{t("dashboard.noCandidates") || "No candidates yet."}</p>
-        ) : (
-          <ul className="recent-candidates">
-            {recentLeads.map((candidate) => (
-              <li key={candidate.id}>
-                <Link className="recent-candidates-link" to={`/candidates/${candidate.id}`}>
-                  <span className="recent-candidates-name">{candidate.name}</span>
-                  <span className="recent-candidates-meta">
-                    {candidate.position} · {candidate.company_name}
-                  </span>
-                </Link>
-                <div className="recent-candidates-status">
-                  <StatusBadge kind="hiring" value={candidate.hiring_status} />
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </Card>
+      <div className="quick-actions">
+        <Button variant="secondary" size="sm" to="/jobs/create" icon={<Plus size={14} />}>
+          {t("jobs.createJob") || "Create Job"}
+        </Button>
+        <Button variant="secondary" size="sm" to="/applications" icon={<FileText size={14} />}>
+          {t("dashboard.quickActions.reviewApplications") || "Review Applications"}
+        </Button>
+        <Button variant="secondary" size="sm" to="/interviews" icon={<CalendarClock size={14} />}>
+          {t("dashboard.quickActions.scheduleInterview") || "Schedule Interview"}
+        </Button>
+      </div>
     </div>
   );
 }

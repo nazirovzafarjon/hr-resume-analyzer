@@ -6,14 +6,15 @@
  */
 
 import { apiRequest } from "./apiClient";
+import type { AnalyticsGroupBy, HiringStatus } from "../types/worker";
+
+export type AnalyticsRange = "7d" | "30d" | "90d";
 
 /**
  * Fetch dashboard overview with optional category grouping.
  * Returns total_jobs, total_candidates, total_leads, and breakdown by category.
  */
-export async function fetchDashboardOverview(
-  category: "company" | "position" | "experience" = "company",
-) {
+export async function fetchDashboardOverview(category: AnalyticsGroupBy = "company") {
   const params = new URLSearchParams({ category });
   return apiRequest<DashboardOverview>(
     `/dashboard/overview?${params}`,
@@ -44,13 +45,15 @@ export async function fetchRecentLeads(limit = 5) {
 }
 
 /**
- * Fetch comprehensive analytics data for the Analytics page.
+ * Fetch comprehensive analytics data (trend, status distribution, AI
+ * processing counts, top jobs, ...) for the given time range.
  */
-export async function fetchAnalyticsData() {
-  return apiRequest<AnalyticsData>("/dashboard/analytics", { auth: true });
+export async function fetchAnalyticsData(range: AnalyticsRange = "30d") {
+  const params = new URLSearchParams({ range });
+  return apiRequest<AnalyticsData>(`/dashboard/analytics?${params}`, { auth: true });
 }
 
-// ---- Types ----
+// ---- Types (mirror app/schemas/dashboard.py) ----
 
 export type DashboardOverview = {
   total_jobs: number;
@@ -78,33 +81,68 @@ export type RecentLead = {
   email: string;
   company_name: string;
   position: string;
-  hiring_status: import("../types/worker").HiringStatus;
+  hiring_status: HiringStatus;
   created_at: string;
 };
 
+export type TrendPoint = {
+  date: string;
+  applications: number;
+  interviews: number;
+};
+
+export type PreviousPeriod = {
+  applications: number;
+  interviews: number;
+};
+
+export type StatusCount = {
+  status: import("../types/worker").ApplicationStatus;
+  count: number;
+};
+
+export type AnalysisStatusCounts = {
+  new: number;
+  pending: number;
+  analyzing: number;
+  completed: number;
+  failed: number;
+};
+
+export type ScoreDistributionBucket = { bucket: string; count: number };
+
+export type HiringStatusCounts = {
+  strong_hire: number;
+  hire: number;
+  weak_hire: number;
+  do_not_hire: number;
+};
+
+export type InterviewStatusCounts = {
+  in_process: number;
+  completed: number;
+  not_completed: number;
+};
+
+export type TopJob = {
+  job_id: number;
+  position: string;
+  company_name: string;
+  applications_count: number;
+};
+
 export type AnalyticsData = {
-  funnel: {
-    applied: number;
-    screening: number;
-    interview: number;
-    shortlisted: number;
-    hired: number;
-    rejected: number;
-  };
-  score_distribution: Array<{ bucket: string; count: number }>;
-  weekly_volume: Array<{ week: string; applications: number; interviews: number }>;
-  hiring_status_counts: {
-    strong_hire: number;
-    hire: number;
-    weak_hire: number;
-    do_not_hire: number;
-  };
-  interview_status_counts: {
-    in_process: number;
-    completed: number;
-    not_completed: number;
-  };
+  range: AnalyticsRange;
+  trend: TrendPoint[];
+  previous_period: PreviousPeriod;
+  status_distribution: StatusCount[];
+  analysis_status_counts: AnalysisStatusCounts;
+  score_distribution: ScoreDistributionBucket[];
+  hiring_status_counts: HiringStatusCounts;
+  interview_status_counts: InterviewStatusCounts;
   avg_ai_score: number;
   total_jobs: number;
+  total_applications: number;
   total_candidates: number;
+  top_jobs: TopJob[];
 };

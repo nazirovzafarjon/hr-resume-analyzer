@@ -2,12 +2,25 @@ import { useEffect, useState } from "react";
 import { fetchAnalyticsData, type AnalyticsData } from "../../services/dashboardService";
 import { ApiError } from "../../utils/apiError";
 import PageHeader from "../../components/ui/PageHeader";
+import PageMeta from "../../components/seo/PageMeta";
 import Card from "../../components/ui/Card";
 import StatCard from "../../components/ui/StatCard";
 import EmptyState from "../../components/ui/EmptyState";
 import Button from "../../components/ui/Button";
 import { SkeletonCards } from "../../components/ui/Skeleton";
 import { useLanguage } from "../../contexts/LanguageContext";
+import { APPLICATION_STATUS_LABELS, APPLICATION_STATUS_TONES, translateOr } from "../../utils/statusLabels";
+import type { ApplicationStatus } from "../../types/worker";
+
+const STATUS_ORDER: ApplicationStatus[] = ["new", "reviewing", "shortlisted", "interview", "rejected", "withdrawn"];
+const STATUS_TONE_COLOR: Record<string, string> = {
+  success: "var(--color-success)",
+  warning: "var(--color-warning)",
+  danger: "var(--color-danger)",
+  info: "var(--color-info)",
+  primary: "var(--color-primary)",
+  neutral: "var(--color-neutral)",
+};
 
 /** /analytics — hiring funnel, score distribution and weekly volume. */
 export default function AnalyticsPage() {
@@ -24,7 +37,7 @@ export default function AnalyticsPage() {
       setError(null);
 
       try {
-        const analyticsData = await fetchAnalyticsData();
+        const analyticsData = await fetchAnalyticsData("90d");
         if (mounted) {
           setData(analyticsData);
         }
@@ -85,21 +98,20 @@ export default function AnalyticsPage() {
   }
 
   const analytics = data!;
-  const maxFunnel = Math.max(1, ...Object.values(analytics.funnel));
+  const statusMap = new Map(analytics.status_distribution.map((row) => [row.status, row.count]));
+  const funnelStages = STATUS_ORDER.map((status) => ({
+    key: status,
+    label: translateOr(t, `statusMeta.application.${status}`, APPLICATION_STATUS_LABELS[status]),
+    value: statusMap.get(status) ?? 0,
+    color: STATUS_TONE_COLOR[APPLICATION_STATUS_TONES[status]],
+  }));
+  const maxFunnel = Math.max(1, ...funnelStages.map((s) => s.value));
   const maxBucket = Math.max(1, ...analytics.score_distribution.map((b) => b.count));
-  const maxWeek = Math.max(1, ...analytics.weekly_volume.map((w) => w.applications));
-
-  const funnelStages = [
-    { key: "applied", label: t("analytics.applied") || "Applied", value: analytics.funnel.applied, color: "var(--color-primary)" },
-    { key: "screening", label: t("analytics.screening") || "Screening", value: analytics.funnel.screening, color: "var(--color-warning)" },
-    { key: "interview", label: t("analytics.interview") || "Interview", value: analytics.funnel.interview, color: "var(--color-info)" },
-    { key: "shortlisted", label: t("analytics.shortlisted") || "Shortlisted", value: analytics.funnel.shortlisted, color: "var(--color-primary)" },
-    { key: "hired", label: t("analytics.hired") || "Hired", value: analytics.funnel.hired, color: "var(--color-success)" },
-    { key: "rejected", label: t("analytics.rejected") || "Rejected", value: analytics.funnel.rejected, color: "var(--color-danger)" },
-  ];
+  const maxTrend = Math.max(1, ...analytics.trend.map((point) => point.applications));
 
   return (
     <div className="page">
+      <PageMeta title={t("nav.analytics")} noindex />
       <PageHeader
         title={t("analytics.title") || "Analytics"}
         description={t("analytics.description") || "Pipeline performance at a glance."}
@@ -113,9 +125,9 @@ export default function AnalyticsPage() {
           tone="info"
         />
         <StatCard
-          label={t("analytics.candidates") || "Candidates"}
-          value={analytics.total_candidates}
-          hint={t("stats.candidatesHint") || "in pipeline"}
+          label={t("stats.applications") || "Applications"}
+          value={analytics.total_applications}
+          hint={t("stats.applicationsHint") || "received total"}
         />
         <StatCard
           label={t("analytics.avgScore") || "Avg AI score"}
@@ -140,7 +152,7 @@ export default function AnalyticsPage() {
       <div className="dashboard-grid">
         <Card
           title={t("analytics.hiringFunnel") || "Hiring funnel"}
-          subtitle="Conversion through candidate pipeline stages."
+          subtitle={t("analytics.hiringFunnelSubtitle")}
         >
           <ul className="bar-list">
             {funnelStages.map((stage) => (
@@ -163,7 +175,7 @@ export default function AnalyticsPage() {
 
         <Card
           title={t("analytics.scoreDistribution") || "AI score distribution"}
-          subtitle="How candidate resumes scored against job criteria."
+          subtitle={t("analytics.scoreDistributionSubtitle")}
         >
           <ul className="bar-list">
             {analytics.score_distribution.map((bucket) => (
@@ -187,23 +199,25 @@ export default function AnalyticsPage() {
 
       <Card
         title={t("analytics.weeklyVolume") || "Weekly volume"}
-        subtitle="Applications received per week."
+        subtitle={t("analytics.weeklyVolumeSubtitle")}
       >
         <ul className="bar-list">
-          {analytics.weekly_volume.map((week) => (
-            <li key={week.week} className="bar-item">
-              <span className="bar-label">{week.week}</span>
+          {analytics.trend.map((point) => (
+            <li key={point.date} className="bar-item">
+              <span className="bar-label">
+                {new Date(`${point.date}T00:00:00Z`).toLocaleDateString(undefined, { month: "short", day: "numeric", timeZone: "UTC" })}
+              </span>
               <span className="bar-track">
                 <span
                   className="bar-fill"
                   style={{
-                    width: `${(week.applications / maxWeek) * 100}%`,
+                    width: `${(point.applications / maxTrend) * 100}%`,
                     backgroundColor: "var(--color-primary)",
                   }}
                 />
               </span>
               <span className="bar-value">
-                {week.applications} {t("stats.applications") || "apps"} · {week.interviews} {t("nav.interviews") || "interviews"}
+                {point.applications} {t("stats.applications") || "apps"} · {point.interviews} {t("nav.interviews") || "interviews"}
               </span>
             </li>
           ))}
