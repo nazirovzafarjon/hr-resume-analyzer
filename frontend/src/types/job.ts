@@ -9,9 +9,6 @@ import type {
   ApplicationFormPayload,
 } from "./applicationForm";
 
-/** How the vacancy requirements were provided. */
-export type JobRequirementSource = "manual" | "file" | "both";
-
 /** Structured AI analysis of a vacancy (from backend AI endpoint). */
 export type JobAIAnalysisResult = {
   company_name: string;
@@ -27,19 +24,6 @@ export type JobAIAnalysisResult = {
   application_fields?: ApplicationFieldDef[] | null;
 };
 
-/** Legacy mock AI analysis (kept for backwards compatibility with existing UI). */
-export type JobAIAnalysis = {
-  summary: string;
-  responsibilities: string[];
-  required_skills: string[];
-  nice_to_have_skills: string[];
-  experience_level: string;
-  seniority_score: number;
-  clarity_score: number;
-  completeness_score: number;
-  suggestions: string[];
-};
-
 export type JobInput = {
   id: number;
   public_id: string;
@@ -50,20 +34,17 @@ export type JobInput = {
   required_experience: string;
   leads_count: number;
   created_at: string;
-  /** Mock-only extensions — optional so existing jobs keep working. */
-  requirement_source?: JobRequirementSource;
-  requirement_file_name?: string;
-  ai_instructions?: string;
-  ai_analysis?: JobAIAnalysis;
   /** Published application form (owner view) — null when none exists yet. */
   application_form?: ApplicationFormConfig | null;
-  form_url?: string;
 };
 
 /**
  * Payload used when creating a job. `application_form` carries the reviewed
  * candidate questions; the backend then validates and stores them atomically
- * with the job and returns the public token.
+ * with the job and returns the public token. Mirrors the backend's
+ * `JobCreate`/`JobUpdate` schemas exactly — the AI analysis step
+ * (`POST /jobs/analyze`) is a separate, unstored request, so its result is
+ * only ever a starting draft for these fields, never persisted itself.
  */
 export type JobCreateInput = {
   company_name: string;
@@ -71,12 +52,7 @@ export type JobCreateInput = {
   description: string;
   required_skills: string;
   required_experience: string;
-  requirement_source?: JobRequirementSource;
-  requirement_file_name?: string;
-  ai_instructions?: string;
-  ai_analysis?: JobAIAnalysis;
   application_form?: ApplicationFormPayload | null;
-  form_url?: string;
 };
 
 /** Counts of candidates per hiring decision for a job's candidate summary. */
