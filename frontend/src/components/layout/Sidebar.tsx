@@ -101,7 +101,6 @@ export default function Sidebar({
                       `sidebar-link${isActive ? " is-active" : ""}`
                     }
                     onClick={onClose}
-                    aria-current="page"
                   >
                     <span className="sidebar-link-icon" aria-hidden="true">
                       <Icon size={18} />
