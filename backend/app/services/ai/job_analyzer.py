@@ -213,11 +213,31 @@ def _extract_json_text(content: str) -> str:
 
 
 def _strip_json_markdown(text: str) -> str:
-    """Strip a Markdown fenced code block if present, preserving JSON contents."""
+    """Return the JSON object text from an LLM reply.
+
+    Handles a Markdown fenced block, and replies where a reasoning model wrote
+    its thinking *before* the JSON (some OpenRouter upstreams put it in
+    ``content`` instead of a separate field): then the last ``{...}`` object
+    that runs to the end of the reply is used. Anything else is returned
+    as-is, so the caller's JSON error still reports the real content.
+    """
     stripped = text.strip()
     m = _MARKDOWN_JSON_RE.search(stripped)
     if m:
         return m.group(1).strip()
+    if stripped.startswith("{"):
+        return stripped
+
+    decoder = json.JSONDecoder()
+    start = stripped.rfind("{")
+    while start != -1:
+        try:
+            obj, end = decoder.raw_decode(stripped, start)
+        except json.JSONDecodeError:
+            obj, end = None, -1
+        if isinstance(obj, dict) and not stripped[end:].strip():
+            return stripped[start:end]
+        start = stripped.rfind("{", 0, start)
     return stripped
 
 
@@ -349,6 +369,13 @@ def _build_payload(
         "max_tokens": max_tokens,
         "response_format": {"type": "json_object"},
     }
+    if provider == "openrouter":
+        # Hybrid reasoning models (e.g. deepseek/deepseek-v4.1-flash) think by
+        # default, and some upstreams (Together) stream that thinking into
+        # ``content``: it eats the whole ``max_tokens`` budget and no JSON is
+        # ever produced. These are extraction tasks, so turn thinking off.
+        # OpenRouter ignores the flag for models that cannot disable it.
+        payload["reasoning"] = {"enabled": False}
     return payload
 
 
@@ -412,6 +439,13 @@ def _parse_response(response: httpx.Response, cfg: dict[str, Any]) -> str:
     if not isinstance(content, str) or not content.strip():
         logger.error("AI provider returned empty message content")
         raise AIInvalidResponseError("AI service returned an empty response.")
+    if response_data["choices"][0].get("finish_reason") == "length":
+        # Not fatal by itself (the JSON may still be complete), but it is the
+        # usual reason for a "not valid JSON" error that follows.
+        logger.warning(
+            "AI provider stopped at max_tokens (model=%s); the reply may be truncated",
+            cfg.get("model"),
+        )
     return content
 
 
