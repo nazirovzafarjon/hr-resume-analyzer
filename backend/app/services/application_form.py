@@ -14,7 +14,9 @@ module only ever deals with *data*.
 """
 
 import json
+import logging
 import re
+from collections.abc import Iterable
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -42,6 +44,8 @@ from app.schemas.application_form import (
 )
 from app.schemas.worker import WorkerCreate
 from app.services import job as job_service
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Exceptions (translated to HTTP responses by the routers)
@@ -123,6 +127,15 @@ def save_resume_file(filename: str, content_type: str, content: bytes) -> str:
     stored_name = f"{uuid4().hex}{suffix}"
     (directory / stored_name).write_bytes(content)
     return f"{_RESUMES_DIR}/{stored_name}"
+
+
+def _delete_stored_files(paths: Iterable[str]) -> None:
+    """Best-effort removal of resumes saved by a submission that then failed."""
+    for relative in paths:
+        try:
+            (Path(settings.UPLOAD_DIR) / relative).unlink(missing_ok=True)
+        except OSError:
+            logger.warning("Could not remove orphaned resume file %s", relative)
 
 
 # ---------------------------------------------------------------------------
@@ -553,28 +566,36 @@ def submit_public_application(
 
     values = validate_submission_values(fields, raw_values, files)
 
-    # Persist files (type/size were already whitelisted during validation).
-    stored_files: dict[str, str] = {}
-    resume_path = ""
-    for field in sorted(fields, key=lambda f: f.get("order", 0)):
-        if field.get("type") != "file":
-            continue
-        file_input = files.get(field["id"])
-        if file_input is None:
-            continue
-        filename, content_type, content = file_input
-        path = save_resume_file(filename, content_type, content)
-        stored_files[field["id"]] = path
-        if not resume_path:
-            resume_path = path
-
+    # Reject duplicates before anything touches the disk, so a repeated
+    # submission never leaves an orphaned resume file behind.
     name, email = extract_candidate_identity(fields, values)
     if _has_recent_submission(db, job.id, email):
         raise DuplicateSubmissionError()
 
-    worker = worker_crud.create_worker(
-        db, job.id, WorkerCreate(name=name, email=email, resume_path=resume_path)
-    )
+    # Persist files (type/size were already whitelisted during validation).
+    # Until the candidate row is committed nothing references them, so any
+    # failure up to that point removes the files written so far.
+    stored_files: dict[str, str] = {}
+    resume_path = ""
+    try:
+        for field in sorted(fields, key=lambda f: f.get("order", 0)):
+            if field.get("type") != "file":
+                continue
+            file_input = files.get(field["id"])
+            if file_input is None:
+                continue
+            filename, content_type, content = file_input
+            path = save_resume_file(filename, content_type, content)
+            stored_files[field["id"]] = path
+            if not resume_path:
+                resume_path = path
+
+        worker = worker_crud.create_worker(
+            db, job.id, WorkerCreate(name=name, email=email, resume_path=resume_path)
+        )
+    except Exception:
+        _delete_stored_files(stored_files.values())
+        raise
     application_response_crud.create_response(
         db, worker.id, _build_response_snapshot(fields, values, stored_files)
     )
