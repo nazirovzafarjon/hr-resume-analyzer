@@ -17,34 +17,26 @@ import { buildSubmissionFormData } from "../utils/applicationFields";
 export async function getPublicApplication(
   token: string
 ): Promise<PublicApplication> {
-  return apiRequest<PublicApplication>(`/public/applications/${token}`);
+  return apiRequest<PublicApplication>(`/public/applications/${encodeURIComponent(token)}`);
 }
 
-/** Submit a candidate application through the public form (no auth). */
-export async function submitPublicApplication(
+/**
+ * Submit a candidate application through the public form (no auth).
+ *
+ * Multipart body (`values` JSON + one part per file field) sent through the
+ * shared client, so failures surface as `ApiError` with the backend's
+ * candidate-safe `detail` and its status (422 validation, 409 duplicate,
+ * 404 link gone, 0 network).
+ */
+export function submitPublicApplication(
   token: string,
   fields: ApplicationFieldDef[],
   values: ApplicationValues,
   files: Record<string, File | null>
 ): Promise<void> {
-  const formData = buildSubmissionFormData(fields, values, files);
-  const response = await fetch(
-    `${import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000/api"}/public/applications/${token}/submit`,
-    {
-      method: "POST",
-      body: formData,
-    }
-  );
-  if (!response.ok) {
-    let detail = "Something went wrong. Please try again.";
-    try {
-      const data = await response.json();
-      if (data.detail) detail = data.detail;
-    } catch {
-      // Ignore JSON parse errors.
-    }
-    const error = new Error(detail) as Error & { status: number };
-    error.status = response.status;
-    throw error;
-  }
+  return apiRequest<void>(`/public/applications/${encodeURIComponent(token)}/submit`, {
+    method: "POST",
+    body: buildSubmissionFormData(fields, values, files),
+    formData: true,
+  });
 }

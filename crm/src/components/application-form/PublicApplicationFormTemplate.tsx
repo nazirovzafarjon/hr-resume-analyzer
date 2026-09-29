@@ -12,6 +12,8 @@
  * model cannot change this UI; only the field data can change.
  */
 
+import { useId, useState } from "react";
+import { Building, CircleAlert, ShieldCheck } from "lucide-react";
 import ApplicationField from "./ApplicationField";
 import Button from "../ui/Button";
 import { useLanguage } from "../../contexts/LanguageContext";
@@ -23,6 +25,9 @@ import type {
   PublicJobInfo,
 } from "../../types/applicationForm";
 
+/** Descriptions longer than this start collapsed behind "Show more". */
+const DESCRIPTION_PREVIEW_CHARS = 420;
+
 type PublicApplicationFormTemplateProps = {
   job: PublicJobInfo;
   fields: ApplicationFieldDef[];
@@ -30,6 +35,7 @@ type PublicApplicationFormTemplateProps = {
   /** Selected files keyed by field id. */
   files?: Record<string, File | null>;
   fieldErrors?: ApplicationFieldErrors;
+  /** Form-level message (validation summary or submission failure). */
   formError?: string | null;
   submitting?: boolean;
   /** "preview" renders the identical form with submitting disabled. */
@@ -38,6 +44,35 @@ type PublicApplicationFormTemplateProps = {
   onFileChange?: (fieldId: string, file: File | null) => void;
   onSubmit?: () => void;
 };
+
+function JobDescription({ text }: { text: string }) {
+  const { t } = useLanguage();
+  const id = useId();
+  const long = text.length > DESCRIPTION_PREVIEW_CHARS;
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <div className="apply-about">
+      <h2 className="apply-about-title">{t("apply.aboutRole")}</h2>
+      <p
+        id={id}
+        className={`apply-description${long && !expanded ? " apply-description--clamped" : ""}`}
+      >
+        {text}
+      </p>
+      {long && (
+        <button
+          type="button"
+          className="apply-description-toggle"
+          aria-expanded={expanded}
+          aria-controls={id}
+          onClick={() => setExpanded((current) => !current)}
+        >
+          {expanded ? t("apply.showLess") : t("apply.showMore")}
+        </button>
+      )}
+    </div>
+  );
+}
 
 export default function PublicApplicationFormTemplate({
   job,
@@ -53,8 +88,14 @@ export default function PublicApplicationFormTemplate({
   onSubmit,
 }: PublicApplicationFormTemplateProps) {
   const { t } = useLanguage();
+  const titleId = useId();
   const ordered = sortedFields(fields);
   const isPreview = mode === "preview";
+  const skills = job.required_skills
+    .split(",")
+    .map((skill) => skill.trim())
+    .filter(Boolean)
+    .slice(0, 8);
 
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -62,43 +103,46 @@ export default function PublicApplicationFormTemplate({
   }
 
   return (
-    <section className="apply-template" aria-label="Application form">
+    <article className="apply-template" aria-labelledby={titleId}>
       <header className="apply-header">
+        <p className="apply-eyebrow">{t("apply.eyebrow")}</p>
+        <h1 id={titleId} className="apply-title">
+          {job.position || t("apply.defaultTitle")}
+        </h1>
         {job.company_name && (
-          <p className="apply-company">{job.company_name}</p>
+          <p className="apply-company">
+            <Building size={16} aria-hidden="true" />
+            {job.company_name}
+          </p>
         )}
-        <h1 className="apply-title">{job.position || t("apply.defaultTitle") || "Application"}</h1>
-        {job.description && <p className="apply-description">{job.description}</p>}
-        {(job.required_skills || job.required_experience) && (
-          <div className="apply-meta">
-            {job.required_experience && (
-              <span className="chip">{job.required_experience}</span>
-            )}
-            {job.required_skills
-              .split(",")
-              .map((s) => s.trim())
-              .filter(Boolean)
-              .slice(0, 8)
-              .map((skill) => (
-                <span key={skill} className="chip chip--info">
-                  {skill}
-                </span>
-              ))}
-          </div>
+        {(job.required_experience || skills.length > 0) && (
+          <ul className="apply-meta">
+            {job.required_experience && <li className="chip">{job.required_experience}</li>}
+            {skills.map((skill) => (
+              <li key={skill} className="chip chip--info">
+                {skill}
+              </li>
+            ))}
+          </ul>
         )}
+        {job.description && <JobDescription text={job.description} />}
       </header>
 
-      <form className="apply-form" onSubmit={handleSubmit} noValidate>
-        <h2 className="apply-form-title">
-          {isPreview
-            ? t("apply.applicationPreview") || "Application (preview)"
-            : t("apply.formHeading") || "Application"}
-        </h2>
-        <p className="apply-form-subtitle">
-          {t("apply.requiredFieldsPrefix") || "Fields marked with"}{" "}
-          <span className="apply-required">*</span>{" "}
-          {t("apply.requiredFieldsSuffix") || "are required."}
-        </p>
+      <form
+        className={`apply-form${isPreview ? "" : " apply-form--card"}`}
+        onSubmit={handleSubmit}
+        noValidate
+        aria-busy={submitting || undefined}
+      >
+        <div className="apply-form-head">
+          <h2 className="apply-form-title">
+            {isPreview ? t("apply.applicationPreview") : t("apply.formHeading")}
+          </h2>
+          <p className="apply-form-subtitle">
+            {t("apply.requiredFieldsPrefix")} <span className="apply-required">*</span>{" "}
+            {t("apply.requiredFieldsSuffix")}
+          </p>
+        </div>
 
         <div className="apply-fields">
           {ordered.map((field) => (
@@ -117,29 +161,31 @@ export default function PublicApplicationFormTemplate({
 
         {formError && (
           <div className="apply-form-error" role="alert">
-            <strong>{t("apply.submitErrorHeading") || "We couldn't submit your application."}</strong>
+            <CircleAlert size={18} aria-hidden="true" />
             <p>{formError}</p>
-            <p className="muted-note">{t("apply.submitErrorHint") || "Please check your information and try again."}</p>
           </div>
         )}
 
         <div className="apply-submit">
           {isPreview ? (
-            <Button type="button" disabled>
-              {t("apply.submit") || "Submit Application"}
+            <Button type="button" size="lg" disabled>
+              {t("apply.submit")}
             </Button>
           ) : (
-            <Button type="submit" loading={submitting} disabled={submitting}>
-              {submitting ? t("apply.submitting") || "Submitting…" : t("apply.submit") || "Submit Application"}
+            <Button type="submit" size="lg" loading={submitting} disabled={submitting}>
+              {submitting ? t("apply.submitting") : t("apply.submit")}
             </Button>
           )}
-          {isPreview && (
-            <p className="muted-note">
-              {t("applicationForm.previewNote") || "Live preview — candidates will see exactly this form."}
+          {isPreview ? (
+            <p className="muted-note">{t("applicationForm.previewNote")}</p>
+          ) : (
+            <p className="apply-privacy">
+              <ShieldCheck size={16} aria-hidden="true" />
+              <span>{t("apply.privacyNotice")}</span>
             </p>
           )}
         </div>
       </form>
-    </section>
+    </article>
   );
 }

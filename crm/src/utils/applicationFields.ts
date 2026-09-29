@@ -14,8 +14,13 @@ import { FIELD_TYPE_REGISTRY, isOptionFieldType } from "./fieldTypes";
 import { isValidEmail } from "./validate";
 
 const MAX_FIELDS = 50;
-const MAX_RESUME_SIZE_BYTES = 10 * 1024 * 1024;
+/** Backend limits (app/services/application_form.py, app/schemas/application_form.py). */
+export const MAX_RESUME_SIZE_MB = 10;
+const MAX_RESUME_SIZE_BYTES = MAX_RESUME_SIZE_MB * 1024 * 1024;
 const RESUME_EXTENSIONS = [".pdf", ".doc", ".docx", ".txt"];
+/** `accept` attribute for resume inputs (same whitelist as the backend). */
+export const RESUME_ACCEPT = RESUME_EXTENSIONS.join(",");
+export const MAX_TEXT_VALUE_LENGTH = 5000;
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const PHONE_PATTERN = /^[+0-9()\-\s.]{6,32}$/;
 const URL_PATTERN = /^https?:\/\/\S+$/i;
@@ -188,39 +193,46 @@ function isEmptyValue(value: unknown): boolean {
   return false;
 }
 
-function resumeFileValid(file: File): string | null {
+/** Translator signature shared with `LanguageContext`'s `t`. */
+type Translate = (key: string, params?: Record<string, string | number>) => string;
+
+/**
+ * Check a resume file against the backend's whitelist and size limit.
+ * Returns a translated problem message, or null when the file is acceptable.
+ */
+export function validateResumeFile(file: File, t: Translate): string | null {
   const lower = file.name.toLowerCase();
-  const okExtension = RESUME_EXTENSIONS.some((ext) => lower.endsWith(ext));
-  if (!okExtension) {
-    return "Unsupported file type. Allowed: PDF, DOC, DOCX, TXT.";
+  if (!RESUME_EXTENSIONS.some((ext) => lower.endsWith(ext))) {
+    return t("apply.errors.fileType");
   }
   if (file.size > MAX_RESUME_SIZE_BYTES) {
-    return "File exceeds the 10MB size limit.";
+    return t("apply.errors.fileSize", { size: MAX_RESUME_SIZE_MB });
   }
   return null;
 }
 
 /**
  * Client-side mirror of the backend's submission validation.
- * Returns per-field errors (empty object = valid). File fields are validated
- * here as well because they live in the separate files record.
+ * Returns translated per-field errors (empty object = valid). File fields are
+ * validated here as well because they live in the separate files record.
  */
 export function validateApplicationValues(
   fields: ApplicationFieldDef[],
   values: ApplicationValues,
-  files: Record<string, File | null>
+  files: Record<string, File | null>,
+  t: Translate
 ): ApplicationFieldErrors {
   const errors: ApplicationFieldErrors = {};
   for (const field of sortedFields(fields)) {
     const value = values[field.id];
-    const label = field.label || "This question";
+    const label = field.label;
 
     if (field.type === "file") {
       const file = files[field.id] ?? null;
       if (field.required && !file) {
-        errors[field.id] = `"${label}" is required.`;
+        errors[field.id] = t("apply.errors.fileRequired", { label });
       } else if (file) {
-        const problem = resumeFileValid(file);
+        const problem = validateResumeFile(file, t);
         if (problem) errors[field.id] = problem;
       }
       continue;
@@ -230,54 +242,43 @@ export function validateApplicationValues(
       if (field.required) {
         errors[field.id] =
           field.type === "checkbox"
-            ? `"${label}" must be checked.`
-            : `"${label}" is required.`;
+            ? t("apply.errors.mustCheck", { label })
+            : field.type === "select" || field.type === "multi_select"
+              ? t("apply.errors.chooseOption", { label })
+              : t("apply.errors.required", { label });
       }
       continue;
     }
 
     switch (field.type) {
       case "email":
-        if (!isValidEmail(String(value))) {
-          errors[field.id] = `"${label}" must be a valid email address.`;
-        }
+        if (!isValidEmail(String(value).trim())) errors[field.id] = t("apply.errors.email");
         break;
       case "number":
-        if (Number.isNaN(Number(value))) {
-          errors[field.id] = `"${label}" must be a valid number.`;
-        }
+        if (Number.isNaN(Number(value))) errors[field.id] = t("apply.errors.number");
         break;
       case "date":
-        if (!DATE_PATTERN.test(String(value))) {
-          errors[field.id] = `"${label}" must be a valid date.`;
-        }
+        if (!DATE_PATTERN.test(String(value))) errors[field.id] = t("apply.errors.date");
         break;
       case "url":
-        if (!URL_PATTERN.test(String(value).trim())) {
-          errors[field.id] =
-            `"${label}" must be a URL starting with http:// or https://.`;
-        }
+        if (!URL_PATTERN.test(String(value).trim())) errors[field.id] = t("apply.errors.url");
         break;
       case "phone":
-        if (!PHONE_PATTERN.test(String(value).trim())) {
-          errors[field.id] = `"${label}" must be a valid phone number.`;
-        }
+        if (!PHONE_PATTERN.test(String(value).trim())) errors[field.id] = t("apply.errors.phone");
         break;
       case "select":
-        if (!field.options.includes(String(value))) {
-          errors[field.id] = `"${label}" must be one of the available options.`;
-        }
+        if (!field.options.includes(String(value))) errors[field.id] = t("apply.errors.option");
         break;
       case "multi_select": {
         const selected = Array.isArray(value) ? value.map(String) : [];
         if (!selected.every((option) => field.options.includes(option))) {
-          errors[field.id] = `"${label}" contains an option that is not available.`;
+          errors[field.id] = t("apply.errors.option");
         }
         break;
       }
       default:
-        if (String(value).length > 5000) {
-          errors[field.id] = `"${label}" is too long.`;
+        if (String(value).length > MAX_TEXT_VALUE_LENGTH) {
+          errors[field.id] = t("apply.errors.tooLong", { max: MAX_TEXT_VALUE_LENGTH });
         }
     }
   }

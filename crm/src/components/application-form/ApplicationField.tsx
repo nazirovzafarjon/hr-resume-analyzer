@@ -6,12 +6,27 @@
  */
 
 import { useId } from "react";
+import { CircleAlert } from "lucide-react";
+import ResumeUpload from "./ResumeUpload";
+import { useLanguage } from "../../contexts/LanguageContext";
+import { MAX_TEXT_VALUE_LENGTH } from "../../utils/applicationFields";
 import type {
   ApplicationFieldDef,
   ApplicationFieldValue,
 } from "../../types/applicationForm";
 
-const RESUME_ACCEPT = ".pdf,.doc,.docx,.txt";
+/**
+ * Browser autofill hint from the field's type or machine key. Keys come from
+ * the label ("Full name" -> "full_name"), so the common identity questions
+ * get the right suggestions without any change to the stored configuration.
+ */
+function autoCompleteFor(field: ApplicationFieldDef): string | undefined {
+  if (field.type === "email") return "email";
+  if (field.type === "phone") return "tel";
+  if (field.type === "url") return "url";
+  if (field.type === "text" && /(^|_)(full_)?name$/.test(field.key)) return "name";
+  return undefined;
+}
 
 type ApplicationFieldProps = {
   field: ApplicationFieldDef;
@@ -33,6 +48,7 @@ export default function ApplicationField({
   onChange,
   onFileChange,
 }: ApplicationFieldProps) {
+  const { t } = useLanguage();
   const uid = useId();
   const inputId = `${uid}-${field.id}`;
   const errorId = `${uid}-${field.id}-error`;
@@ -55,7 +71,7 @@ export default function ApplicationField({
           *
         </span>
       )}
-      {requiredStars === 1 && <span className="sr-only"> (required)</span>}
+      {requiredStars === 1 && <span className="sr-only"> ({t("apply.requiredSr")})</span>}
     </label>
   );
 
@@ -65,16 +81,19 @@ export default function ApplicationField({
     </p>
   ) : null;
 
+  // Not a live region: after a submit the form announces one summary and
+  // focuses the first invalid field, which reads this via aria-describedby.
   const errorNode = showError ? (
-    <p id={errorId} className="field-error" role="alert">
-      {error}
+    <p id={errorId} className="apply-field-error">
+      <CircleAlert size={14} aria-hidden="true" />
+      <span>{error}</span>
     </p>
   ) : null;
 
   switch (field.type) {
     case "textarea":
       return (
-        <div className="apply-field">
+        <div className="apply-field" data-field-id={field.id}>
           {labelNode}
           {descriptionNode}
           <textarea
@@ -82,19 +101,28 @@ export default function ApplicationField({
             className={`${inputClass} apply-input--textarea`}
             value={typeof value === "string" ? value : ""}
             onChange={(e) => onChange(e.target.value)}
-            rows={4}
+            rows={5}
+            maxLength={MAX_TEXT_VALUE_LENGTH}
             disabled={disabled}
             required={field.required}
             aria-invalid={showError || undefined}
             aria-describedby={describedBy}
           />
-          {errorNode}
+          <div className="apply-field-footer">
+            {errorNode}
+            <span className="apply-char-count">
+              {t("apply.charCount", {
+                count: typeof value === "string" ? value.length : 0,
+                max: MAX_TEXT_VALUE_LENGTH,
+              })}
+            </span>
+          </div>
         </div>
       );
 
     case "select":
       return (
-        <div className="apply-field">
+        <div className="apply-field" data-field-id={field.id}>
           {labelNode}
           {descriptionNode}
           <select
@@ -107,7 +135,7 @@ export default function ApplicationField({
             aria-invalid={showError || undefined}
             aria-describedby={describedBy}
           >
-            <option value="">Select an option…</option>
+            <option value="">{t("apply.selectPlaceholder")}</option>
             {field.options.map((option) => (
               <option key={option} value={option}>
                 {option}
@@ -120,7 +148,13 @@ export default function ApplicationField({
 
     case "multi_select":
       return (
-        <fieldset className="apply-field apply-fieldset" disabled={disabled}>
+        <fieldset
+          className="apply-field apply-fieldset"
+          disabled={disabled}
+          data-field-id={field.id}
+          aria-invalid={showError || undefined}
+          aria-describedby={describedBy}
+        >
           <legend className="apply-field-label">
             {field.label}
             {requiredStars === 1 && (
@@ -129,10 +163,10 @@ export default function ApplicationField({
                 *
               </span>
             )}
-            {requiredStars === 1 && <span className="sr-only"> (required)</span>}
+            {requiredStars === 1 && <span className="sr-only"> ({t("apply.requiredSr")})</span>}
           </legend>
           {descriptionNode}
-          <div className="apply-checkbox-group" aria-describedby={describedBy}>
+          <div className="apply-checkbox-group">
             {field.options.map((option) => {
               const selected = Array.isArray(value) && value.includes(option);
               return (
@@ -162,7 +196,7 @@ export default function ApplicationField({
 
     case "checkbox":
       return (
-        <div className="apply-field apply-field--checkbox">
+        <div className="apply-field apply-field--checkbox" data-field-id={field.id}>
           <label className="apply-checkbox-option">
             <input
               id={inputId}
@@ -181,7 +215,7 @@ export default function ApplicationField({
                   *
                 </span>
               )}
-              {requiredStars === 1 && <span className="sr-only"> (required)</span>}
+              {requiredStars === 1 && <span className="sr-only"> ({t("apply.requiredSr")})</span>}
             </span>
           </label>
           {descriptionNode}
@@ -191,37 +225,18 @@ export default function ApplicationField({
 
     case "file":
       return (
-        <div className="apply-field">
+        <div className="apply-field" data-field-id={field.id}>
           {labelNode}
           {descriptionNode}
-          <input
-            id={inputId}
-            type="file"
-            className="apply-file-input"
-            accept={RESUME_ACCEPT}
-            onChange={(e) => onFileChange?.(e.target.files?.[0] ?? null)}
+          <ResumeUpload
+            inputId={inputId}
+            file={file}
+            required={field.required}
             disabled={disabled}
-            required={field.required && !file}
-            aria-invalid={showError || undefined}
-            aria-describedby={describedBy}
+            invalid={showError}
+            describedBy={describedBy}
+            onFileChange={onFileChange}
           />
-          {file && (
-            <p className="apply-file-selected">
-              Selected: {file.name} ({(file.size / 1024).toFixed(1)} KB)
-              <button
-                type="button"
-                className="row-action"
-                onClick={() => {
-                  onFileChange?.(null);
-                  const input = document.getElementById(inputId) as HTMLInputElement | null;
-                  if (input) input.value = "";
-                }}
-                disabled={disabled}
-              >
-                Remove
-              </button>
-            </p>
-          )}
           {errorNode}
         </div>
       );
@@ -241,12 +256,14 @@ export default function ApplicationField({
                   ? "url"
                   : "text";
       return (
-        <div className="apply-field">
+        <div className="apply-field" data-field-id={field.id}>
           {labelNode}
           {descriptionNode}
           <input
             id={inputId}
             type={inputType}
+            autoComplete={autoCompleteFor(field)}
+            maxLength={field.type === "number" ? undefined : MAX_TEXT_VALUE_LENGTH}
             className={inputClass}
             value={typeof value === "string" ? value : ""}
             onChange={(e) => onChange(e.target.value)}
