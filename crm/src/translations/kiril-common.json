@@ -20,7 +20,17 @@
     "noData": "Маълумот топилмади",
     "copied": "Нусхаланди!",
     "copy": "Нусхалаш",
-    "filters": "Филтрларни тозалаш"
+    "filters": "Филтрларни тозалаш",
+    "clearFilters": "Филтрларни тозалаш",
+    "minutes": "{count} дақ",
+    "yes": "Ҳа",
+    "no": "Йўқ",
+    "pagination": {
+      "label": "Саҳифалаш",
+      "range": "{total} тадан {from}–{to}",
+      "previous": "Олдинги",
+      "next": "Кейинги"
+    }
   },
   "notifications": {
     "success": "Муваффақиятли",

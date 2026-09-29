@@ -26,7 +26,19 @@
       "upcoming": "Kutilayotgan",
       "completed": "Yakunlangan",
       "cancelled": "Bekor qilingan"
-    }
+    },
+    "deleteTitle": "Ushbu suhbat o'chirilsinmi?",
+    "deleteMessage": "{name} bilan suhbat butunlay o'chiriladi. Bu amalni bekor qilib bo'lmaydi.",
+    "errors": {
+      "dateRequired": "Sana va vaqtni tanlang.",
+      "interviewerRequired": "Suhbatdosh ismini kiriting."
+    },
+    "meeting": "Uchrashuv",
+    "meetingLink": "Uchrashuv havolasi",
+    "noCandidatesOption": "Hali nomzodlar yo'q",
+    "selectCandidate": "Nomzodni tanlang",
+    "noNotes": "Hali izohlar yo'q",
+    "searchPlaceholder": "Nomzod, ish yoki suhbatdosh bo'yicha qidirish…"
   },
   "stats": {
     "total": "Suhbatlar",

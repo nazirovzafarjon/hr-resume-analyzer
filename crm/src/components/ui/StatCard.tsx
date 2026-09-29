@@ -2,7 +2,7 @@ type StatCardProps = {
   label: string;
   value: string | number;
   hint?: string;
-  tone?: "default" | "success" | "info" | "warning" | "danger";
+  tone?: "default" | "primary" | "success" | "info" | "warning" | "danger";
   /** Optional leading icon for visual grouping. */
   icon?: React.ReactNode;
 };

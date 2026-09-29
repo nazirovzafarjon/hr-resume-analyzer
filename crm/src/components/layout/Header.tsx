@@ -12,6 +12,8 @@ import { useNotify } from "../../contexts/ToastContext";
 
 type HeaderProps = {
   onMenuClick: () => void;
+  /** Whether the mobile navigation drawer is open (drives aria-expanded). */
+  menuOpen?: boolean;
   onOpenPalette: () => void;
   /** Title shown for the active section (already translated). */
   title: string;
@@ -31,7 +33,7 @@ function initialsOf(fullName: string): string {
  * the account area (theme, language, profile). The control set is deliberately
  * small — only what an HR user reaches for during a session.
  */
-export default function Header({ onMenuClick, onOpenPalette, title }: HeaderProps) {
+export default function Header({ onMenuClick, onOpenPalette, title, menuOpen = false }: HeaderProps) {
   const { signOut } = useAuth();
   const { t } = useLanguage();
   const notify = useNotify();
@@ -86,13 +88,13 @@ export default function Header({ onMenuClick, onOpenPalette, title }: HeaderProp
         className="header-menu-button"
         onClick={onMenuClick}
         aria-label={t("shell.toggleNavigation")}
+        aria-expanded={menuOpen}
       >
         <Menu size={18} aria-hidden="true" />
       </button>
 
       <div className="header-title-block">
-        <h2 className="header-title">{title}</h2>
-        <span className="header-subtitle">{t("app.tagline")}</span>
+        <p className="header-title">{title}</p>
       </div>
 
       <button type="button" className="header-search" onClick={onOpenPalette}>

@@ -20,7 +20,17 @@
     "noData": "No data available",
     "copied": "Copied!",
     "copy": "Copy",
-    "filters": "Clear filters"
+    "filters": "Clear filters",
+    "clearFilters": "Clear filters",
+    "minutes": "{count} min",
+    "yes": "Yes",
+    "no": "No",
+    "pagination": {
+      "label": "Pagination",
+      "range": "Showing {from}–{to} of {total}",
+      "previous": "Previous",
+      "next": "Next"
+    }
   },
   "notifications": {
     "success": "Success",

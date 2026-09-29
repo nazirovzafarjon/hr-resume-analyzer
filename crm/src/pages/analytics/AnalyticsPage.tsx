@@ -9,22 +9,20 @@ import EmptyState from "../../components/ui/EmptyState";
 import Button from "../../components/ui/Button";
 import { SkeletonCards } from "../../components/ui/Skeleton";
 import { useLanguage } from "../../contexts/LanguageContext";
-import { APPLICATION_STATUS_LABELS, APPLICATION_STATUS_TONES, translateOr } from "../../utils/statusLabels";
+import HiringPipeline from "../../components/dashboard/HiringPipeline";
+import LineTrendChart from "../../components/charts/LineTrendChart";
+import { useChartPalette } from "../../components/charts/chartTheme";
+import { APPLICATION_STATUS_LABELS, translateOr } from "../../utils/statusLabels";
 import type { ApplicationStatus } from "../../types/worker";
 
 const STATUS_ORDER: ApplicationStatus[] = ["new", "reviewing", "shortlisted", "interview", "rejected", "withdrawn"];
-const STATUS_TONE_COLOR: Record<string, string> = {
-  success: "var(--color-success)",
-  warning: "var(--color-warning)",
-  danger: "var(--color-danger)",
-  info: "var(--color-info)",
-  primary: "var(--color-primary)",
-  neutral: "var(--color-neutral)",
-};
+const TERMINAL: ApplicationStatus[] = ["rejected", "withdrawn"];
 
 /** /analytics — hiring funnel, score distribution and weekly volume. */
 export default function AnalyticsPage() {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
+  const palette = useChartPalette();
+  const [reloadKey, setReloadKey] = useState(0);
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -60,7 +58,7 @@ export default function AnalyticsPage() {
     return () => {
       mounted = false;
     };
-  }, [t]);
+  }, [t, reloadKey]);
 
   if (loading && !data) {
     return (
@@ -69,7 +67,7 @@ export default function AnalyticsPage() {
           title={t("analytics.title") || "Analytics"}
           description={t("analytics.description") || "Pipeline performance at a glance."}
         />
-        <SkeletonCards count={5} />
+        <SkeletonCards count={4} />
       </div>
     );
   }
@@ -87,7 +85,7 @@ export default function AnalyticsPage() {
             title={t("analytics.error") || "Unable to load analytics"}
             message={error}
             action={
-              <Button onClick={() => window.location.reload()}>
+              <Button onClick={() => setReloadKey((key) => key + 1)}>
                 {t("common.retry") || "Retry"}
               </Button>
             }
@@ -100,29 +98,53 @@ export default function AnalyticsPage() {
   const analytics = data!;
   const statusMap = new Map(analytics.status_distribution.map((row) => [row.status, row.count]));
   const funnelStages = STATUS_ORDER.map((status) => ({
-    key: status,
+    status,
     label: translateOr(t, `statusMeta.application.${status}`, APPLICATION_STATUS_LABELS[status]),
-    value: statusMap.get(status) ?? 0,
-    color: STATUS_TONE_COLOR[APPLICATION_STATUS_TONES[status]],
+    count: statusMap.get(status) ?? 0,
+    isTerminal: TERMINAL.includes(status),
   }));
-  const maxFunnel = Math.max(1, ...funnelStages.map((s) => s.value));
   const maxBucket = Math.max(1, ...analytics.score_distribution.map((b) => b.count));
-  const maxTrend = Math.max(1, ...analytics.trend.map((point) => point.applications));
+  const analyzedCount = analytics.analysis_status_counts.completed;
+  const locale = language === "kiril" ? "uz-Cyrl-UZ" : language === "uz" ? "uz-Latn-UZ" : language === "ru" ? "ru-RU" : "en-US";
+  const formatWeek = (iso: string) =>
+    new Intl.DateTimeFormat(locale, { month: "short", day: "numeric", timeZone: "UTC" }).format(
+      new Date(`${iso}T00:00:00Z`),
+    );
 
-  return (
-    <div className="page">
+  const header = (
+    <>
       <PageMeta title={t("nav.analytics")} noindex />
       <PageHeader
         title={t("analytics.title") || "Analytics"}
         description={t("analytics.description") || "Pipeline performance at a glance."}
       />
+    </>
+  );
+
+  if (analytics.total_applications === 0) {
+    return (
+      <div className="page">
+        {header}
+        <Card>
+          <EmptyState
+            title={t("analytics.emptyTitle")}
+            message={t("analytics.emptyMessage")}
+            action={<Button to={analytics.total_jobs === 0 ? "/jobs/create" : "/jobs"}>{analytics.total_jobs === 0 ? t("jobs.createJob") : t("analytics.emptyAction")}</Button>}
+          />
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className="page">
+      {header}
 
       <div className="stat-grid">
         <StatCard
           label={t("analytics.openJobs") || "Open jobs"}
           value={analytics.total_jobs}
           hint={t("stats.jobsHint") || "active vacancies"}
-          tone="info"
         />
         <StatCard
           label={t("stats.applications") || "Applications"}
@@ -131,98 +153,64 @@ export default function AnalyticsPage() {
         />
         <StatCard
           label={t("analytics.avgScore") || "Avg AI score"}
-          value={`${Math.round(analytics.avg_ai_score)}%`}
-          hint="screening quality"
-          tone="success"
+          value={analyzedCount > 0 ? `${Math.round(analytics.avg_ai_score)}%` : "—"}
+          hint={t("analytics.avgScoreHint", { count: analyzedCount })}
+          tone="primary"
         />
         <StatCard
-          label={t("analytics.strongHires") || "Strong hires"}
-          value={analytics.hiring_status_counts.strong_hire}
-          hint="top recommendations"
-          tone="success"
-        />
-        <StatCard
-          label={t("analytics.hired") || "Hired"}
-          value={analytics.hiring_status_counts.hire}
-          hint="hired candidates"
-          tone="warning"
+          label={t("analytics.candidates")}
+          value={analytics.total_candidates}
+          hint={t("analytics.candidatesHint")}
         />
       </div>
 
-      <div className="dashboard-grid">
+      <div className="dashboard-grid dashboard-grid--even">
         <Card
           title={t("analytics.hiringFunnel") || "Hiring funnel"}
           subtitle={t("analytics.hiringFunnelSubtitle")}
         >
-          <ul className="bar-list">
-            {funnelStages.map((stage) => (
-              <li key={stage.key} className="bar-item">
-                <span className="bar-label">{stage.label}</span>
-                <span className="bar-track">
-                  <span
-                    className="bar-fill"
-                    style={{
-                      width: `${(stage.value / maxFunnel) * 100}%`,
-                      backgroundColor: stage.color,
-                    }}
-                  />
-                </span>
-                <span className="bar-value">{stage.value}</span>
-              </li>
-            ))}
-          </ul>
+          <HiringPipeline
+            stages={funnelStages}
+            emptyTitle={t("dashboard.statusChart.emptyTitle")}
+            emptyMessage={t("dashboard.statusChart.emptyMessage")}
+          />
         </Card>
 
         <Card
           title={t("analytics.scoreDistribution") || "AI score distribution"}
           subtitle={t("analytics.scoreDistributionSubtitle")}
         >
-          <ul className="bar-list">
-            {analytics.score_distribution.map((bucket) => (
-              <li key={bucket.bucket} className="bar-item">
-                <span className="bar-label">{bucket.bucket}</span>
-                <span className="bar-track">
-                  <span
-                    className="bar-fill"
-                    style={{
-                      width: `${(bucket.count / maxBucket) * 100}%`,
-                      backgroundColor: "var(--color-primary)",
-                    }}
-                  />
-                </span>
-                <span className="bar-value">{bucket.count}</span>
-              </li>
-            ))}
-          </ul>
+          {analyzedCount === 0 ? (
+            <EmptyState title={t("analytics.noScoresTitle")} message={t("analytics.noScoresMessage")} />
+          ) : (
+            <ul className="pipeline-list">
+              {analytics.score_distribution.map((bucket) => (
+                <li key={bucket.bucket} className="pipeline-stage pipeline-stage--compact">
+                  <span className="pipeline-label">{bucket.bucket}</span>
+                  <span className="pipeline-track" aria-hidden="true">
+                    <span className="pipeline-bar" style={{ width: `${(bucket.count / maxBucket) * 100}%` }} />
+                  </span>
+                  <span className="pipeline-count">{bucket.count}</span>
+                </li>
+              ))}
+            </ul>
+          )}
         </Card>
       </div>
 
-      <Card
+      <LineTrendChart
         title={t("analytics.weeklyVolume") || "Weekly volume"}
         subtitle={t("analytics.weeklyVolumeSubtitle")}
-      >
-        <ul className="bar-list">
-          {analytics.trend.map((point) => (
-            <li key={point.date} className="bar-item">
-              <span className="bar-label">
-                {new Date(`${point.date}T00:00:00Z`).toLocaleDateString(undefined, { month: "short", day: "numeric", timeZone: "UTC" })}
-              </span>
-              <span className="bar-track">
-                <span
-                  className="bar-fill"
-                  style={{
-                    width: `${(point.applications / maxTrend) * 100}%`,
-                    backgroundColor: "var(--color-primary)",
-                  }}
-                />
-              </span>
-              <span className="bar-value">
-                {point.applications} {t("stats.applications") || "apps"} · {point.interviews} {t("nav.interviews") || "interviews"}
-              </span>
-            </li>
-          ))}
-        </ul>
-      </Card>
+        data={analytics.trend.map((point) => ({ ...point }))}
+        xKey="date"
+        series={[
+          { key: "applications", label: t("stats.applications") || "Applications", color: palette.primary },
+          { key: "interviews", label: t("nav.interviews") || "Interviews", color: palette.info },
+        ]}
+        formatX={formatWeek}
+        emptyTitle={t("dashboard.trend.emptyTitle")}
+        emptyMessage={t("dashboard.trend.emptyMessage")}
+      />
     </div>
   );
 }

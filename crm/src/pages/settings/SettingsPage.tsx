@@ -286,7 +286,7 @@ export default function SettingsPage() {
   ];
 
   return (
-    <div className="page">
+    <div className="page page--settings">
       <PageMeta title={t("nav.settings")} noindex />
       <PageHeader
         title={t("settings.title") || "Settings"}

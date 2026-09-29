@@ -97,11 +97,11 @@ export default function InterviewDetailsPage() {
   async function handleSaveEdit() {
     if (!interview) return;
     if (!interviewer.trim()) {
-      setEditError("Please enter the interviewer name.");
+      setEditError(t("interviews.errors.interviewerRequired"));
       return;
     }
     if (!scheduledAt) {
-      setEditError("Please pick a date and time.");
+      setEditError(t("interviews.errors.dateRequired"));
       return;
     }
     const durationMinutes = Number(duration);
@@ -217,7 +217,7 @@ export default function InterviewDetailsPage() {
             <dd>{interview.duration_minutes} minutes</dd>
             <dt>{t("interviews.interviewer") || "Interviewer"}</dt>
             <dd>{interview.interviewer}</dd>
-            <dt>Meeting link</dt>
+            <dt>{t("interviews.meetingLink")}</dt>
             <dd>
               {interview.meeting_link ? (
                 <a className="link" href={interview.meeting_link} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}>
@@ -255,10 +255,10 @@ export default function InterviewDetailsPage() {
             <dt>{t("interviews.candidate") || "Candidate"}</dt>
             <dd>{interview.candidate_name}</dd>
             <dt>Notes</dt>
-            <dd>{interview.notes && interview.notes.trim() ? interview.notes : "No notes yet"}</dd>
+            <dd>{interview.notes && interview.notes.trim() ? interview.notes : t("interviews.noNotes")}</dd>
           </dl>
           <div className="job-form-actions">
-            <Button variant="danger" onClick={() => setConfirmDelete(true)} icon={<Trash2 size={15} />}>
+            <Button variant="danger-subtle" onClick={() => setConfirmDelete(true)} icon={<Trash2 size={15} />}>
               {t("common.delete") || "Delete"}
             </Button>
           </div>
@@ -314,7 +314,7 @@ export default function InterviewDetailsPage() {
           )}
         </FormField>
         <FormField
-          label="Meeting link"
+          label={t("interviews.meetingLink")}
           hint="Create the meeting in Zoom or Google Meet, then paste the link here."
         >
           {(fieldId) => (
@@ -338,8 +338,8 @@ export default function InterviewDetailsPage() {
 
       <ConfirmDialog
         open={confirmDelete}
-        title={t("common.delete") || "Delete this interview?"}
-        message={`This will permanently remove the interview with ${interview.candidate_name}.`}
+        title={t("interviews.deleteTitle")}
+        message={t("interviews.deleteMessage", { name: interview.candidate_name })}
         confirmLabel={t("common.delete") || "Delete"}
         loading={deleting}
         onConfirm={handleDelete}

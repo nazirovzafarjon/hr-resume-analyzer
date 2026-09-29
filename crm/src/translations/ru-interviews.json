@@ -26,7 +26,19 @@
       "upcoming": "Предстоящие",
       "completed": "Завершенные",
       "cancelled": "Отмененные"
-    }
+    },
+    "deleteTitle": "Удалить это собеседование?",
+    "deleteMessage": "Собеседование с кандидатом {name} будет удалено без возможности восстановления.",
+    "errors": {
+      "dateRequired": "Выберите дату и время.",
+      "interviewerRequired": "Укажите имя интервьюера."
+    },
+    "meeting": "Встреча",
+    "meetingLink": "Ссылка на встречу",
+    "noCandidatesOption": "Кандидатов пока нет",
+    "selectCandidate": "Выберите кандидата",
+    "noNotes": "Заметок пока нет",
+    "searchPlaceholder": "Поиск по кандидату, вакансии или интервьюеру…"
   },
   "stats": {
     "total": "Интервью",

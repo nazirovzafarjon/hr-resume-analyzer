@@ -1,6 +1,7 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { ArrowDown, ArrowUp, ChevronsUpDown } from "lucide-react";
 import { SkeletonTable } from "./Skeleton";
+import Pagination from "./Pagination";
 
 export type TableColumn<T> = {
   header: string;
@@ -28,11 +29,16 @@ type TableProps<T> = {
   compact?: boolean;
   /** Accessible description of the table's content. */
   caption?: string;
+  /**
+   * Paginate client-side after sorting (so a sort always applies to the whole
+   * list, not just the visible page). Omit to render every row.
+   */
+  pageSize?: number;
 };
 
 /**
- * The product's data table: sticky header, hover rows, optional per-column
- * sorting, and built-in loading (skeleton) and empty states.
+ * The product's data table: hover rows, optional per-column sorting,
+ * optional pagination, and built-in loading (skeleton) and empty states.
  *
  * Rows keep their natural width and the wrapper scrolls horizontally, so
  * information is never squeezed into unreadable columns on smaller screens.
@@ -47,6 +53,7 @@ export default function Table<T>({
   loadingRows = 5,
   compact = false,
   caption,
+  pageSize,
 }: TableProps<T>) {
   const [sortIndex, setSortIndex] = useState<number | null>(null);
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
@@ -59,6 +66,15 @@ export default function Table<T>({
     copy.sort((a, b) => (sortDirection === "asc" ? comparator(a, b) : comparator(b, a)));
     return copy;
   }, [rows, columns, sortIndex, sortDirection]);
+
+  // New rows (a filter or search changed) start again from the first page.
+  const [page, setPage] = useState(1);
+  useEffect(() => setPage(1), [rows]);
+  const totalPages = pageSize ? Math.max(1, Math.ceil(sortedRows.length / pageSize)) : 1;
+  const safePage = Math.min(page, totalPages);
+  const visibleRows = pageSize
+    ? sortedRows.slice((safePage - 1) * pageSize, safePage * pageSize)
+    : sortedRows;
 
   if (loading) {
     return (
@@ -83,8 +99,9 @@ export default function Table<T>({
   }
 
   return (
+    <>
     <div className="table-wrap">
-      <table className={`table${compact ? " table--compact" : ""}`}>
+      <table className={`table table--stack${compact ? " table--compact" : ""}`}>
         {caption && <caption className="sr-only">{caption}</caption>}
         <thead>
           <tr>
@@ -130,11 +147,12 @@ export default function Table<T>({
           </tr>
         </thead>
         <tbody>
-          {sortedRows.map((row) => (
+          {visibleRows.map((row) => (
             <tr key={rowKey(row)}>
               {columns.map((column) => (
                 <td
                   key={column.header}
+                  data-label={column.header}
                   className={[column.className, column.hideOnMobile ? "table-col--hide-mobile" : null]
                     .filter(Boolean)
                     .join(" ") || undefined}
@@ -147,5 +165,9 @@ export default function Table<T>({
         </tbody>
       </table>
     </div>
+    {pageSize && sortedRows.length > pageSize && (
+      <Pagination page={safePage} pageSize={pageSize} total={sortedRows.length} onPageChange={setPage} />
+    )}
+    </>
   );
 }

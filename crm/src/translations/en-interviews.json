@@ -26,7 +26,19 @@
       "upcoming": "Upcoming",
       "completed": "Completed",
       "cancelled": "Cancelled"
-    }
+    },
+    "deleteTitle": "Delete this interview?",
+    "deleteMessage": "The interview with {name} will be permanently deleted. This can't be undone.",
+    "errors": {
+      "dateRequired": "Pick a date and time.",
+      "interviewerRequired": "Enter the interviewer's name."
+    },
+    "meeting": "Meeting",
+    "meetingLink": "Meeting link",
+    "noCandidatesOption": "No candidates yet",
+    "selectCandidate": "Select a candidate",
+    "noNotes": "No notes yet",
+    "searchPlaceholder": "Search by candidate, job or interviewer…"
   },
   "stats": {
     "total": "Interviews",

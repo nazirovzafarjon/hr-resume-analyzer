@@ -20,7 +20,17 @@
     "noData": "Ma'lumot topilmadi",
     "copied": "Nusxalandi!",
     "copy": "Nusxalash",
-    "filters": "Filtrlarni tozalash"
+    "filters": "Filtrlarni tozalash",
+    "clearFilters": "Filtrlarni tozalash",
+    "minutes": "{count} daq",
+    "yes": "Ha",
+    "no": "Yo'q",
+    "pagination": {
+      "label": "Sahifalash",
+      "range": "{total} tadan {from}–{to}",
+      "previous": "Oldingi",
+      "next": "Keyingi"
+    }
   },
   "notifications": {
     "success": "Muvaffaqiyatli",

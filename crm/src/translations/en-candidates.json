@@ -40,7 +40,13 @@
     "viewApplication": "View Application",
     "viewProfile": "View Candidate Profile →",
     "viewResume": "View / Download Resume",
-    "weaknesses": "Potential Weaknesses / Gaps"
+    "weaknesses": "Potential Weaknesses / Gaps",
+    "aiScreeningSubtitle": "The AI match analysis saved for this candidate.",
+    "deleteTitle": "Delete this candidate?",
+    "deleteMessage": "{name} and their application data will be permanently deleted. This can't be undone.",
+    "goToApplications": "Review applications",
+    "noAnalysisMessage": "Open the application to run or review the AI analysis.",
+    "searchPlaceholder": "Search by name, email or job…"
   },
   "candStats": {
     "total": "Candidates",

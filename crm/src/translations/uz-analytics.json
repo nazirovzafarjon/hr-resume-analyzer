@@ -19,6 +19,13 @@
     "error": "Tahlilni yuklab bo'lmadi",
     "hiringFunnelSubtitle": "Nomzodlar bosqichlari bo'yicha konversiya.",
     "scoreDistributionSubtitle": "Nomzod rezyumelari lavozim talablariga qanchalik mos kelgani.",
-    "weeklyVolumeSubtitle": "Haftalar bo'yicha qabul qilingan arizalar."
+    "weeklyVolumeSubtitle": "Haftalar bo'yicha qabul qilingan arizalar.",
+    "avgScoreHint": "{count} ta tahlil qilingan ariza bo'yicha",
+    "candidatesHint": "nomzodlar ro'yxatiga o'tkazilgan",
+    "emptyTitle": "Tahlil uchun ma'lumot hali yo'q",
+    "emptyMessage": "Nomzodlar ish havolalaringiz orqali ariza topshira boshlagach, tahlil shu yerda paydo bo'ladi.",
+    "emptyAction": "Ishlarga o'tish",
+    "noScoresTitle": "AI baholari hali yo'q",
+    "noScoresMessage": "Nomzodlar ishlaringizga qanchalik mosligini ko'rish uchun arizalarni tahlil qiling."
   }
 }

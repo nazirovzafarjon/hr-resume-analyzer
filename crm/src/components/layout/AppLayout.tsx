@@ -68,6 +68,20 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     setSidebarOpen(false);
   }, [location.pathname]);
 
+  // Mobile drawer: focus moves into it on open; Escape closes it and returns
+  // focus to the menu button, so keyboard users are never stranded.
+  useEffect(() => {
+    if (!sidebarOpen) return;
+    document.querySelector<HTMLElement>(".sidebar--open .sidebar-link")?.focus();
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key !== "Escape") return;
+      setSidebarOpen(false);
+      document.querySelector<HTMLElement>(".header-menu-button")?.focus();
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [sidebarOpen]);
+
   // Global keyboard shortcut: Ctrl/Cmd + K opens the command palette.
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -108,6 +122,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       <div className="app-body">
         <Header
           onMenuClick={() => setSidebarOpen((open) => !open)}
+          menuOpen={sidebarOpen}
           onOpenPalette={() => setPaletteOpen(true)}
           title={title}
         />

@@ -74,6 +74,21 @@
     "quickActions": {
       "reviewApplications": "Arizalarni ko'rib chiqish",
       "scheduleInterview": "Suhbat belgilash"
+    },
+    "attention": {
+      "awaitingAnalysis": "{count} ta ariza hali tahlil qilinmagan.",
+      "action": "Arizalarni ko'rish"
+    },
+    "welcome": {
+      "title": "Resume Analyzer'ga xush kelibsiz",
+      "text": "Birinchi ishingizni yaratishdan boshlang. Nomzodlar ariza topshirgach, rezyumelari tahlil qilinadi va bu panel ishga qabul faolligingiz bilan to'ladi.",
+      "step1Title": "Ish yarating",
+      "step1Text": "Lavozim, ko'nikmalar va tajribani kiriting.",
+      "step2Title": "Ariza havolasini ulashing",
+      "step2Text": "Nomzodlar ro'yxatdan o'tmasdan ariza va rezyume yuboradi.",
+      "step3Title": "Tahlil qilingan arizalarni ko'ring",
+      "step3Text": "Moslik foizi va yetishmayotgan ko'nikmalarni ko'ring, nomzodlarni keyingi bosqichga o'tkazing.",
+      "cta": "Birinchi ishni yaratish"
     }
   },
   "stats": {

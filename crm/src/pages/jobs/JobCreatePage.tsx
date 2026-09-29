@@ -236,11 +236,16 @@ export default function JobCreatePage() {
         {step === "input" && (
           <Card>
             <form
+              className="job-form"
               onSubmit={(e) => {
                 e.preventDefault();
                 handleAnalyse();
               }}
             >
+              <fieldset className="form-section">
+                <legend className="form-section-title">{t("jobs.sections.basics")}</legend>
+                <p className="form-section-hint">{t("jobs.sections.basicsHint")}</p>
+                <div className="two-col">
               <TextInput
                 label={t("jobs.companyName")}
                 required
@@ -265,6 +270,7 @@ export default function JobCreatePage() {
                 error={positionError}
                 disabled={analyzing}
               />
+                </div>
               <TextArea
                 label={t("jobs.description")}
                 value={description}
@@ -274,6 +280,11 @@ export default function JobCreatePage() {
                 hint={t("jobs.descriptionHint")}
                 disabled={analyzing}
               />
+              </fieldset>
+
+              <fieldset className="form-section">
+                <legend className="form-section-title">{t("jobs.sections.requirements")}</legend>
+                <p className="form-section-hint">{t("jobs.sections.requirementsHint")}</p>
               <TextInput
                 label={t("jobs.requiredExperience")}
                 value={experience}
@@ -286,9 +297,13 @@ export default function JobCreatePage() {
                 label={t("jobs.skills")}
                 skills={skills}
                 onSkillsChange={setSkills}
-                hint={t("jobs.optional")}
                 disabled={analyzing}
               />
+              </fieldset>
+
+              <fieldset className="form-section">
+                <legend className="form-section-title">{t("jobs.sections.ai")}</legend>
+                <p className="form-section-hint">{t("jobs.sections.aiHint")}</p>
               <RequirementFileUpload
                 fileName={fileName}
                 fileSize={fileSize}
@@ -301,9 +316,9 @@ export default function JobCreatePage() {
                 onChange={(v) => setInstructions(v)}
                 rows={2}
                 placeholder={t("jobs.aiInstructionsPlaceholder")}
-                hint={t("jobs.optional")}
                 disabled={analyzing}
               />
+              </fieldset>
               <div className="job-form-actions">
                 <Button variant="secondary" to="/jobs">
                   {t("jobs.cancel")}

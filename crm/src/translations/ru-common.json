@@ -20,7 +20,17 @@
     "noData": "Нет данных",
     "copied": "Скопировано!",
     "copy": "Копировать",
-    "filters": "Сбросить фильтры"
+    "filters": "Сбросить фильтры",
+    "clearFilters": "Сбросить фильтры",
+    "minutes": "{count} мин",
+    "yes": "Да",
+    "no": "Нет",
+    "pagination": {
+      "label": "Навигация по страницам",
+      "range": "Показано {from}–{to} из {total}",
+      "previous": "Назад",
+      "next": "Далее"
+    }
   },
   "notifications": {
     "success": "Успех",

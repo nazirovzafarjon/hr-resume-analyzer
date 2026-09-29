@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
-  Award,
+  ArrowRight,
   Briefcase,
   CalendarClock,
   FileText,
+  Link2,
   Plus,
   Sparkles,
   Users,
@@ -32,12 +33,11 @@ import { useLanguage } from "../../contexts/LanguageContext";
 import { useChartPalette } from "../../components/charts/chartTheme";
 import LineTrendChart from "../../components/charts/LineTrendChart";
 import BarComparisonChart, { type BarDatum } from "../../components/charts/BarComparisonChart";
-import DonutDistributionChart, { type DonutDatum } from "../../components/charts/DonutDistributionChart";
 import KpiCard, { type KpiDelta } from "../../components/dashboard/KpiCard";
 import SegmentedControl from "../../components/dashboard/SegmentedControl";
 import HiringPipeline, { type PipelineStage } from "../../components/dashboard/HiringPipeline";
 import RecentActivityList from "../../components/dashboard/RecentActivityList";
-import { APPLICATION_STATUS_LABELS, APPLICATION_STATUS_TONES, translateOr, type StatusTone } from "../../utils/statusLabels";
+import { APPLICATION_STATUS_LABELS, translateOr } from "../../utils/statusLabels";
 import type { AnalyticsGroupBy, ApplicationStatus } from "../../types/worker";
 
 type SectionError = { detail: string | null } | null;
@@ -61,23 +61,6 @@ const LOCALE_MAP: Record<string, string> = {
   uz: "uz-Latn-UZ",
   kiril: "uz-Cyrl-UZ",
 };
-
-function toneToColor(tone: StatusTone, palette: ReturnType<typeof useChartPalette>): string {
-  switch (tone) {
-    case "success":
-      return palette.success;
-    case "warning":
-      return palette.warning;
-    case "danger":
-      return palette.error;
-    case "info":
-      return palette.info;
-    case "primary":
-      return palette.primary;
-    default:
-      return palette.neutral;
-  }
-}
 
 /** /dashboard — the HR hiring overview: KPIs, trend, pipeline, jobs and activity. */
 export default function DashboardPage() {
@@ -219,12 +202,13 @@ export default function DashboardPage() {
         }
       : undefined;
 
-  const pendingAnalysisCount = analytics
-    ? analytics.analysis_status_counts.new + analytics.analysis_status_counts.pending + analytics.analysis_status_counts.analyzing
+  // Applications nobody has analyzed yet — the one number on this page that
+  // asks for an action, so it gets a prompt instead of a passive KPI card.
+  const awaitingAnalysisCount = analytics
+    ? analytics.analysis_status_counts.new + analytics.analysis_status_counts.pending
     : 0;
-  const recommendedHireCount = analytics
-    ? analytics.hiring_status_counts.strong_hire + analytics.hiring_status_counts.hire
-    : 0;
+  // A brand-new account: show onboarding instead of a wall of zero charts.
+  const isFirstRun = !overviewLoading && !overviewError && overview?.total_jobs === 0;
 
   // --- Trend chart -----------------------------------------------------
 
@@ -251,23 +235,11 @@ export default function DashboardPage() {
     [t],
   );
 
-  const donutData: DonutDatum[] = useMemo(
-    () =>
-      [...STATUS_FLOW, ...STATUS_TERMINAL].map((status) => ({
-        key: status,
-        label: statusLabel(status),
-        value: statusCountMap.get(status) ?? 0,
-        color: toneToColor(APPLICATION_STATUS_TONES[status], palette),
-      })),
-    [statusCountMap, statusLabel, palette],
-  );
-
   const pipelineStages: PipelineStage[] = useMemo(
     () =>
       [...STATUS_FLOW, ...STATUS_TERMINAL].map((status) => ({
         status,
         label: statusLabel(status),
-        tone: APPLICATION_STATUS_TONES[status],
         count: statusCountMap.get(status) ?? 0,
         isTerminal: STATUS_TERMINAL.includes(status),
       })),
@@ -306,7 +278,7 @@ export default function DashboardPage() {
       ),
     },
     {
-      header: t("jobs.leads") || "Applications",
+      header: t("stats.applications") || "Applications",
       render: (job) => <span className="table-number">{job.leads_count}</span>,
     },
     {
@@ -316,6 +288,7 @@ export default function DashboardPage() {
     },
     {
       header: "",
+      hideOnMobile: true,
       render: (job) => (
         <Link to={`/jobs/${job.id}`} className="link">
           {t("common.view") || "View"}
@@ -333,10 +306,14 @@ export default function DashboardPage() {
         description={t("dashboard.description")}
         action={
           <>
-            <SegmentedControl value={range} onChange={setRange} options={RANGE_OPTIONS} ariaLabel={t("dashboard.period.label") || "Date range"} />
-            <Button variant="secondary" to="/applications">
-              {t("dashboard.viewApplications") || "View Applications"}
-            </Button>
+            {!isFirstRun && (
+              <>
+                <SegmentedControl value={range} onChange={setRange} options={RANGE_OPTIONS} ariaLabel={t("dashboard.period.label") || "Date range"} />
+                <Button variant="secondary" to="/applications">
+                  {t("dashboard.viewApplications") || "View Applications"}
+                </Button>
+              </>
+            )}
             <Button to="/jobs/create" icon={<Plus size={16} />}>
               {t("jobs.createJob") || "Create Job"}
             </Button>
@@ -357,6 +334,10 @@ export default function DashboardPage() {
         </div>
       )}
 
+      {isFirstRun ? (
+        <WelcomePanel />
+      ) : (
+        <>
       <div className="kpi-grid">
         <KpiCard
           label={t("dashboard.kpi.applications") || "Applications"}
@@ -364,7 +345,6 @@ export default function DashboardPage() {
           hint={t("dashboard.kpi.applicationsHint") || "received in this period"}
           delta={applicationsDelta}
           icon={<FileText size={16} />}
-          tone="primary"
           primary
           loading={analyticsLoading && !analytics}
           errorMessage={analyticsErrorMessage}
@@ -374,7 +354,6 @@ export default function DashboardPage() {
           value={overview?.total_jobs ?? 0}
           hint={t("dashboard.kpi.jobsHint") || "across all vacancies"}
           icon={<Briefcase size={16} />}
-          tone="info"
           loading={overviewLoading && !overview}
           errorMessage={overviewErrorMessage}
         />
@@ -395,29 +374,25 @@ export default function DashboardPage() {
               : undefined
           }
           icon={<CalendarClock size={16} />}
-          tone="warning"
           loading={interviewStatsLoading && !interviewStats}
           errorMessage={interviewStatsError ? interviewStatsError.detail ?? genericErrorMessage : undefined}
         />
-        <KpiCard
-          label={t("dashboard.kpi.aiAnalyzed") || "AI Analyzed"}
-          value={analytics?.analysis_status_counts.completed ?? 0}
-          hint={`${pendingAnalysisCount} ${t("dashboard.kpi.aiAnalyzedHint") || "pending analysis"}`}
-          icon={<Sparkles size={16} />}
-          tone="info"
-          loading={analyticsLoading && !analytics}
-          errorMessage={analyticsErrorMessage}
-        />
-        <KpiCard
-          label={t("dashboard.kpi.recommendedHire") || "Recommended Hire"}
-          value={recommendedHireCount}
-          hint={t("dashboard.kpi.recommendedHireHint") || "strong hire + hire recommendations"}
-          icon={<Award size={16} />}
-          tone="success"
-          loading={analyticsLoading && !analytics}
-          errorMessage={analyticsErrorMessage}
-        />
       </div>
+
+      {awaitingAnalysisCount > 0 && (
+        <div className="attention-bar" role="status">
+          <span className="attention-bar-icon" aria-hidden="true">
+            <Sparkles size={16} />
+          </span>
+          <p className="attention-bar-text">
+            {t("dashboard.attention.awaitingAnalysis", { count: awaitingAnalysisCount })}
+          </p>
+          <Button variant="secondary" size="sm" to="/applications">
+            {t("dashboard.attention.action")}
+            <ArrowRight size={14} aria-hidden="true" />
+          </Button>
+        </div>
+      )}
 
       <LineTrendChart
         title={t("dashboard.trend.title") || "Hiring Activity"}
@@ -439,37 +414,21 @@ export default function DashboardPage() {
         }
       />
 
-      <div className="dashboard-grid">
-        <DonutDistributionChart
-          title={t("dashboard.statusChart.title") || "Application Status"}
-          subtitle={t("dashboard.statusChart.subtitle") || "Current distribution of all applications"}
-          data={donutData}
-          centerLabel={t("stats.applications") || "Applications"}
-          loading={analyticsLoading && !analytics}
-          error={analyticsErrorMessage}
-          onRetry={() => loadAnalytics(range)}
-          emptyTitle={t("dashboard.statusChart.emptyTitle") || "No applications yet"}
-          emptyMessage={
-            t("dashboard.statusChart.emptyMessage") ||
-            "Application statuses will appear here once candidates apply."
-          }
-        />
-
+      <div className="dashboard-grid dashboard-grid--even">
         <Card
-          title={t("dashboard.pipelineChart.title") || "Hiring Pipeline"}
+          title={t("dashboard.statusChart.title") || "Application Status"}
           subtitle={t("dashboard.pipelineChart.subtitle") || "Where candidates currently stand"}
         >
           <HiringPipeline
             stages={pipelineStages}
             loading={analyticsLoading && !analytics}
-            emptyTitle={t("dashboard.pipelineChart.emptyTitle") || "Pipeline is empty"}
+            emptyTitle={t("dashboard.statusChart.emptyTitle") || "No applications yet"}
             emptyMessage={
-              t("dashboard.pipelineChart.emptyMessage") ||
-              "Applications will move through your hiring pipeline as they arrive."
+              t("dashboard.statusChart.emptyMessage") ||
+              "Application statuses will appear here once candidates apply."
             }
           />
         </Card>
-      </div>
 
       <BarComparisonChart
         title={t("dashboard.performance.title") || "Recruitment Performance"}
@@ -506,8 +465,9 @@ export default function DashboardPage() {
           "Create a job and start receiving applications to see this chart."
         }
       />
+      </div>
 
-      <div className="dashboard-grid">
+      <div className="dashboard-grid dashboard-grid--even">
         <Card
           title={t("dashboard.recentJobs") || "Recent Jobs"}
           action={
@@ -560,17 +520,40 @@ export default function DashboardPage() {
         </Card>
       </div>
 
-      <div className="quick-actions">
-        <Button variant="secondary" size="sm" to="/jobs/create" icon={<Plus size={14} />}>
-          {t("jobs.createJob") || "Create Job"}
-        </Button>
-        <Button variant="secondary" size="sm" to="/applications" icon={<FileText size={14} />}>
-          {t("dashboard.quickActions.reviewApplications") || "Review Applications"}
-        </Button>
-        <Button variant="secondary" size="sm" to="/interviews" icon={<CalendarClock size={14} />}>
-          {t("dashboard.quickActions.scheduleInterview") || "Schedule Interview"}
-        </Button>
-      </div>
+        </>
+      )}
     </div>
+  );
+}
+
+/**
+ * First-run state for an account with no jobs: explains the three steps of the
+ * workflow and offers the one action that starts it.
+ */
+function WelcomePanel() {
+  const { t } = useLanguage();
+  const steps = [
+    { icon: <Briefcase size={18} />, title: t("dashboard.welcome.step1Title"), text: t("dashboard.welcome.step1Text") },
+    { icon: <Link2 size={18} />, title: t("dashboard.welcome.step2Title"), text: t("dashboard.welcome.step2Text") },
+    { icon: <Sparkles size={18} />, title: t("dashboard.welcome.step3Title"), text: t("dashboard.welcome.step3Text") },
+  ];
+  return (
+    <section className="card welcome-panel" aria-labelledby="welcome-title">
+      <h2 id="welcome-title" className="welcome-title">{t("dashboard.welcome.title")}</h2>
+      <p className="welcome-text">{t("dashboard.welcome.text")}</p>
+      <ol className="welcome-steps">
+        {steps.map((step, index) => (
+          <li key={index} className="welcome-step">
+            <span className="welcome-step-icon" aria-hidden="true">{step.icon}</span>
+            <span className="welcome-step-number" aria-hidden="true">{index + 1}</span>
+            <strong>{step.title}</strong>
+            <span>{step.text}</span>
+          </li>
+        ))}
+      </ol>
+      <Button to="/jobs/create" size="lg" icon={<Plus size={16} />}>
+        {t("dashboard.welcome.cta")}
+      </Button>
+    </section>
   );
 }

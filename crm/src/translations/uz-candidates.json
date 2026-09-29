@@ -40,7 +40,13 @@
     "viewApplication": "Arizani ko'rish",
     "viewProfile": "Nomzod profilini ko'rish →",
     "viewResume": "Rezyumeni ko'rish / yuklab olish",
-    "weaknesses": "Mumkin bo'lgan kamchiliklar"
+    "weaknesses": "Mumkin bo'lgan kamchiliklar",
+    "aiScreeningSubtitle": "Ushbu nomzod uchun saqlangan AI moslik tahlili.",
+    "deleteTitle": "Ushbu nomzod o'chirilsinmi?",
+    "deleteMessage": "{name} va uning ariza ma'lumotlari butunlay o'chiriladi. Bu amalni bekor qilib bo'lmaydi.",
+    "goToApplications": "Arizalarni ko'rish",
+    "noAnalysisMessage": "AI tahlilini ishga tushirish yoki ko'rish uchun arizani oching.",
+    "searchPlaceholder": "Ism, email yoki ish bo'yicha qidirish…"
   },
   "candStats": {
     "total": "Nomzodlar",

@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Search } from "lucide-react";
 import { fetchCandidates } from "../../services/workersService";
 import PageHeader from "../../components/ui/PageHeader";
 import PageMeta from "../../components/seo/PageMeta";
 import Button from "../../components/ui/Button";
 import Card from "../../components/ui/Card";
 import EmptyState from "../../components/ui/EmptyState";
+import FilterBar from "../../components/ui/FilterBar";
 import StatusBadge from "../../components/ui/StatusBadge";
 import StatCard from "../../components/ui/StatCard";
 import Table, { type TableColumn } from "../../components/ui/Table";
@@ -29,6 +29,12 @@ export default function CandidatesPage() {
   const [search, setSearch] = useState("");
   const [hiringFilter, setHiringFilter] = useState<HiringStatus | "all">("all");
   const [interviewFilter, setInterviewFilter] = useState<InterviewStatus | "all">("all");
+  const filtersActive = search.trim() !== "" || hiringFilter !== "all" || interviewFilter !== "all";
+  function clearFilters() {
+    setSearch("");
+    setHiringFilter("all");
+    setInterviewFilter("all");
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -110,6 +116,7 @@ export default function CandidatesPage() {
     },
     {
       header: t("candidates.created"),
+      hideOnMobile: true,
       sort: (a, b) =>
         Date.parse(a.submitted_at || a.created_at) - Date.parse(b.submitted_at || b.created_at),
       render: (candidate) => (
@@ -120,6 +127,7 @@ export default function CandidatesPage() {
     },
     {
       header: t("labels.actions"),
+      hideOnMobile: true,
       headerClassName: "table-actions-cell",
       className: "table-actions-cell",
       render: (candidate) => (
@@ -143,31 +151,17 @@ export default function CandidatesPage() {
               label={t(`statusMeta.hiring.${status}`)}
               value={stats.counts[status]}
               tone={HIRING_TONES[status]}
-                            hint=""
             />
           ))}
         </div>
       )}
 
       <Card flush>
-        <div className="candidate-toolbar">
-          <label className="toolbar-label toolbar-label--grow">
-            {t("common.search")}
-            <span className="search-field">
-              <span className="search-field-icon" aria-hidden="true">
-                <Search size={15} />
-              </span>
-              <input
-                className="field-input"
-                type="search"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder={t("searchPlaceholder")}
-                aria-label={t("searchPlaceholder")}
-              />
-            </span>
-          </label>
-
+        <FilterBar
+          search={{ value: search, onChange: setSearch, placeholder: t("candidates.searchPlaceholder") }}
+          active={filtersActive}
+          onClear={clearFilters}
+        >
           <label className="toolbar-label">
             {t("hiringFilter")}
             <select
@@ -175,7 +169,7 @@ export default function CandidatesPage() {
               value={hiringFilter}
               onChange={(event) => setHiringFilter(event.target.value as typeof hiringFilter)}
             >
-                            <option value="all">{t("labels.all")}</option>
+              <option value="all">{t("labels.all")}</option>
               {HIRING_STATUSES.map((status) => (
                 <option key={status} value={status}>
                   {t(`statusMeta.hiring.${status}`)}
@@ -199,7 +193,7 @@ export default function CandidatesPage() {
               ))}
             </select>
           </label>
-        </div>
+        </FilterBar>
 
         {error ? (
           <EmptyState
@@ -219,12 +213,21 @@ export default function CandidatesPage() {
             rowKey={(candidate) => candidate.id}
             loading={loading}
             caption={t("candidates.title")}
+            pageSize={20}
             emptyState={
-              <EmptyState
-                title={t("candidates.noCandidates")}
-                message={t("candidates.noCandidatesDescription")}
-                action={<Link className="btn btn--primary" to="/applications">{t("nav.applications")}</Link>}
-              />
+              candidates.length > 0 ? (
+                <EmptyState
+                  title={t("empty.noMatchingTitle")}
+                  message={t("empty.noMatchingMessage")}
+                  action={<Button variant="secondary" onClick={clearFilters}>{t("common.clearFilters")}</Button>}
+                />
+              ) : (
+                <EmptyState
+                  title={t("candidates.noCandidates")}
+                  message={t("candidates.noCandidatesDescription")}
+                  action={<Button variant="secondary" to="/applications">{t("candidates.goToApplications")}</Button>}
+                />
+              )
             }
           />
         )}

@@ -15,7 +15,7 @@
     "description": "Tavsif",
     "skills": "Talab qilinadigan ko'nikmalar",
     "experience": "Tajriba",
-    "leads": "Nomzodlar",
+    "leads": "Arizalar",
     "created": "Yaratilgan sana",
     "actions": "Amallar",
     "view": "Ko'rish",
@@ -27,7 +27,7 @@
     "allPositions": "Barcha lavozimlar",
     "sortBy": "Saralash",
     "newestFirst": "Avval yangilari",
-    "mostLeads": "Nomzodlar ko'p bo'yicha",
+    "mostLeads": "Arizalar ko'p bo'yicha",
     "companyAZ": "Kompaniya A-Z",
     "clearFilters": "Filtrlarni tozalash",
     "deleteConfirm": "Bu ishni o'chirmoqchimisiz?",
@@ -58,7 +58,6 @@
       "applicationForm": "Ariza shakli",
       "applications": "Arizalar"
     },
-
     "createPageTitle": "Ish yaratish",
     "createPageDescription": "Vakansiyani qo'shing, uni sun'iy intellekt bilan tahlil qiling, so'ng ariza topshirish uchun ochiq havolani ulashing.",
     "stepsAriaLabel": "Ish yaratish jarayoni",
@@ -100,11 +99,9 @@
     "back": "Orqaga",
     "backToJobs": "Ishlarga qaytish",
     "openJobDetails": "Ish tafsilotlarini ochish",
-
     "aiAnalysisTitle": "Sun'iy intellekt vakansiya tahlili",
     "aiAnalysisSubtitle": "Sun'iy intellekt tahlilining tuzilgan natijasi.",
     "notSpecified": "Ko'rsatilmagan",
-
     "uploadAriaLabel": "Talablar hujjatini yuklash",
     "uploadRequirementFile": "Talablar faylini shu yerga tashlang",
     "uploadRequirementFileDrop": "Faylni biriktirish uchun qo'yib yuboring",
@@ -117,14 +114,21 @@
     "details": "Ish ma'lumotlari",
     "noFormYet": "Hali ariza shakli yo'q",
     "noFormYetMessage": "Standart savollar to'plamidan boshlang va har bir maydonni shu yerda sozlang.",
-
     "jobNotFound": "Ish topilmadi",
     "jobNotFoundDescription": "Bu ish o'chirilgan bo'lishi mumkin.",
     "jobNotFoundEditMessage": "Tahrirlamoqchi bo'lgan ish o'chirilgan bo'lishi mumkin.",
     "editPageTitle": "\"{position}\"ni tahrirlash",
     "editPageDescription": "{company} kompaniyasi uchun vakansiya ma'lumotlarini yangilang.",
     "saveChanges": "O'zgarishlarni saqlash",
-    "updateFailed": "Ishni yangilab bo'lmadi"
+    "updateFailed": "Ishni yangilab bo'lmadi",
+    "sections": {
+      "basics": "Asosiy ma'lumot",
+      "basicsHint": "Nomzodlar ariza shaklida birinchi ko'radigan ma'lumot.",
+      "requirements": "Talablar",
+      "requirementsHint": "Rezyumelar shu ko'nikmalar va tajriba bo'yicha baholanadi.",
+      "ai": "AI yordami",
+      "aiHint": "Ixtiyoriy. Tavsif faylini yuklang yoki AIga qo'shimcha ko'rsatma bering."
+    }
   },
   "applicationForm": {
     "builderTitle": "Ariza shaklini ko'rib chiqish",

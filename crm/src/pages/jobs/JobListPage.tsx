@@ -1,18 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
-  ChevronLeft,
-  ChevronRight,
   Copy,
   Eye,
   ExternalLink,
   MoreHorizontal,
   Pencil,
   Plus,
-  Search,
   Trash2,
   Users,
-  X,
 } from "lucide-react";
 import { fetchJobs, deleteJob as deleteJobApi } from "../../services/jobsService";
 import { formatDate } from "../../utils/date";
@@ -23,6 +19,7 @@ import PageHeader from "../../components/ui/PageHeader";
 import PageMeta from "../../components/seo/PageMeta";
 import Button from "../../components/ui/Button";
 import Card from "../../components/ui/Card";
+import FilterBar from "../../components/ui/FilterBar";
 import EmptyState from "../../components/ui/EmptyState";
 import ConfirmDialog from "../../components/ui/ConfirmDialog";
 import StatusBadge from "../../components/ui/StatusBadge";
@@ -56,7 +53,6 @@ export default function JobListPage() {
   const [companyFilter, setCompanyFilter] = useState("all");
   const [positionFilter, setPositionFilter] = useState("all");
   const [sortKey, setSortKey] = useState<SortKey>("newest");
-  const [page, setPage] = useState(1);
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
   const [deleting, setDeleting] = useState(false);
 
@@ -111,17 +107,6 @@ export default function JobListPage() {
     });
   }, [jobs, search, companyFilter, positionFilter, sortKey]);
 
-  // Reset to page 1 whenever the visible set changes shape.
-  useEffect(() => {
-    setPage(1);
-  }, [search, companyFilter, positionFilter, sortKey]);
-
-  const totalPages = Math.max(1, Math.ceil(filteredJobs.length / PAGE_SIZE));
-  const safePage = Math.min(page, totalPages);
-  const pagedJobs = useMemo(
-    () => filteredJobs.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE),
-    [filteredJobs, safePage],
-  );
 
   const deleteTargetJob = jobs.find((job) => job.id === deleteTarget);
 
@@ -261,34 +246,11 @@ export default function JobListPage() {
       />
 
       <Card flush>
-        <div className="toolbar" style={{ padding: "var(--space-xl) var(--space-xl) 0" }}>
-          <label className="toolbar-label toolbar-label--grow">
-            {t("common.search")}
-            <span className={`search-field${search ? " search-field--clearable" : ""}`}>
-              <span className="search-field-icon" aria-hidden="true">
-                <Search size={15} />
-              </span>
-              <input
-                className="field-input"
-                type="search"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder={t("jobs.searchPlaceholder")}
-                aria-label={t("jobs.searchPlaceholder")}
-              />
-              {search && (
-                <button
-                  type="button"
-                  className="search-field-clear"
-                  onClick={() => setSearch("")}
-                  aria-label={t("jobs.clearSearch") || "Clear search"}
-                >
-                  <X size={13} />
-                </button>
-              )}
-            </span>
-          </label>
-
+        <FilterBar
+          search={{ value: search, onChange: setSearch, placeholder: t("jobs.searchPlaceholder") }}
+          active={hasActiveFilters}
+          onClear={clearFilters}
+        >
           <label className="toolbar-label">
             {t("jobs.company")}
             <select
@@ -333,10 +295,11 @@ export default function JobListPage() {
               <option value="company">{t("jobs.companyAZ")}</option>
             </select>
           </label>
-        </div>
+        </FilterBar>
 
         <Table
-          rows={pagedJobs}
+          rows={filteredJobs}
+          pageSize={PAGE_SIZE}
           rowKey={(job) => job.id}
           columns={columns}
           caption={t("jobs.title")}
@@ -378,35 +341,6 @@ export default function JobListPage() {
           }
         />
 
-        {!loading && !error && filteredJobs.length > PAGE_SIZE && (
-          <div className="pagination-bar">
-            <span className="pagination-status">
-              {(t("jobs.pagination.pageOf") || "Page {page} of {total}")
-                .replace("{page}", String(safePage))
-                .replace("{total}", String(totalPages))}
-            </span>
-            <div className="pagination-controls">
-              <Button
-                variant="secondary"
-                size="sm"
-                icon={<ChevronLeft size={14} />}
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={safePage <= 1}
-              >
-                {t("jobs.pagination.previous") || "Previous"}
-              </Button>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                disabled={safePage >= totalPages}
-              >
-                {t("jobs.pagination.next") || "Next"}
-                <ChevronRight size={14} style={{ marginLeft: 4 }} />
-              </Button>
-            </div>
-          </div>
-        )}
       </Card>
 
       <ConfirmDialog

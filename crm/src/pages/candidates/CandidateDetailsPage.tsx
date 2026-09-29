@@ -15,6 +15,7 @@ import EmptyState from "../../components/ui/EmptyState";
 import StatusBadge from "../../components/ui/StatusBadge";
 import ApplicationStatusBadge from "../../components/ui/ApplicationStatusBadge";
 import Select from "../../components/forms/Select";
+import ApplicationAnswers from "../../components/applications/ApplicationAnswers";
 import ConfirmDialog from "../../components/ui/ConfirmDialog";
 import { Skeleton, SkeletonText } from "../../components/ui/Skeleton";
 import { useLanguage } from "../../contexts/LanguageContext";
@@ -162,7 +163,7 @@ export default function CandidateDetailsPage() {
           <Button variant="secondary" to={`/applications/${candidate.id}`}>
             {t("candidates.viewApplication") || "View Application"}
           </Button>
-          <Button variant="danger" onClick={() => setConfirmDelete(true)} icon={<Trash2 size={16} />}>
+          <Button variant="danger-subtle" onClick={() => setConfirmDelete(true)} icon={<Trash2 size={16} />}>
             {t("common.delete") || "Remove"}
           </Button>
         </div>
@@ -221,7 +222,7 @@ export default function CandidateDetailsPage() {
             {t("interviews.description") || "Interviews are manually scheduled and evaluated by HR."}
           </p>
           <fieldset className="radio-list">
-            <legend className="sr-only">Interview status</legend>
+            <legend className="sr-only">{t("interviewFilter")}</legend>
             {interviewOptions.map((option) => (
               <label key={option.value} className="radio-option">
                 <input
@@ -255,32 +256,17 @@ export default function CandidateDetailsPage() {
 
       {/* Submitted Dynamic Form Responses */}
       {candidate.responses && candidate.responses.length > 0 && (
-        <Card title={t("applications.submittedAnswers") || "Submitted Application Answers"} subtitle="Answers provided during public application submission.">
-          <dl className="detail-list">
-            {candidate.responses.map((resp, idx) => (
-              <div key={resp.field_id || idx} style={{ marginBottom: "0.75rem" }}>
-                <dt>{resp.label || resp.key || "Question"}</dt>
-                <dd style={{ marginTop: "0.25rem" }}>
-                  {typeof resp.value === "boolean"
-                    ? resp.value
-                      ? "Yes"
-                      : "No"
-                    : Array.isArray(resp.value)
-                      ? resp.value.join(", ")
-                      : String(resp.value ?? "—")}
-                </dd>
-              </div>
-            ))}
-          </dl>
+        <Card title={t("applications.submittedAnswers") || "Submitted Application Answers"} subtitle={t("applications.submittedAnswersSubtitle")}>
+          <ApplicationAnswers answers={candidate.responses} fileUrl={candidate.resume_url} />
         </Card>
       )}
 
       {/* Saved AI Resume Analysis */}
-      <Card title={t("candidates.aiScreening") || "Stored AI Screening Analysis"} subtitle="AI match analysis saved from candidate submission.">
+      <Card title={t("candidates.aiScreening") || "Stored AI Screening Analysis"} subtitle={t("candidates.aiScreeningSubtitle")}>
         {!analysis ? (
           <EmptyState
             title={t("applications.noAnalysis") || "No AI analysis recorded"}
-            message="Visit the Application Details page to run or inspect AI analysis."
+            message={t("candidates.noAnalysisMessage")}
             action={
               <Link to={`/applications/${candidate.id}`} className="btn btn--primary">
                 {t("candidates.viewApplication") || "Go to Application"}
@@ -332,7 +318,7 @@ export default function CandidateDetailsPage() {
               <div>
                 <h4>{t("candidates.missingSkills") || "Missing Skills & Requirements"}</h4>
                 {analysis.missing_skills?.length === 0 ? (
-                  <p className="muted-note">All required skills matched.</p>
+                  <p className="muted-note">{t("applications.allSkillsMatched")}</p>
                 ) : (
                   <ul className="skill-list">
                     {analysis.missing_skills?.map((skill, idx) => (
@@ -393,7 +379,7 @@ export default function CandidateDetailsPage() {
       {/* Resume Card */}
       <Card
         title={t("candidates.resume") || "Resume"}
-        subtitle={candidate.resume_path ? candidate.resume_path.split("/").pop() : "No file uploaded"}
+        subtitle={candidate.resume_path ? t("applications.resumeFileType", { type: (candidate.resume_path.split(".").pop() || "").toUpperCase() }) : t("applications.noResume")}
         action={
           candidate.resume_url ? (
             <a
@@ -408,21 +394,13 @@ export default function CandidateDetailsPage() {
           ) : undefined
         }
       >
-        <div className="resume-preview">
-          <h3>{candidate.name}</h3>
-          <p className="resume-preview-contact">{candidate.email}</p>
-          <p className="resume-preview-blurb">
-            {candidate.resume_path
-              ? `Stored resume path: ${candidate.resume_path}`
-              : "No resume file attached."}
-          </p>
-        </div>
+        {!candidate.resume_path && <p className="muted-note">{t("applications.noResume")}</p>}
       </Card>
 
       <ConfirmDialog
         open={confirmDelete}
-        title={t("common.delete") || "Remove this candidate?"}
-        message="This action will permanently remove the candidate from the pipeline."
+        title={t("candidates.deleteTitle")}
+        message={t("candidates.deleteMessage", { name: candidate.name })}
         confirmLabel={t("common.delete") || "Remove"}
         onConfirm={handleDelete}
         onCancel={() => setConfirmDelete(false)}

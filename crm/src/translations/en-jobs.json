@@ -15,7 +15,7 @@
     "position": "Position",
     "skills": "Required Skills",
     "experience": "Experience",
-    "leads": "Leads",
+    "leads": "Applications",
     "created": "Created",
     "actions": "Actions",
     "view": "View",
@@ -27,7 +27,7 @@
     "allPositions": "All positions",
     "sortBy": "Sort by",
     "newestFirst": "Newest first",
-    "mostLeads": "Most leads",
+    "mostLeads": "Most applications",
     "companyAZ": "Company A-Z",
     "clearFilters": "Clear filters",
     "deleteConfirm": "Delete this job?",
@@ -58,7 +58,6 @@
       "applicationForm": "Application Form",
       "applications": "Applications"
     },
-
     "createPageTitle": "Create a job",
     "createPageDescription": "Add a vacancy, analyse it with AI, then share a public application link.",
     "stepsAriaLabel": "Job creation progress",
@@ -100,11 +99,9 @@
     "back": "Back",
     "backToJobs": "Back to jobs",
     "openJobDetails": "Open job details",
-
     "aiAnalysisTitle": "AI Vacancy Analysis",
     "aiAnalysisSubtitle": "Structured result from the AI analysis.",
     "notSpecified": "Not specified",
-
     "uploadAriaLabel": "Upload requirement document",
     "uploadRequirementFile": "Drag & drop your requirement file here",
     "uploadRequirementFileDrop": "Drop the file to attach it",
@@ -117,14 +114,21 @@
     "details": "Job information",
     "noFormYet": "No application form yet",
     "noFormYetMessage": "Start from the standard question set and customize each field right here.",
-
     "jobNotFound": "Job not found",
     "jobNotFoundDescription": "This job may have been removed.",
     "jobNotFoundEditMessage": "The job you are trying to edit may have been deleted.",
     "editPageTitle": "Edit {position}",
     "editPageDescription": "Update the vacancy details for {company}.",
     "saveChanges": "Save Changes",
-    "updateFailed": "Failed to update job"
+    "updateFailed": "Failed to update job",
+    "sections": {
+      "basics": "Basic information",
+      "basicsHint": "What candidates see first on the application form.",
+      "requirements": "Requirements",
+      "requirementsHint": "Resumes are scored against these skills and experience.",
+      "ai": "AI assistance",
+      "aiHint": "Optional. Upload a job description file or give the AI extra instructions."
+    }
   },
   "applicationForm": {
     "builderTitle": "Review application form",

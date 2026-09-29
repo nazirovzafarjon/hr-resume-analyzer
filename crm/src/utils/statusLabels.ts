@@ -20,7 +20,7 @@ export const APPLICATION_STATUS_TONES: Record<ApplicationStatus, StatusTone> = {
   new: "info",
   reviewing: "warning",
   shortlisted: "primary",
-  interview: "info",
+  interview: "success",
   rejected: "danger",
   withdrawn: "neutral",
 };

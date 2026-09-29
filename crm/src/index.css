@@ -389,6 +389,18 @@ hr {
 
 .text-center { text-align: center; }
 
+@media (max-width: 1100px) {
+  .stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* Content-area placeholder while a route's code chunk downloads. */
+.route-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40vh;
+}
+
 .stack {
   display: flex;
   flex-direction: column;
@@ -528,6 +540,21 @@ hr {
 [data-theme="dark"] .btn--danger { color: #2a0a0a; }
 [data-theme="dark"] .btn--danger:hover:not(:disabled) { background-color: #fca5a5; }
 [data-theme="dark"] .btn--danger:active:not(:disabled) { background-color: #fecaca; }
+
+/* Destructive action that is available but not the page's main action (e.g.
+   Delete in a detail header): neutral button, red text, red only on hover.
+   The solid .btn--danger is kept for the confirmation step itself. */
+.btn--danger-subtle {
+  color: var(--color-error-text);
+  background-color: var(--color-surface);
+  border-color: var(--color-border);
+  box-shadow: var(--shadow-xs);
+}
+
+.btn--danger-subtle:hover:not(:disabled) {
+  background-color: var(--color-error-bg);
+  border-color: var(--color-error-border);
+}
 
 .btn--link {
   height: auto;
@@ -869,6 +896,18 @@ hr {
 
 .card + .card { margin-top: var(--space-lg); }
 
+/* In grid rows cards are side-by-side columns: the stacking margin above would
+   push the second one down and break the shared top edge. */
+:is(.dashboard-grid, .job-summary-grid, .candidate-grid, .two-col, .form-grid) > .card + .card {
+  margin-top: 0;
+}
+
+/* A full-width card followed by a grid row gets the same rhythm as two
+   stacked cards. */
+.card + :is(.dashboard-grid, .kpi-grid, .stat-grid, .candidate-grid, .job-summary-grid) {
+  margin-top: var(--space-lg);
+}
+
 .card-header {
   display: flex;
   align-items: flex-start;
@@ -915,9 +954,11 @@ hr {
 }
 
 /* Stat / KPI grids used on dashboard, applications, interviews, analytics. */
+/* Every summary row has four numbers: 4 across, then 2 × 2 — never a lone
+   card on its own row. */
 .stat-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: var(--space-lg);
   margin-bottom: var(--space-xl);
 }
@@ -941,7 +982,7 @@ hr {
 }
 
 .stat-value {
-  margin: 0;
+  margin: var(--space-xs) 0 0;
   font-size: var(--text-3xl);
   font-weight: var(--font-bold);
   letter-spacing: -0.02em;
@@ -954,31 +995,36 @@ hr {
   color: var(--color-text-subtle);
 }
 
-.stat-card--success { border-left: 3px solid var(--color-success); }
-.stat-card--info { border-left: 3px solid var(--color-info); }
-.stat-card--warning { border-left: 3px solid var(--color-warning); }
-.stat-card--danger { border-left: 3px solid var(--color-error); }
+/* Tone is a small dot beside the label (paired with the label text, never
+   colour alone) — calmer than coloured card borders and identical on every
+   page that shows summary numbers. */
+.stat-card[class*="stat-card--"] .stat-label::before {
+  content: "";
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: var(--space-sm);
+  border-radius: var(--radius-full);
+  vertical-align: 1px;
+  background-color: var(--color-neutral);
+}
+.stat-card.stat-card--success .stat-label::before { background-color: var(--color-success); }
+.stat-card.stat-card--info .stat-label::before { background-color: var(--color-info); }
+.stat-card.stat-card--warning .stat-label::before { background-color: var(--color-warning); }
+.stat-card.stat-card--danger .stat-label::before { background-color: var(--color-error); }
+.stat-card.stat-card--primary .stat-label::before { background-color: var(--color-primary); }
 
 /* ---------------------------------------------------------------------------
    12. Tables
    ------------------------------------------------------------------------ */
 /*
- * `overflow-x: auto` alone would compute `overflow-y` to `auto` too (per the
- * CSS Overflow spec, a non-`visible` axis forces its `visible` sibling to
- * `auto`), which silently turns .table-wrap into the nearest scrolling
- * ancestor for any `position: sticky` header inside it - not the page. Since
- * .table-wrap is never itself given a height, that sticky reference is inert
- * (the header just sits in normal flow, never actually sticking).
- *
- * Instead we make .table-wrap a genuine, bounded scroll pane: its header
- * sticks to `top: 0` of ITS OWN scrollport once the table's rows exceed
- * max-height, independent of the page's own scroll and the app header above.
+ * Horizontal scrolling only. Tables used to be 65vh scroll panes of their own,
+ * which hid rows inside the card (a scroll-within-scroll that traps touch and
+ * wheel input). Long lists are paginated instead, so the page scrolls normally.
  */
 .table-wrap {
   width: 100%;
-  max-height: 65vh;
-  overflow: auto;
-  overscroll-behavior: contain;
+  overflow-x: auto;
   -webkit-overflow-scrolling: touch;
 }
 

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
-import { Search, Sparkles } from "lucide-react";
+import { Link, useSearchParams } from "react-router-dom";
+import { Sparkles } from "lucide-react";
 import { fetchApplications } from "../../services/workersService";
 import { fetchJobs } from "../../services/jobsService";
 import { formatDate } from "../../utils/date";
@@ -9,6 +9,7 @@ import PageMeta from "../../components/seo/PageMeta";
 import Button from "../../components/ui/Button";
 import Card from "../../components/ui/Card";
 import EmptyState from "../../components/ui/EmptyState";
+import FilterBar from "../../components/ui/FilterBar";
 import StatCard from "../../components/ui/StatCard";
 import Table, { type TableColumn } from "../../components/ui/Table";
 import { SkeletonTable } from "../../components/ui/Skeleton";
@@ -44,10 +45,13 @@ export default function ApplicationsPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [search, setSearch] = useState("");
-  const [jobFilter, setJobFilter] = useState("all");
+  // `?job=<id>` (from a job's "View applications" action) pre-selects that job.
+  const [searchParams] = useSearchParams();
+  const [jobFilter, setJobFilter] = useState(() => searchParams.get("job") ?? "all");
   const [statusFilter, setStatusFilter] = useState<ApplicationStatus | "all">("all");
   const [autoAnalyzeOpen, setAutoAnalyzeOpen] = useState(false);
   const [selectedJobId, setSelectedJobId] = useState<number | undefined>();
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -73,7 +77,14 @@ export default function ApplicationsPage() {
     return () => {
       cancelled = true;
     };
-  }, [t]);
+  }, [t, reloadKey]);
+
+  const filtersActive = search.trim() !== "" || jobFilter !== "all" || statusFilter !== "all";
+  function clearFilters() {
+    setSearch("");
+    setJobFilter("all");
+    setStatusFilter("all");
+  }
 
   const stats = useMemo(() => {
     const count = (status: ApplicationStatus) =>
@@ -125,36 +136,23 @@ export default function ApplicationsPage() {
       />
 
       <div className="stat-grid">
-        <StatCard label={t("appStats.total")} value={stats.total} hint={t("appStats.totalHint")} tone="info" />
-        <StatCard label={t("appStats.fresh")} value={stats.fresh} hint={t("appStats.freshHint")} tone="warning" />
-        <StatCard label={t("appStats.reviewing")} value={stats.reviewing} hint={t("appStats.reviewingHint")} />
+        <StatCard label={t("appStats.total")} value={stats.total} hint={t("appStats.totalHint")} />
+        <StatCard label={t("appStats.fresh")} value={stats.fresh} hint={t("appStats.freshHint")} tone="info" />
+        <StatCard label={t("appStats.reviewing")} value={stats.reviewing} hint={t("appStats.reviewingHint")} tone="warning" />
         <StatCard
           label={t("appStats.shortlisted")}
           value={stats.shortlisted}
           hint={t("appStats.shortlistedHint")}
-          tone="success"
+          tone="primary"
         />
       </div>
 
       <Card flush>
-        <div className="candidate-toolbar" style={{ padding: "var(--space-xl) var(--space-xl) 0" }}>
-          <label className="toolbar-label toolbar-label--grow">
-            {t("common.search")}
-            <span className="search-field">
-              <span className="search-field-icon" aria-hidden="true">
-                <Search size={15} />
-              </span>
-              <input
-                className="field-input"
-                type="search"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder={t("searchPlaceholder")}
-                aria-label={t("searchPlaceholder")}
-              />
-            </span>
-          </label>
-
+        <FilterBar
+          search={{ value: search, onChange: setSearch, placeholder: t("applications.searchPlaceholder") }}
+          active={filtersActive}
+          onClear={clearFilters}
+        >
           <label className="toolbar-label">
             {t("nav.jobs")}
             <select
@@ -188,7 +186,7 @@ export default function ApplicationsPage() {
               ))}
             </select>
           </label>
-        </div>
+        </FilterBar>
 
         {loading ? (
           <SkeletonTable rows={6} columns={5} />
@@ -198,17 +196,25 @@ export default function ApplicationsPage() {
             title={t("errors.loadTitle")}
             message={error}
             action={
-              <Button variant="secondary" onClick={() => window.location.reload()}>
+              <Button variant="secondary" onClick={() => setReloadKey((key) => key + 1)}>
                 {t("common.retry")}
               </Button>
             }
           />
         ) : applications.length === 0 ? (
-          <EmptyState title={t("empty.applicationsTitle")} message={t("empty.applicationsMessage")} />
+          <EmptyState
+            title={t("empty.applicationsTitle")}
+            message={t("empty.applicationsMessage")}
+            action={<Button variant="secondary" to="/jobs">{t("applications.goToJobs")}</Button>}
+          />
         ) : filtered.length === 0 ? (
-          <EmptyState title={t("empty.noMatchingTitle")} message={t("empty.noMatchingMessage")} />
+          <EmptyState
+            title={t("empty.noMatchingTitle")}
+            message={t("empty.noMatchingMessage")}
+            action={<Button variant="secondary" onClick={clearFilters}>{t("common.clearFilters")}</Button>}
+          />
         ) : (
-          <Table rows={filtered} rowKey={(app) => app.id} columns={columns} caption={t("applications.title")} />
+          <Table rows={filtered} rowKey={(app) => app.id} columns={columns} caption={t("applications.title")} pageSize={20} />
         )}
       </Card>
 
@@ -259,6 +265,7 @@ function buildColumns(t: (key: string) => string): TableColumn<Candidate>[] {
     },
     {
       header: t("applications.aiStatusColumn"),
+      hideOnMobile: true,
       render: (app) => <AnalysisStatusBadge value={app.analysis_status} />,
     },
     {
@@ -267,6 +274,7 @@ function buildColumns(t: (key: string) => string): TableColumn<Candidate>[] {
     },
     {
       header: t("applications.submitted"),
+      hideOnMobile: true,
       sort: (a, b) => (a.submitted_at || "").localeCompare(b.submitted_at || ""),
       render: (app) => (
         <span className="table-muted">{formatDate(app.submitted_at || app.created_at)}</span>
@@ -274,6 +282,7 @@ function buildColumns(t: (key: string) => string): TableColumn<Candidate>[] {
     },
     {
       header: t("labels.actions"),
+      hideOnMobile: true,
       headerClassName: "table-actions-cell",
       className: "table-actions-cell",
       render: (app) => (

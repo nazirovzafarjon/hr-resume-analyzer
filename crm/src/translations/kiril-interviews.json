@@ -26,7 +26,19 @@
       "upcoming": "Кутилаётган",
       "completed": "Якунланган",
       "cancelled": "Бекор қилинган"
-    }
+    },
+    "deleteTitle": "Ушбу суҳбат ўчирилсинми?",
+    "deleteMessage": "{name} билан суҳбат бутунлай ўчирилади. Бу амални бекор қилиб бўлмайди.",
+    "errors": {
+      "dateRequired": "Сана ва вақтни танланг.",
+      "interviewerRequired": "Суҳбатдош исмини киритинг."
+    },
+    "meeting": "Учрашув",
+    "meetingLink": "Учрашув ҳаволаси",
+    "noCandidatesOption": "Ҳали номзодлар йўқ",
+    "selectCandidate": "Номзодни танланг",
+    "noNotes": "Ҳали изоҳлар йўқ",
+    "searchPlaceholder": "Номзод, иш ёки суҳбатдош бўйича қидириш…"
   },
   "stats": {
     "total": "Суҳбатлар",

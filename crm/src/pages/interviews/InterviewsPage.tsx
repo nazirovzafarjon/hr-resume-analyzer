@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Plus, Search, Video } from "lucide-react";
+import { Plus, Video } from "lucide-react";
 import { formatDateTime } from "../../utils/date";
 import { getErrorMessage } from "../../utils/apiError";
 import PageHeader from "../../components/ui/PageHeader";
@@ -8,6 +8,7 @@ import PageMeta from "../../components/seo/PageMeta";
 import Button from "../../components/ui/Button";
 import Card from "../../components/ui/Card";
 import EmptyState from "../../components/ui/EmptyState";
+import FilterBar from "../../components/ui/FilterBar";
 import ErrorState from "../../components/ui/ErrorState";
 import Table from "../../components/ui/Table";
 import Modal from "../../components/ui/Modal";
@@ -242,34 +243,36 @@ export default function InterviewsPage() {
       />
 
       <div className="stat-grid">
-        <StatCard label={t("stats.total") || "Total interviews"} value={stats.total} hint={t("stats.totalHint") || "all time"} tone="info" />
-        <StatCard label={t("stats.upcoming") || "Upcoming"} value={stats.upcoming} hint={t("stats.upcomingHint") || "scheduled"} tone="warning" />
+        <StatCard label={t("stats.total") || "Total interviews"} value={stats.total} hint={t("stats.totalHint") || "all time"} />
+        <StatCard label={t("stats.upcoming") || "Upcoming"} value={stats.upcoming} hint={t("stats.upcomingHint") || "scheduled"} tone="info" />
         <StatCard label={t("stats.completed") || "Completed"} value={stats.completed} hint={t("stats.completedHint") || "finished"} tone="success" />
         <StatCard label={t("stats.cancelled") || "Cancelled"} value={stats.cancelled} hint={t("stats.cancelledHint") || "cancelled"} tone="danger" />
       </div>
 
       <Card flush>
-        <div className="candidate-toolbar" style={{ padding: "var(--space-xl) var(--space-xl) 0" }}>
-          <div className="search-field" style={{ flex: 1 }}>
-            <span className="search-field-icon" aria-hidden="true">
-              <Search size={15} />
-            </span>
-            <input
-              className="field-input"
-              type="search"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder={t("searchPlaceholder") || "Search candidate or interviewer…"}
-              aria-label={t("searchPlaceholder")}
-            />
-          </div>
-          <Select
-            label={t("labels.status") || "Status"}
-            value={filter}
-            onChange={(value) => setFilter(value as InterviewStatusFilter | "all")}
-            options={filters}
-          />
-        </div>
+        <FilterBar
+          search={{ value: search, onChange: setSearch, placeholder: t("interviews.searchPlaceholder") }}
+          active={search.trim() !== "" || filter !== "all"}
+          onClear={() => {
+            setSearch("");
+            setFilter("all");
+          }}
+        >
+          <label className="toolbar-label">
+            {t("labels.status") || "Status"}
+            <select
+              className="field-select"
+              value={filter}
+              onChange={(event) => setFilter(event.target.value as InterviewStatusFilter | "all")}
+            >
+              {filters.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        </FilterBar>
 
         {interviews.length === 0 ? (
           <EmptyState
@@ -289,6 +292,7 @@ export default function InterviewsPage() {
           />
         ) : (
           <Table
+            pageSize={20}
             rows={interviews}
             rowKey={(interview) => interview.id}
             columns={[
@@ -310,7 +314,7 @@ export default function InterviewsPage() {
                 render: (interview) => (
                   <div>
                     <div className="table-primary">{formatDateTime(interview.scheduled_at)}</div>
-                    <div className="table-secondary">{interview.duration_minutes} min</div>
+                    <div className="table-secondary">{t("common.minutes", { count: interview.duration_minutes })}</div>
                   </div>
                 ),
               },
@@ -320,7 +324,7 @@ export default function InterviewsPage() {
                 render: (interview) => <InterviewStatusBadge value={interview.status} />,
               },
               {
-                header: "Meeting",
+                header: t("interviews.meeting"),
                 render: (interview) =>
                   interview.meeting_link ? (
                     <a
@@ -338,6 +342,7 @@ export default function InterviewsPage() {
               },
               {
                 header: t("labels.actions") || "Actions",
+                hideOnMobile: true,
                 headerClassName: "table-actions-cell",
                 className: "table-actions-cell",
                 render: (interview) => (
@@ -384,7 +389,7 @@ export default function InterviewsPage() {
           onChange={setCandidateId}
           required
           options={[
-            { value: "", label: candidates.length === 0 ? "No candidates yet" : "Select a candidate" },
+            { value: "", label: candidates.length === 0 ? t("interviews.noCandidatesOption") : t("interviews.selectCandidate") },
             ...candidates.map((candidate) => {
               const job = jobById(candidate.job_id);
               return {

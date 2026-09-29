@@ -45,7 +45,13 @@ export default function AutoAnalyzeModal({ open, onClose, jobId }: Props) {
 
       let cancelled = false;
       getAutoAnalyzeAvailable(jobId)
-        .then((res) => { if (!cancelled) setAvailableCount(res.count); })
+        .then((res) => {
+          if (cancelled) return;
+          setAvailableCount(res.count);
+          // Sensible default so "Start" works immediately: everything waiting,
+          // up to one batch of 50. HR can still change it.
+          if (res.count > 0) setCount(String(Math.min(res.count, 50)));
+        })
         .catch(() => { if (!cancelled) setError(t("applications.autoAnalyzeModal.loadCountFailed")); });
 
       return () => { cancelled = true; };
@@ -211,6 +217,9 @@ export default function AutoAnalyzeModal({ open, onClose, jobId }: Props) {
               </div>
             </Card>
           </div>
+          {availableCount === 0 && (
+            <p className="auto-analyze-info">{t("applications.autoAnalyzeModal.nothingToAnalyze")}</p>
+          )}
           <div className="auto-analyze-field">
             <Select
               label={t("applications.autoAnalyzeModal.processingOrder")}
@@ -225,8 +234,12 @@ export default function AutoAnalyzeModal({ open, onClose, jobId }: Props) {
               type="number"
               value={count}
               onChange={setCount}
-              placeholder="50"
-              disabled={availableCount === null}
+              disabled={availableCount === null || availableCount === 0}
+              hint={
+                availableCount
+                  ? t("applications.autoAnalyzeModal.countHint", { max: Math.min(availableCount, 1000).toLocaleString() })
+                  : undefined
+              }
             />
           </div>
           {availableCount !== null && countNum > 0 && (

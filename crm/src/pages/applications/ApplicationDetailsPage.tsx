@@ -19,6 +19,7 @@ import ApplicationStatusBadge, {
 } from "../../components/ui/ApplicationStatusBadge";
 import StatusBadge from "../../components/ui/StatusBadge";
 import Select from "../../components/forms/Select";
+import ApplicationAnswers from "../../components/applications/ApplicationAnswers";
 import ConfirmDialog from "../../components/ui/ConfirmDialog";
 import { Skeleton, SkeletonText } from "../../components/ui/Skeleton";
 import { useLanguage } from "../../contexts/LanguageContext";
@@ -56,19 +57,19 @@ export default function ApplicationDetailsPage() {
   const aiRecommendationLabels: Record<string, { label: string; desc: string }> = {
     strong_hire: {
       label: t("statusMeta.hiring.strong_hire") || "Strong Hire",
-      desc: "Excellently aligned with job requirements and strong skill coverage.",
+      desc: t("applications.recommendationDesc.strong_hire"),
     },
     hire: {
       label: t("statusMeta.hiring.hire") || "Hire",
-      desc: "Meets the core requirements for this position.",
+      desc: t("applications.recommendationDesc.hire"),
     },
     weak_hire: {
       label: t("statusMeta.hiring.weak_hire") || "Weak Hire",
-      desc: "Partial alignment; check missing skills or experience gaps before deciding.",
+      desc: t("applications.recommendationDesc.weak_hire"),
     },
     do_not_hire: {
       label: t("statusMeta.hiring.do_not_hire") || "Do Not Hire",
-      desc: "Does not meet the critical requirements for this role.",
+      desc: t("applications.recommendationDesc.do_not_hire"),
     },
   };
 
@@ -220,7 +221,7 @@ export default function ApplicationDetailsPage() {
               {converting ? (t("common.loading") || "Moving…") : (t("applications.moveToCandidate") || "Move to Candidate Pipeline")}
             </Button>
           )}
-          <Button variant="danger" onClick={() => setConfirmDelete(true)} icon={<Trash2 size={16} />}>
+          <Button variant="danger-subtle" onClick={() => setConfirmDelete(true)} icon={<Trash2 size={16} />}>
             {t("common.delete") || "Delete"}
           </Button>
         </div>
@@ -303,23 +304,8 @@ export default function ApplicationDetailsPage() {
 
       {/* Dynamic Form Responses */}
       {application.responses && application.responses.length > 0 && (
-        <Card title={t("applications.submittedAnswers") || "Submitted Application Answers"} subtitle="Responses entered by the applicant in the public application form.">
-          <dl className="detail-list">
-            {application.responses.map((resp, idx) => (
-              <div key={resp.field_id || idx} style={{ marginBottom: "0.75rem" }}>
-                <dt>{resp.label || resp.key || "Question"}</dt>
-                <dd style={{ marginTop: "0.25rem" }}>
-                  {typeof resp.value === "boolean"
-                    ? resp.value
-                      ? "Yes"
-                      : "No"
-                    : Array.isArray(resp.value)
-                      ? resp.value.join(", ")
-                      : String(resp.value ?? "—")}
-                </dd>
-              </div>
-            ))}
-          </dl>
+        <Card title={t("applications.submittedAnswers") || "Submitted Application Answers"} subtitle={t("applications.submittedAnswersSubtitle")}>
+          <ApplicationAnswers answers={application.responses} fileUrl={application.resume_url} />
         </Card>
       )}
 
@@ -348,7 +334,7 @@ export default function ApplicationDetailsPage() {
         ) : !analysis ? (
           <EmptyState
             title={t("applications.noAnalysis") || "No AI analysis yet"}
-            message="Click 'Run AI Analysis' to screen this applicant against the job requirements."
+            message={t("applications.noAnalysisMessage")}
             action={
               <Button
                 variant="primary"
@@ -425,7 +411,7 @@ export default function ApplicationDetailsPage() {
               <div>
                 <h4>{t("candidates.missingRequirements") || "Missing Requirements"}</h4>
                 {analysis.missing_requirements?.length === 0 ? (
-                  <p className="muted-note">All core requirements met in submission.</p>
+                  <p className="muted-note">{t("applications.allRequirementsMet")}</p>
                 ) : (
                   <ul className="skill-list">
                     {analysis.missing_requirements?.map((req, idx) => (
@@ -457,7 +443,7 @@ export default function ApplicationDetailsPage() {
               <div>
                 <h4>{t("candidates.missingSkills") || "Missing Skills"}</h4>
                 {analysis.missing_skills?.length === 0 ? (
-                  <p className="muted-note">All required skills matched.</p>
+                  <p className="muted-note">{t("applications.allSkillsMatched")}</p>
                 ) : (
                   <ul className="skill-list">
                     {analysis.missing_skills?.map((skill, idx) => (
@@ -531,7 +517,7 @@ export default function ApplicationDetailsPage() {
       {/* Resume File Card */}
       <Card
         title={t("candidates.resume") || "Resume"}
-        subtitle={application.resume_path ? application.resume_path.split("/").pop() : "No file uploaded"}
+        subtitle={application.resume_path ? t("applications.resumeFileType", { type: (application.resume_path.split(".").pop() || "").toUpperCase() }) : t("applications.noResume")}
         action={
           application.resume_url ? (
             <a
@@ -546,21 +532,13 @@ export default function ApplicationDetailsPage() {
           ) : undefined
         }
       >
-        <div className="resume-preview">
-          <h3>{application.name}</h3>
-          <p className="resume-preview-contact">{application.email}</p>
-          <p className="resume-preview-blurb">
-            {application.resume_path
-              ? `Stored at: ${application.resume_path}`
-              : "No resume file attached to this application."}
-          </p>
-        </div>
+        {!application.resume_path && <p className="muted-note">{t("applications.noResume")}</p>}
       </Card>
 
       <ConfirmDialog
         open={confirmDelete}
-        title={t("common.delete") || "Delete this application?"}
-        message="This action will permanently delete the application and any associated data."
+        title={t("applications.deleteTitle")}
+        message={t("applications.deleteMessage", { name: application.name })}
         confirmLabel={t("common.delete") || "Delete"}
         onConfirm={handleDelete}
         onCancel={() => setConfirmDelete(false)}

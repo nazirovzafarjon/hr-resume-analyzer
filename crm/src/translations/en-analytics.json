@@ -19,6 +19,13 @@
     "error": "Failed to load analytics",
     "hiringFunnelSubtitle": "Conversion through candidate pipeline stages.",
     "scoreDistributionSubtitle": "How candidate resumes scored against job criteria.",
-    "weeklyVolumeSubtitle": "Applications received per week."
+    "weeklyVolumeSubtitle": "Applications received per week.",
+    "avgScoreHint": "across {count} analyzed applications",
+    "candidatesHint": "moved into the hiring pipeline",
+    "emptyTitle": "No data to analyze yet",
+    "emptyMessage": "Analytics appear once candidates start applying through your job links.",
+    "emptyAction": "Go to jobs",
+    "noScoresTitle": "No AI scores yet",
+    "noScoresMessage": "Analyze applications to see how candidates score against your jobs."
   }
 }

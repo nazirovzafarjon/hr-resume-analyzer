@@ -1,7 +1,7 @@
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 import { Link } from "react-router-dom";
 
-type Variant = "primary" | "secondary" | "danger" | "ghost" | "link";
+type Variant = "primary" | "secondary" | "danger" | "danger-subtle" | "ghost" | "link";
 type Size = "sm" | "md" | "lg";
 
 type CommonProps = {
