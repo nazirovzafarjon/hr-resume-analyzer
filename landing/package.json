@@ -1,0 +1,27 @@
+{
+  "name": "resume-analyzer-landing",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Resume Analyzer public landing site (React + Vite + TypeScript). Auth lives in the CRM app (crm/).",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "lucide-react": "^1.46.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "typescript": "~5.7.2",
+    "vite": "^6.0.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

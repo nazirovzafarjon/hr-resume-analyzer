@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#fafaf9" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0b0b0d" media="(prefers-color-scheme: dark)" />
+    <title>Resume Analyzer — Smarter Hiring for HR Teams</title>
+    <meta
+      name="description"
+      content="Resume Analyzer helps HR teams publish vacancies, collect applications, analyze resumes against job requirements and manage candidates, interviews and hiring decisions in one place."
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Resume Analyzer" />
+    <meta property="og:title" content="Resume Analyzer — Smarter Hiring for HR Teams" />
+    <meta
+      property="og:description"
+      content="Publish vacancies, collect applications, analyze resumes against job requirements and keep your hiring workflow organized."
+    />
+    <meta name="twitter:card" content="summary" />
+    <!--
+      Theme bootstrap — same storage keys and logic as the CRM (crm/index.html),
+      so the first paint already uses the persisted theme and, when both apps share
+      an origin, the preference carries over between them.
+    -->
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem("resume-analyzer-theme");
+          var theme =
+            stored === "light" || stored === "dark" || stored === "system"
+              ? stored
+              : "system";
+          var resolved = theme;
+          if (theme === "system") {
+            resolved = window.matchMedia("(prefers-color-scheme: dark)").matches
+              ? "dark"
+              : "light";
+          }
+          document.documentElement.setAttribute("data-theme", resolved);
+          var lang = localStorage.getItem("resume-analyzer-language");
+          if (lang) {
+            document.documentElement.lang =
+              lang === "kiril" ? "uz-Cyrl" : lang === "uz" ? "uz" : lang;
+          }
+        } catch (e) {
+          /* localStorage can throw in private mode — fall back to CSS defaults. */
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <noscript>
+      Resume Analyzer helps HR teams manage vacancies, applications, resume analysis,
+      interviews and hiring decisions. Please enable JavaScript to view this page.
+    </noscript>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
