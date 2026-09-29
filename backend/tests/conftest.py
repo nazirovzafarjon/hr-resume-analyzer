@@ -69,7 +69,7 @@ def _clean_tables(_prepare_database):
         conn.execute(
             text(
                 "TRUNCATE application_responses, application_forms, interviews, "
-                "workers, jobs, users RESTART IDENTITY CASCADE"
+                "workers, jobs, users, contact_messages RESTART IDENTITY CASCADE"
             )
         )
     yield

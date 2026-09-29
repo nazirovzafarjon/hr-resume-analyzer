@@ -60,8 +60,9 @@ class Settings(BaseSettings):
     )
 
     # CORS - comma-separated list of browser origins allowed to call this API.
-    # The Vite dev server's origin must be listed (http://localhost:5173).
-    BACKEND_CORS_ORIGINS: str = "http://localhost:5173"
+    # Both Vite dev servers must be listed: the CRM (http://localhost:5173) and
+    # the landing site (http://localhost:5174, for its public Contact form).
+    BACKEND_CORS_ORIGINS: str = "http://localhost:5173,http://localhost:5174"
 
     # OpenRouter (AI provider for job vacancy analysis)
     # Get an API key at https://openrouter.ai/keys
