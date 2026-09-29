@@ -1,9 +1,9 @@
 {
-  "name": "resume-analyzer-frontend",
+  "name": "resume-analyzer-crm",
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "Resume Analyzer frontend - HR dashboard SPA (React + Vite + TypeScript)",
+  "description": "Resume Analyzer CRM - HR dashboard SPA (React + Vite + TypeScript)",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",

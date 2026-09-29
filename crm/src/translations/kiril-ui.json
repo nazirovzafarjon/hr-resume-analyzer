@@ -4,11 +4,18 @@
     "closeNavigation": "Менюни ёпиш",
     "collapseSidebar": "Панени торайтириш",
     "expandSidebar": "Панени кенгайтириш",
+    "backToHome": "Бош саҳифага",
     "skipToContent": "Таркибга ўтиш",
     "accountMenu": "Ҳисоб",
     "profile": "Профил",
     "fallbackName": "HR ходими",
-    "selectLanguage": "Тилни танлаш"
+    "selectLanguage": "Тилни танлаш",
+    "mainNavigation": "Асосий навигация",
+    "navGroup": {
+      "recruitment": "Ишга қабул",
+      "insights": "Таҳлиллар",
+      "system": "Тизим"
+    }
   },
   "appearance": {
     "title": "Мавзу",

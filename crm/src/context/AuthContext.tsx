@@ -10,6 +10,7 @@ import {
   clearToken,
   getToken,
   saveTokens,
+  syncSessionHint,
 } from "../auth/tokenStorage";
 import type { AuthResponse } from "../types/auth";
 
@@ -46,6 +47,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     clearToken();
     setToken(null);
   }
+
+  // Publish the signed-in hint for the landing site ("Open workspace").
+  useEffect(syncSessionHint, []);
 
   // When a protected API request still fails after the client's silent refresh
   // attempt, the API client clears the tokens and broadcasts this event. React

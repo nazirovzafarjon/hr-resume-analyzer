@@ -4,11 +4,18 @@
     "closeNavigation": "Закрыть меню",
     "collapseSidebar": "Свернуть панель",
     "expandSidebar": "Развернуть панель",
+    "backToHome": "На главную",
     "skipToContent": "Перейти к содержимому",
     "accountMenu": "Аккаунт",
     "profile": "Профиль",
     "fallbackName": "HR-специалист",
-    "selectLanguage": "Выбрать язык"
+    "selectLanguage": "Выбрать язык",
+    "mainNavigation": "Основная навигация",
+    "navGroup": {
+      "recruitment": "Найм",
+      "insights": "Аналитика",
+      "system": "Система"
+    }
   },
   "appearance": {
     "title": "Тема",

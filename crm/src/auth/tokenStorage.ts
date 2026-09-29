@@ -4,10 +4,38 @@
  * Kept as plain functions (not React state) so the non-React API client can
  * read, rotate and clear the tokens without depending on the auth context. The
  * React state in `context/AuthContext` stays in sync by calling these helpers.
+ *
+ * Alongside the tokens it maintains a *session hint* cookie for the landing
+ * site, which runs on another origin and cannot read this localStorage. The
+ * cookie holds no credential — just "1" — and only decides whether the landing
+ * shows "Log in / Get started" or "Open workspace". The CRM stays the single
+ * judge of whether the session is actually valid.
  */
+
+import { SESSION_COOKIE_DOMAIN } from "../config";
 
 const TOKEN_KEY = "resumeAnalyzer.accessToken";
 const REFRESH_TOKEN_KEY = "resumeAnalyzer.refreshToken";
+
+/** Must match SESSION_HINT_COOKIE in landing/src/lib/config.ts. */
+const SESSION_HINT_COOKIE = "resumeAnalyzer.signedIn";
+/** Matches the backend's default refresh-token lifetime (7 days). */
+const SESSION_HINT_MAX_AGE_SECONDS = 7 * 24 * 60 * 60;
+
+function writeSessionHint(signedIn: boolean): void {
+  const domain = SESSION_COOKIE_DOMAIN ? `; domain=${SESSION_COOKIE_DOMAIN}` : "";
+  const secure = window.location.protocol === "https:" ? "; secure" : "";
+  const value = signedIn ? `1; max-age=${SESSION_HINT_MAX_AGE_SECONDS}` : "; max-age=0";
+  document.cookie = `${SESSION_HINT_COOKIE}=${value}; path=/; samesite=lax${domain}${secure}`;
+}
+
+/**
+ * Align the landing-site hint with the stored tokens. Called once on startup
+ * so sessions created before the hint existed are picked up too.
+ */
+export function syncSessionHint(): void {
+  writeSessionHint(getToken() !== null);
+}
 
 /** Return the stored access JWT, or null when the user is not signed in. */
 export function getToken(): string | null {
@@ -33,10 +61,12 @@ export function saveTokens(accessToken: string, refreshToken?: string | null): v
   } else {
     window.localStorage.removeItem(REFRESH_TOKEN_KEY);
   }
+  writeSessionHint(true);
 }
 
 /** Remove the stored JWTs (logout or an unrecoverable expired session). */
 export function clearToken(): void {
   window.localStorage.removeItem(TOKEN_KEY);
   window.localStorage.removeItem(REFRESH_TOKEN_KEY);
+  writeSessionHint(false);
 }

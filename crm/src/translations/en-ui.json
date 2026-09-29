@@ -4,11 +4,18 @@
     "closeNavigation": "Close navigation",
     "collapseSidebar": "Collapse sidebar",
     "expandSidebar": "Expand sidebar",
+    "backToHome": "Back to home",
     "skipToContent": "Skip to content",
     "accountMenu": "Account",
     "profile": "Profile",
     "fallbackName": "HR user",
-    "selectLanguage": "Select language"
+    "selectLanguage": "Select language",
+    "mainNavigation": "Main navigation",
+    "navGroup": {
+      "recruitment": "Recruitment",
+      "insights": "Insights",
+      "system": "System"
+    }
   },
   "appearance": {
     "title": "Theme",

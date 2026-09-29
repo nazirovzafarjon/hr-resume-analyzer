@@ -4,11 +4,18 @@
     "closeNavigation": "Menyuni yopish",
     "collapseSidebar": "Paneni toraytirish",
     "expandSidebar": "Paneni kengaytirish",
+    "backToHome": "Bosh sahifaga",
     "skipToContent": "Tarkibga o'tish",
     "accountMenu": "Hisob",
     "profile": "Profil",
     "fallbackName": "HR xodimi",
-    "selectLanguage": "Tilni tanlash"
+    "selectLanguage": "Tilni tanlash",
+    "mainNavigation": "Asosiy navigatsiya",
+    "navGroup": {
+      "recruitment": "Ishga qabul",
+      "insights": "Tahlillar",
+      "system": "Tizim"
+    }
   },
   "appearance": {
     "title": "Mavzu",
