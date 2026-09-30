@@ -28,7 +28,8 @@
     "common": {
       "refresh": "Yangilash",
       "view": "Ko'rish",
-      "viewAll": "Barchasini ko'rish"
+      "viewAll": "Barchasini ko'rish",
+      "manage": "Boshqarish"
     },
     "filters": {
       "from": "Dan",
@@ -182,7 +183,8 @@
       "deleted": "\"{name}\" o'chirildi.",
       "deleteFailed": "Ishni o'chirib bo'lmadi",
       "emptyTitle": "Hozircha ishlar yo'q",
-      "emptyMessage": "HR foydalanuvchilar yaratgan ishlar shu yerda ko'rinadi."
+      "emptyMessage": "HR foydalanuvchilar yaratgan ishlar shu yerda ko'rinadi.",
+      "create": "Yangi vakansiya"
     },
     "applications": {
       "title": "Arizalar",
@@ -213,11 +215,11 @@
         "analyzing": "Jarayonda",
         "failed": "Bajarilmagan"
       },
-      "readOnlyNote": "Faqat ko'rish rejimi. Ishga olish qarorlarini ish egasi bo'lgan HR qabul qiladi.",
+      "manageNote": "Administrator HR'ning barcha huquqlariga ega. Holatlarni o'zgartirish, AI tahlilini ishga tushirish yoki suhbat belgilash uchun arizani ishga olish maydonida oching.",
       "applicationInfo": "Ariza",
       "email": "Email",
       "resume": "Rezyume",
-      "resumeOnFile": "Yuklangan (faqat HR egasiga ko'rinadi)",
+      "resumeOnFile": "Yuklangan",
       "noResume": "Rezyume yuklanmagan",
       "humanDecisions": "HR qarorlari",
       "humanDecisionsHint": "Ular AI emas, odamlar tomonidan belgilanadi.",

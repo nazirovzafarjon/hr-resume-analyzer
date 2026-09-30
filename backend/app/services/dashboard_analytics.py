@@ -1,7 +1,7 @@
 """Dashboard analytics aggregation for the `/dashboard/analytics` endpoint.
 
 Pure reporting: reads Job/Application/Interview rows scoped to the requesting HR
-user and produces the shapes the Dashboard and Analytics pages render. Never
+user (or to every HR user for an admin session, ``owner_id=None``) and produces the shapes the Dashboard and Analytics pages render. Never
 writes, and never touches application/AI/interview business rules.
 """
 
@@ -12,6 +12,7 @@ from typing import Literal
 from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 
+from app.crud.query_utils import owner_filter
 from app.models.interview import Interview
 from app.models.job import Job
 from app.models.application import AnalysisStatus, ApplicationStatus, Application
@@ -42,8 +43,8 @@ def _floor_to_bucket(dt: datetime, weekly: bool) -> date:
     return day - timedelta(days=day.weekday()) if weekly else day
 
 
-def get_analytics(db: Session, owner_id: int, range_: AnalyticsRange = "30d") -> dict:
-    """Return comprehensive, real-data hiring analytics for one HR user."""
+def get_analytics(db: Session, owner_id: int | None, range_: AnalyticsRange = "30d") -> dict:
+    """Return comprehensive, real-data hiring analytics for one HR user (``None`` = all)."""
     now = datetime.now(timezone.utc)
     days = _RANGE_DAYS[range_]
     weekly = range_ == "90d"
@@ -55,13 +56,13 @@ def get_analytics(db: Session, owner_id: int, range_: AnalyticsRange = "30d") ->
         row[0]
         for row in db.query(Application.created_at)
         .join(Application.job)
-        .filter(Job.owner_id == owner_id, Application.created_at >= period_start)
+        .filter(owner_filter(Job.owner_id, owner_id), Application.created_at >= period_start)
         .all()
     ]
     interview_times = [
         row[0]
         for row in db.query(Interview.created_at)
-        .filter(Interview.hr_id == owner_id, Interview.created_at >= period_start)
+        .filter(owner_filter(Interview.hr_id, owner_id), Interview.created_at >= period_start)
         .all()
     ]
     apps_by_bucket = Counter(_floor_to_bucket(t, weekly) for t in app_times)
@@ -86,7 +87,7 @@ def get_analytics(db: Session, owner_id: int, range_: AnalyticsRange = "30d") ->
         db.query(func.count(Application.id))
         .join(Application.job)
         .filter(
-            Job.owner_id == owner_id,
+            owner_filter(Job.owner_id, owner_id),
             Application.created_at >= previous_start,
             Application.created_at < period_start,
         )
@@ -96,7 +97,7 @@ def get_analytics(db: Session, owner_id: int, range_: AnalyticsRange = "30d") ->
     prev_interviews = (
         db.query(func.count(Interview.id))
         .filter(
-            Interview.hr_id == owner_id,
+            owner_filter(Interview.hr_id, owner_id),
             Interview.created_at >= previous_start,
             Interview.created_at < period_start,
         )
@@ -108,7 +109,7 @@ def get_analytics(db: Session, owner_id: int, range_: AnalyticsRange = "30d") ->
     status_rows = (
         db.query(Application.application_status.label("status"), func.count(Application.id).label("count"))
         .join(Application.job)
-        .filter(Job.owner_id == owner_id)
+        .filter(owner_filter(Job.owner_id, owner_id))
         .group_by(Application.application_status)
         .all()
     )
@@ -122,7 +123,7 @@ def get_analytics(db: Session, owner_id: int, range_: AnalyticsRange = "30d") ->
     analysis_rows = (
         db.query(Application.analysis_status.label("status"), func.count(Application.id).label("count"))
         .join(Application.job)
-        .filter(Job.owner_id == owner_id)
+        .filter(owner_filter(Job.owner_id, owner_id))
         .group_by(Application.analysis_status)
         .all()
     )
@@ -137,7 +138,7 @@ def get_analytics(db: Session, owner_id: int, range_: AnalyticsRange = "30d") ->
     score_rows = (
         db.query(bucket_expr.label("bucket"), func.count(Application.id).label("count"))
         .join(Application.job)
-        .filter(Job.owner_id == owner_id, Application.analysis_status == AnalysisStatus.COMPLETED)
+        .filter(owner_filter(Job.owner_id, owner_id), Application.analysis_status == AnalysisStatus.COMPLETED)
         .group_by(bucket_expr)
         .all()
     )
@@ -148,7 +149,7 @@ def get_analytics(db: Session, owner_id: int, range_: AnalyticsRange = "30d") ->
     hiring_rows = (
         db.query(Application.hiring_status.label("status"), func.count(Application.id).label("count"))
         .join(Application.job)
-        .filter(Job.owner_id == owner_id)
+        .filter(owner_filter(Job.owner_id, owner_id))
         .group_by(Application.hiring_status)
         .all()
     )
@@ -164,7 +165,7 @@ def get_analytics(db: Session, owner_id: int, range_: AnalyticsRange = "30d") ->
     interview_status_rows = (
         db.query(Application.interview_status.label("status"), func.count(Application.id).label("count"))
         .join(Application.job)
-        .filter(Job.owner_id == owner_id)
+        .filter(owner_filter(Job.owner_id, owner_id))
         .group_by(Application.interview_status)
         .all()
     )
@@ -179,24 +180,24 @@ def get_analytics(db: Session, owner_id: int, range_: AnalyticsRange = "30d") ->
     avg_score_result = (
         db.query(func.avg(Application.ai_score))
         .join(Application.job)
-        .filter(Job.owner_id == owner_id, Application.analysis_status == AnalysisStatus.COMPLETED)
+        .filter(owner_filter(Job.owner_id, owner_id), Application.analysis_status == AnalysisStatus.COMPLETED)
         .scalar()
     )
     avg_ai_score = round(float(avg_score_result or 0), 1)
 
     # --- Counts ---
-    total_jobs = db.query(func.count(Job.id)).filter(Job.owner_id == owner_id).scalar() or 0
+    total_jobs = db.query(func.count(Job.id)).filter(owner_filter(Job.owner_id, owner_id)).scalar() or 0
     total_applications = (
         db.query(func.count(Application.id))
         .join(Job, Application.job_id == Job.id)
-        .filter(Job.owner_id == owner_id)
+        .filter(owner_filter(Job.owner_id, owner_id))
         .scalar()
         or 0
     )
     total_candidates = (
         db.query(func.count(Application.id))
         .join(Job, Application.job_id == Job.id)
-        .filter(Job.owner_id == owner_id, Application.candidate_at.is_not(None))
+        .filter(owner_filter(Job.owner_id, owner_id), Application.candidate_at.is_not(None))
         .scalar()
         or 0
     )
@@ -210,7 +211,7 @@ def get_analytics(db: Session, owner_id: int, range_: AnalyticsRange = "30d") ->
             func.count(Application.id).label("applications_count"),
         )
         .outerjoin(Application, Application.job_id == Job.id)
-        .filter(Job.owner_id == owner_id)
+        .filter(owner_filter(Job.owner_id, owner_id))
         .group_by(Job.id, Job.position, Job.company_name)
         .order_by(func.count(Application.id).desc(), Job.id)
         .limit(8)

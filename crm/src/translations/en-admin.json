@@ -28,7 +28,8 @@
     "common": {
       "refresh": "Refresh",
       "view": "View",
-      "viewAll": "View all"
+      "viewAll": "View all",
+      "manage": "Manage"
     },
     "filters": {
       "from": "From",
@@ -182,7 +183,8 @@
       "deleted": "\"{name}\" was deleted.",
       "deleteFailed": "The job could not be deleted",
       "emptyTitle": "No jobs yet",
-      "emptyMessage": "Jobs created by HR users will appear here."
+      "emptyMessage": "Jobs created by HR users will appear here.",
+      "create": "New job"
     },
     "applications": {
       "title": "Applications",
@@ -213,11 +215,11 @@
         "analyzing": "In progress",
         "failed": "Failed"
       },
-      "readOnlyNote": "Read-only view. Hiring decisions stay with the HR user who owns this job.",
+      "manageNote": "Admins have every HR permission. Open this application in the hiring workspace to change its statuses, run the AI analysis or schedule interviews.",
       "applicationInfo": "Application",
       "email": "Email",
       "resume": "Resume",
-      "resumeOnFile": "On file (visible to the HR owner only)",
+      "resumeOnFile": "On file",
       "noResume": "No resume uploaded",
       "humanDecisions": "HR decisions",
       "humanDecisionsHint": "Set by people, never by the AI.",

@@ -1,5 +1,5 @@
 import { Link, useLocation, useParams } from "react-router-dom";
-import { Bot } from "lucide-react";
+import { Bot, Pencil } from "lucide-react";
 import PageHeader from "../../components/ui/PageHeader";
 import PageMeta from "../../components/seo/PageMeta";
 import Button from "../../components/ui/Button";
@@ -34,11 +34,14 @@ function BulletList({ title, items }: { title: string; items: string[] }) {
 }
 
 /**
- * Read-only application / candidate view for administrators.
+ * Application / candidate overview for administrators.
  *
  * The AI result is shown as system-generated analysis, clearly separated from
- * the human decisions (application, hiring and interview status). Admins can
- * look but not change anything here: those decisions belong to the HR owner.
+ * the human decisions (application, hiring and interview status). Admins have
+ * every HR permission: "Manage" opens the same record in the hiring workspace,
+ * where the admin changes statuses, runs the AI analysis and schedules
+ * interviews with the regular HR screens (the API scopes an admin session to
+ * every HR user's data).
  */
 export default function AdminApplicationDetailPage() {
   const { t } = useLanguage();
@@ -98,9 +101,17 @@ export default function AdminApplicationDetailPage() {
         title={item.name}
         description={`${item.position} · ${item.company_name}`}
         breadcrumbs={crumbs}
+        action={
+          <Button
+            icon={<Pencil size={15} />}
+            to={item.is_candidate ? `/candidates/${item.id}` : `/applications/${item.id}`}
+          >
+            {t("admin.common.manage")}
+          </Button>
+        }
       />
 
-      <p className="admin-note">{t("admin.applications.readOnlyNote")}</p>
+      <p className="admin-note">{t("admin.applications.manageNote")}</p>
 
       <div className="candidate-grid">
         <Card title={t("admin.applications.applicationInfo")}>

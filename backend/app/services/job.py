@@ -4,6 +4,7 @@ from sqlalchemy import distinct, func
 from sqlalchemy.orm import Session
 
 from app.crud.job import get_job
+from app.crud.query_utils import owner_filter
 from app.models.job import Job
 from app.models.application import Application
 
@@ -30,11 +31,12 @@ def increment_leads_count(db: Session, job_id: int) -> Job | None:
     return job
 
 
-def job_analytics(db: Session, owner_id: int, category: str = "company") -> dict:
+def job_analytics(db: Session, owner_id: int | None, category: str = "company") -> dict:
     """Return high-level hiring analytics grouped by the given category.
 
     Args:
-        owner_id: The HR user whose jobs/candidates are analysed.
+        owner_id: The HR user whose jobs/candidates are analysed
+            (``None`` = every HR user, for an admin session).
         category: One of ``company``, ``position`` or ``required_experience``.
 
     Raises:
@@ -45,18 +47,18 @@ def job_analytics(db: Session, owner_id: int, category: str = "company") -> dict
         raise ValueError(f"Unsupported analytics category: {category}")
 
     total_jobs = (
-        db.query(func.count(Job.id)).filter(Job.owner_id == owner_id).scalar() or 0
+        db.query(func.count(Job.id)).filter(owner_filter(Job.owner_id, owner_id)).scalar() or 0
     )
     total_candidates = (
         db.query(func.count(Application.id))
         .join(Job, Application.job_id == Job.id)
-        .filter(Job.owner_id == owner_id)
+        .filter(owner_filter(Job.owner_id, owner_id))
         .scalar()
         or 0
     )
     total_leads = (
         db.query(func.coalesce(func.sum(Job.leads_count), 0))
-        .filter(Job.owner_id == owner_id)
+        .filter(owner_filter(Job.owner_id, owner_id))
         .scalar()
         or 0
     )
@@ -68,7 +70,7 @@ def job_analytics(db: Session, owner_id: int, category: str = "company") -> dict
             func.count(Application.id).label("candidates"),
         )
         .outerjoin(Application, Application.job_id == Job.id)
-        .filter(Job.owner_id == owner_id)
+        .filter(owner_filter(Job.owner_id, owner_id))
         .group_by(group_column)
         .order_by(group_column)
         .all()

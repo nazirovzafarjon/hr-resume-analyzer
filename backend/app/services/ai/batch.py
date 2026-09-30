@@ -7,6 +7,11 @@ Provides the business logic for:
 - Running batch analysis one-by-one in background
 - Tracking progress
 - Canceling batches
+
+Scope: an HR user's batch only picks their own applications. A batch started
+from an admin session (``all_owners=True``) picks eligible applications of
+every HR user; each application is still analysed with its job owner's AI
+configuration, exactly like a manual analysis.
 """
 
 import asyncio
@@ -21,6 +26,7 @@ from sqlalchemy.orm import Session
 from app.core.database import SessionLocal
 from app.crud import batch as batch_crud
 from app.crud import application as application_crud
+from app.crud.query_utils import owner_filter
 from app.models.analysis_batch import AnalysisBatch, AnalysisBatchStatus
 from app.models.application import AnalysisStatus, Application, ApplicationStatus
 from app.models.job import Job
@@ -82,7 +88,7 @@ ELIGIBLE_ANALYSIS_STATUSES = (AnalysisStatus.NEW, AnalysisStatus.PENDING)
 
 
 def _eligible_filter(
-    owner_id: int,
+    owner_id: int | None,
     *,
     job_id: int | None = None,
     company: str | None = None,
@@ -90,11 +96,12 @@ def _eligible_filter(
 ) -> list:
     """SQL conditions for applications Auto Analyze may pick.
 
-    Owned by the HR user, still ``application_status = new`` and never
-    analysed. ``None`` filters ("All") add no condition.
+    Owned by the HR user (``owner_id=None``: any HR user), still
+    ``application_status = new`` and never analysed. ``None`` filters ("All")
+    add no condition.
     """
     conditions = [
-        Job.owner_id == owner_id,
+        owner_filter(Job.owner_id, owner_id),
         Application.application_status == ApplicationStatus.NEW,
         Application.analysis_status.in_(ELIGIBLE_ANALYSIS_STATUSES),
     ]
@@ -109,7 +116,7 @@ def _eligible_filter(
 
 def _get_eligible_application_ids(
     db: Session,
-    owner_id: int,
+    owner_id: int | None,
     *,
     order: str = "oldest",
     limit: int | None = None,
@@ -121,7 +128,7 @@ def _get_eligible_application_ids(
 
     Args:
         db: Database session.
-        owner_id: The HR user's ID (for ownership scoping).
+        owner_id: The HR user's ID for ownership scoping (``None`` = all HR users).
         order: "oldest" for created_at ASC, "newest" for created_at DESC.
         limit: Maximum number of application IDs to return (None for unlimited).
         job_id / company / position: Optional filters (``None`` = all).
@@ -146,7 +153,7 @@ def _get_eligible_application_ids(
 
 def get_available_new_count(
     db: Session,
-    owner_id: int,
+    owner_id: int | None,
     *,
     job_id: int | None = None,
     company: str | None = None,
@@ -161,7 +168,7 @@ def get_available_new_count(
     return db.execute(query).scalar_one()
 
 
-def get_filter_options(db: Session, owner_id: int) -> list[dict[str, Any]]:
+def get_filter_options(db: Session, owner_id: int | None) -> list[dict[str, Any]]:
     """Company/position pairs that currently have eligible applications.
 
     Feeds the Company and Position dropdowns, with the number of eligible
@@ -189,6 +196,7 @@ def create_auto_analyze_batch(
     job_id: int | None = None,
     company: str | None = None,
     position: str | None = None,
+    all_owners: bool = False,
 ) -> AnalysisBatch:
     """Create a new auto-analyze batch and return it.
 
@@ -201,6 +209,8 @@ def create_auto_analyze_batch(
         count: Number of applications to analyze (1-1000).
         order: "oldest" or "newest" for processing order.
         job_id: Optional job filter.
+        all_owners: Admin session: pick eligible applications of every HR
+            user instead of only ``current_user``'s own.
 
     Returns:
         The created AnalysisBatch.
@@ -221,7 +231,7 @@ def create_auto_analyze_batch(
     # Get eligible application IDs
     application_ids = _get_eligible_application_ids(
         db,
-        current_user.id,
+        None if all_owners else current_user.id,
         order=order,
         limit=count,
         job_id=job_id,
@@ -362,13 +372,14 @@ async def run_batch_analysis(batch_id: int) -> None:
                 )
                 return
 
-            # Skip applications that were deleted, moved to another owner or
-            # analysed/started elsewhere since the batch was created: they are
-            # neither failures nor worth a second (paid) AI call.
+            # Skip applications that were deleted, are no longer the batch
+            # starter's to analyse (another owner's, unless they are still an
+            # admin) or were analysed/started elsewhere since the batch was
+            # created: they are neither failures nor worth a second (paid) AI call.
             application = db.get(Application, application_id)
             if (
                 application is None
-                or application.job.owner_id != batch.owner_id
+                or not (batch.owner.is_superuser or application.job.owner_id == batch.owner_id)
                 or application.analysis_status not in ELIGIBLE_ANALYSIS_STATUSES
             ):
                 logger.info(
@@ -405,6 +416,17 @@ async def run_batch_analysis(batch_id: int) -> None:
             try:
                 success, error = await analyze_single_application(db, application)
             except ai_provider_service.AIConfigurationRequiredError:
+                if application.job.owner_id != batch.owner_id:
+                    # Admin batch: this HR user has no AI configuration. Leave
+                    # their application "new" and carry on with the others.
+                    batch_crud.update_batch(
+                        db,
+                        batch,
+                        skipped_count=batch.skipped_count + 1,
+                        current_index=idx + 1,
+                        current_application_id=None,
+                    )
+                    continue
                 # The owner removed their AI configuration mid-batch (it is
                 # resolved per application at run time). Stop instead of
                 # failing every remaining application; they stay "new".
@@ -495,14 +517,14 @@ async def run_batch_analysis(batch_id: int) -> None:
 def get_batch_progress(
     db: Session,
     batch_id: int,
-    owner_id: int,
+    owner_id: int | None,
 ) -> dict[str, Any] | None:
     """Get the current progress of a batch.
 
     Args:
         db: Database session.
         batch_id: The batch ID.
-        owner_id: The owner's ID for authorization.
+        owner_id: The owner's ID for authorization (``None`` = any owner).
 
     Returns:
         Dictionary with batch progress info, or None if not found.

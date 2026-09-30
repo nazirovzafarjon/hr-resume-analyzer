@@ -1,11 +1,20 @@
-"""Small query helpers shared by the paginated admin listings."""
+"""Small query helpers shared by the CRUD listings."""
 
 from typing import Any, TypeVar
 
-from sqlalchemy import Select, func, select
+from sqlalchemy import ColumnElement, Select, func, select, true
 from sqlalchemy.orm import Session
 
 T = TypeVar("T")
+
+
+def owner_filter(column: Any, owner_id: int | None) -> ColumnElement[bool]:
+    """``column == owner_id``, or no restriction when ``owner_id`` is ``None``.
+
+    ``None`` is the organisation-wide scope of an admin session (see
+    ``dependencies.auth.AccessScope``); an HR user always passes their own id.
+    """
+    return true() if owner_id is None else column == owner_id
 
 
 def escape_like(value: str) -> str:

@@ -6,6 +6,7 @@ Contains only database access. Business logic belongs in services.
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, contains_eager
 
+from app.crud.query_utils import owner_filter
 from app.models.job import Job
 from app.models.application import (
     AnalysisStatus,
@@ -50,7 +51,7 @@ def get_applications_for_job(db: Session, job_id: int) -> list[Application]:
 
 def list_applications(
     db: Session,
-    owner_id: int,
+    owner_id: int | None,
     *,
     job_id: int | None = None,
     application_status: ApplicationStatus | None = None,
@@ -66,7 +67,8 @@ def list_applications(
     """Return applications across an owner's jobs.
 
     The Applications UI consumes this listing: it is scoped to jobs owned by
-    ``owner_id`` (no data leaks between HR users) and supports server-side
+    ``owner_id`` (no data leaks between HR users; ``None`` is an admin
+    session's organisation-wide scope) and supports server-side
     filtering by ``job_id``, application/analysis/hiring/interview status, a
     free-text ``search`` on the applicant's name/email, ``candidate_only`` (the
     Candidates pipeline) and pagination via ``skip``/``limit``.
@@ -77,7 +79,7 @@ def list_applications(
     query = (
         db.query(Application)
         .join(Application.job)
-        .filter(Job.owner_id == owner_id)
+        .filter(owner_filter(Job.owner_id, owner_id))
         .options(contains_eager(Application.job))
     )
     if job_id is not None:
@@ -105,7 +107,7 @@ def list_applications(
     return query.order_by(*order_by).offset(skip).limit(limit).all()
 
 
-def get_recent_applications(db: Session, owner_id: int, limit: int = 5) -> list[Application]:
+def get_recent_applications(db: Session, owner_id: int | None, limit: int = 5) -> list[Application]:
     """Return the most recent applications across the owner's jobs.
 
     ``contains_eager`` loads each application's job in the same query so that
@@ -115,7 +117,7 @@ def get_recent_applications(db: Session, owner_id: int, limit: int = 5) -> list[
     return (
         db.query(Application)
         .join(Application.job)
-        .filter(Job.owner_id == owner_id)
+        .filter(owner_filter(Job.owner_id, owner_id))
         .options(contains_eager(Application.job))
         .order_by(Application.created_at.desc())
         .limit(limit)

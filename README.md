@@ -22,7 +22,7 @@ HR users manage the hiring pipeline for job vacancies:
 | Role | Can do |
 |---|---|
 | **HR user** | Manage their own account, jobs, applications/candidates, interviews and dashboard. Never sees another HR user's data or any admin feature. |
-| **Admin (superuser)** | Everything an HR user can do in the HR workspace, **plus** the admin console: manage user accounts, see platform-wide data **read-only** for oversight and support, moderate (delete) jobs, and monitor AI usage, audit logs, errors, health and runtime settings. |
+| **Admin (superuser)** | **Every HR permission, on every HR user's data**, **plus** the admin console: manage user accounts (activate/deactivate, promote/demote, delete), organisation-wide dashboards and analytics, job moderation, and monitoring of AI usage, audit logs, errors, health and runtime settings. |
 
 Admin access needs two things, both checked server-side on every request: an
 account with `is_superuser=True` **and** a session opened in the *admin
@@ -64,15 +64,16 @@ only mirrors these rules for a better UX.
 * Every change is written to the audit log
 
 ### Admin console (admin only, `/api/admin/*`)
-Read-only, platform-wide views that support user management and operations.
-Admins do **not** get write access to HR users' jobs or applications; the only
-content action is job moderation (delete), which is audited.
+Platform-wide views that support user management and operations. The console
+itself only lists and inspects; to *act* on a job, application, candidate or
+interview, its **Manage** button opens the regular HR screen, where an admin
+session has the same permissions as the owning HR user (see “Authorization”).
 
 * Dashboard and analytics across all HR users
 * Users directory with search/filter/sort/pagination and a per-user detail view
   (usage stats, recent jobs/applications, recent audit activity)
-* Jobs, applications, candidates and interviews across all HR users (read-only)
-  plus `DELETE /api/admin/jobs/{id}` for moderation
+* Jobs, applications, candidates and interviews across all HR users, linking to
+  the HR screens to manage them, plus `DELETE /api/admin/jobs/{id}` for moderation
 * AI analysis monitoring, audit logs, system errors and system health
 * Runtime settings (e.g. whether public registration is open), audited
 
@@ -80,7 +81,8 @@ content action is job moderation (delete), which is audited.
 * Create, list, read, update, delete jobs
 * Jobs store: company name, position, description, required skills,
   required experience,and a running lead count
-* Jobs are scoped to their owner: users only ever see/manage their own jobs
+* Jobs are scoped to their owner: HR users only ever see/manage their own jobs;
+  an admin session sees and manages every HR user's jobs
 
 ### Application / candidate management
 * Create, list, read, update, delete applications/candidates
@@ -111,8 +113,9 @@ content action is job moderation (delete), which is audited.
 ### Validation & security
 * Pydantic request validation (validation errors → 422)
 * JWT-protected endpoints(401 without/invalid/expired token)
-* Ownership checks: other users' resources behave as “not found” (404),
-  returning no information about whether they exist
+* Ownership checks: other users' resources behave as “not found” (404) for
+  regular HR users, returning no information about whether they exist; an
+  admin session bypasses ownership (never user management, which stays admin-only)
 * SQLAlchemy ORM queries(parameterized — not vulnerable to SQL injection)
 
 ---
@@ -173,7 +176,7 @@ backend/
 │   │   ├── applications.py  # /api/applications/*
 │   │   └── dashboard.py     # /api/dashboard/*
 │   └── dependencies/
-│       └── auth.py          # get_current_user / get_current_superuser
+│       └── auth.py          # get_current_user / get_current_superuser / get_access_scope
 ├── alembic/                 # Alembic migration scaffolding
 ├── alembic.ini
 ├── tests/                   # pytest suite (see “Running tests”)
@@ -565,8 +568,38 @@ never revealed.
   session (403 `"Admin privileges required"` for HR accounts, 403 `"Switch to
   the admin workspace to use this."` for an admin account in an HR session).
   Guards `/api/users/*` and every `/api/admin/*` route.
-* Owned resources (jobs,, applications,, dashboard data)are scoped per user: reading or
-  modifying another user's resource returns 404, never revealing that it exists.,
+* `get_access_scope` — used by the HR endpoints (jobs, applications/candidates,
+  AI analysis and Auto Analyze, interviews, dashboard). Returns an
+  `AccessScope`:
+  * HR user (or an admin account in an HR session): its own id, so reading or
+    modifying another user's resource returns 404, never revealing that it exists;
+  * admin account in an admin session: `owner_id=None`, meaning every HR
+    user's data. The admin then runs the **same** HR actions through the same
+    endpoints and business logic — there is no separate read-only admin path.
+
+  Routers call `scope.can_access(resource.owner_id)` for single resources and
+  pass `scope.owner_id` to CRUD listings (`None` adds no owner filter, via
+  `crud.query_utils.owner_filter`).
+
+**Permission model — admin = HR permissions + admin-only permissions:**
+
+| Capability | HR | Admin session |
+|---|:-:|:-:|
+| Own profile, settings, AI provider | ✅ | ✅ |
+| Jobs: create / read / update / delete, application form | own | all |
+| Applications & candidates: read, update statuses, convert, delete, CV | own | all |
+| AI analysis, Auto Analyze | own | all |
+| Interviews: schedule, edit, change status, delete | own | all |
+| Dashboard & analytics | own data | organisation-wide |
+| Admin console, user management (view, activate/deactivate, promote/demote, delete) | ❌ | ✅ |
+
+Notes:
+* An interview always belongs to the HR user who owns the candidate's job,
+  also when an admin scheduled it, so that HR user keeps seeing it; the audit
+  log records the admin as the actor.
+* AI analysis always uses the **job owner's** AI configuration, also when an
+  admin triggers it. An admin Auto Analyze batch spans every HR user and skips
+  applications whose owner has no AI configured.
 
 ### Sessions and workspaces
 Every session is signed with a workspace (`role` claim): `user` (HR) or
@@ -1362,7 +1395,7 @@ HR → Authorization: Bearer <jwt>
 ```text
 HR → POST /api/applications?job_id=...
   → get_current_user ((401)
-  → ownership check:: job must belong to current user ((404 otherwise)
+  → ownership check:: job must belong to current user, or admin session ((404 otherwise)
   → crud.create_application inserts row
   → service.increment_leads_count bumps job.leads_count
   → 201 + ApplicationItemResponse
@@ -1376,7 +1409,7 @@ Request + Authorization header
   → load user by id ((401 user deleted)
   → require is_active ((401 deactivated)
   → optional superuser check ((403 non-admin)
-  → handler runs ((resources further scoped to the owner)
+  → handler runs ((resources further scoped to the owner; an admin session sees all)
 ```
 ---
 

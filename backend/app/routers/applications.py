@@ -5,7 +5,11 @@ application HR moved into the hiring pipeline (``candidate_at`` set).
 
 Endpoints
 ---------
-GET    /api/applications               — list applications (owned by caller)
+Access: an HR user works on applications of their own jobs; an admin session
+works on every HR user's applications with the same actions (see
+``dependencies.auth.AccessScope``). Out-of-scope rows behave like missing ones.
+
+GET    /api/applications               — list applications (in the caller's scope)
 POST   /api/applications               — create an application manually
 GET    /api/applications/{id}          — get full application detail
 PATCH  /api/applications/{id}          — update HR-owned fields
@@ -28,9 +32,8 @@ from app.crud import batch as batch_crud
 from app.crud import job as job_crud
 from app.crud import application as application_crud
 from app.dependencies.audit import get_audit_context
-from app.dependencies.auth import get_current_user
+from app.dependencies.auth import AccessScope, get_access_scope
 from app.models.job import Job
-from app.models.user import User
 from app.models.application import AnalysisStatus, HiringStatus, InterviewStatus, Application
 from app.schemas.application_analysis import ApplicationAnalysisResponse
 from app.schemas.application import (
@@ -61,18 +64,18 @@ router = APIRouter()
 # ---------------------------------------------------------------------------
 
 
-def _get_owned_job(db: Session, job_id: int, current_user: User) -> Job:
-    """Return the job if it belongs to the current user, else raise 404."""
+def _get_owned_job(db: Session, job_id: int, scope: AccessScope) -> Job:
+    """Return the job if it is in the caller's scope, else raise 404."""
     job = job_crud.get_job(db, job_id)
-    if job is None or job.owner_id != current_user.id:
+    if job is None or not scope.can_access(job.owner_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job not found")
     return job
 
 
-def _get_owned_application(db: Session, application_id: int, current_user: User) -> Application:
-    """Return the application if its job belongs to the current user, else raise 404."""
+def _get_owned_application(db: Session, application_id: int, scope: AccessScope) -> Application:
+    """Return the application if its job is in the caller's scope, else raise 404."""
     application = application_crud.get_application(db, application_id)
-    if application is None or application.job.owner_id != current_user.id:
+    if application is None or not scope.can_access(application.job.owner_id):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Application not found"
         )
@@ -174,11 +177,12 @@ def list_applications(
     skip: int = Query(0, ge=0, description="Number of applications to skip"),
     limit: int = Query(50, ge=1, le=200, description="Max applications to return"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    scope: AccessScope = Depends(get_access_scope),
 ) -> list[Application]:
-    """Return the current user's applications.
+    """Return the caller's applications.
 
-    Scoped to jobs owned by the caller. With no ``job_id`` this lists
+    Scoped to jobs owned by the caller (every HR user's jobs in an admin
+    session). With no ``job_id`` this lists
     applications across all of the caller's jobs; otherwise restricted to that
     job. Supports filters for ``application_status``, ``hiring_status``,
     ``interview_status``, ``candidate_only``, free-text ``search`` and
@@ -187,7 +191,7 @@ def list_applications(
     from app.models.application import ApplicationStatus
 
     if job_id is not None:
-        _get_owned_job(db, job_id, current_user)
+        _get_owned_job(db, job_id, scope)
 
     app_status: ApplicationStatus | None = None
     if application_status:
@@ -201,7 +205,7 @@ def list_applications(
 
     return application_crud.list_applications(
         db,
-        current_user.id,
+        scope.owner_id,
         job_id=job_id,
         application_status=app_status,
         hiring_status=hiring_status,
@@ -219,13 +223,13 @@ def create_application(
     job_id: int = Query(..., description="Job the application is applying for"),
     payload: ApplicationCreate = ...,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    scope: AccessScope = Depends(get_access_scope),
     audit_ctx: AuditContext = Depends(get_audit_context),
 ) -> Application:
     """Record a new application by hand and bump the job's lead count."""
     from app.services import job as job_service
 
-    job = _get_owned_job(db, job_id, current_user)
+    job = _get_owned_job(db, job_id, scope)
     application = application_crud.create_application(db, job.id, payload)
     job_service.increment_leads_count(db, job.id)
     audit.record(
@@ -233,7 +237,7 @@ def create_application(
         AuditAction.CREATE_APPLICATION,
         resource_type=AuditResource.APPLICATION,
         resource_id=application.id,
-        actor=current_user,
+        actor=scope.user,
         details={"job_id": job.id},
         context=audit_ctx,
     )
@@ -249,13 +253,13 @@ def create_application(
 def get_application(
     application_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    scope: AccessScope = Depends(get_access_scope),
 ) -> ApplicationDetailResponse:
     """Return a single application/candidate with full detail.
 
     Never triggers AI — reads only what is already stored in PostgreSQL.
     """
-    application = _get_owned_application(db, application_id, current_user)
+    application = _get_owned_application(db, application_id, scope)
     return _build_detail_response(application)
 
 
@@ -264,11 +268,11 @@ def update_application(
     application_id: int,
     payload: ApplicationUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    scope: AccessScope = Depends(get_access_scope),
     audit_ctx: AuditContext = Depends(get_audit_context),
 ) -> ApplicationDetailResponse:
     """Update HR-owned fields on an application/candidate."""
-    application = _get_owned_application(db, application_id, current_user)
+    application = _get_owned_application(db, application_id, scope)
     application = application_crud.update_application(db, application, payload)
     # Statuses are enum values (safe to log); other fields only by name.
     changes = payload.model_dump(exclude_unset=True)
@@ -277,7 +281,7 @@ def update_application(
         AuditAction.UPDATE_APPLICATION,
         resource_type=AuditResource.APPLICATION,
         resource_id=application.id,
-        actor=current_user,
+        actor=scope.user,
         details={
             "fields": sorted(changes),
             **{
@@ -295,11 +299,11 @@ def update_application(
 def delete_application(
     application_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    scope: AccessScope = Depends(get_access_scope),
     audit_ctx: AuditContext = Depends(get_audit_context),
 ) -> None:
-    """Delete an application/candidate owned by the current user."""
-    application = _get_owned_application(db, application_id, current_user)
+    """Delete an application/candidate in the caller's scope."""
+    application = _get_owned_application(db, application_id, scope)
     job_id = application.job_id
     application_crud.delete_application(db, application.id)
     audit.record(
@@ -307,7 +311,7 @@ def delete_application(
         AuditAction.DELETE_APPLICATION,
         resource_type=AuditResource.APPLICATION,
         resource_id=application_id,
-        actor=current_user,
+        actor=scope.user,
         details={"job_id": job_id},
         context=audit_ctx,
     )
@@ -324,7 +328,7 @@ async def analyze_application(
     application_id: int,
     force: bool = Query(False, description="Re-run even if a completed analysis exists"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    scope: AccessScope = Depends(get_access_scope),
 ) -> ApplicationDetailResponse:
     """Run AI analysis on a submitted application.
 
@@ -338,7 +342,7 @@ async def analyze_application(
     AI never writes ``application_status``, ``hiring_status`` or
     ``interview_status`` — those remain under HR control.
     """
-    application = _get_owned_application(db, application_id, current_user)
+    application = _get_owned_application(db, application_id, scope)
 
     try:
         application = await analysis_service.run_analysis(db, application, force=force)
@@ -348,7 +352,15 @@ async def analyze_application(
         ) from exc
     except ai_provider_service.AIConfigurationRequiredError as exc:
         # Nothing was attempted or persisted: tell the user to configure AI.
-        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+        # The job owner's AI configuration is used, so an admin acting on
+        # another HR user's application is told whose setup is missing.
+        detail = exc.message
+        if application.job.owner_id != scope.user.id:
+            detail = (
+                "The HR user who owns this job has not set up their AI provider yet, "
+                "so this application cannot be analysed."
+            )
+        raise HTTPException(status_code=exc.status_code, detail=detail) from exc
     except AIServiceError as exc:
         # The failure has already been persisted on the application — return the
         # updated application so the UI can show the retryable failed state.
@@ -365,14 +377,14 @@ async def analyze_application(
 def get_application_analysis(
     application_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    scope: AccessScope = Depends(get_access_scope),
 ) -> ApplicationAnalysisResponse:
     """Return the stored AI analysis for an application.
 
     This endpoint reads from PostgreSQL only — it never calls the AI provider.
     Use ``POST /{id}/analyze`` to run or re-run the analysis.
     """
-    application = _get_owned_application(db, application_id, current_user)
+    application = _get_owned_application(db, application_id, scope)
     analysis = analysis_service.stored_analysis(application)
     return ApplicationAnalysisResponse(
         application_id=application.id,
@@ -394,15 +406,15 @@ def get_application_resume(
     application_id: int,
     download: bool = Query(False, description="Send as an attachment instead of inline"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    scope: AccessScope = Depends(get_access_scope),
 ) -> FileResponse:
-    """Stream the application's CV to its owner.
+    """Stream the application's CV to its owner (or an admin).
 
     Inline by default (PDFs open in the browser); ``?download=true`` sends it
     as an attachment named after the candidate. Another user's application
     returns the same 404 as a missing one.
     """
-    application = _get_owned_application(db, application_id, current_user)
+    application = _get_owned_application(db, application_id, scope)
     try:
         resume = resume_file_service.get_resume_file(application)
     except resume_file_service.ResumeUnavailableError as exc:
@@ -433,7 +445,7 @@ def get_application_resume(
 def convert_to_candidate(
     application_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    scope: AccessScope = Depends(get_access_scope),
     audit_ctx: AuditContext = Depends(get_audit_context),
 ) -> ApplicationDetailResponse:
     """Move an application into the candidate (hiring/interview) pipeline.
@@ -446,7 +458,7 @@ def convert_to_candidate(
     AI analysis is not required before converting — HR may move an application
     to the candidate pipeline at any point.
     """
-    application = _get_owned_application(db, application_id, current_user)
+    application = _get_owned_application(db, application_id, scope)
     already_candidate = application.candidate_at is not None
     application = analysis_service.convert_to_candidate(db, application)
     if not already_candidate:
@@ -455,7 +467,7 @@ def convert_to_candidate(
             AuditAction.CONVERT_TO_CANDIDATE,
             resource_type=AuditResource.APPLICATION,
             resource_id=application.id,
-            actor=current_user,
+            actor=scope.user,
             details={"job_id": application.job_id},
             context=audit_ctx,
         )
@@ -477,22 +489,22 @@ def get_auto_analyze_available(
     company: str | None = Query(default=None, max_length=255, description="Company filter"),
     position: str | None = Query(default=None, max_length=255, description="Position filter"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    scope: AccessScope = Depends(get_access_scope),
 ) -> AutoAnalyzeAvailableResponse:
     """Count applications Auto Analyze would pick, plus the filter choices.
 
-    Eligible = owned by the caller, ``application_status=new`` and never
+    Eligible = in the caller's scope, ``application_status=new`` and never
     analysed. Empty/omitted filters mean "All". ``options`` lists every
     company/position pair that has eligible applications.
     """
     count = auto_analyze_service.get_available_new_count(
         db,
-        current_user.id,
+        scope.owner_id,
         job_id=job_id,
         company=(company or "").strip() or None,
         position=(position or "").strip() or None,
     )
-    options = auto_analyze_service.get_filter_options(db, current_user.id)
+    options = auto_analyze_service.get_filter_options(db, scope.owner_id)
     return AutoAnalyzeAvailableResponse(count=count, options=options)
 
 
@@ -504,7 +516,7 @@ def get_auto_analyze_available(
 async def start_auto_analyze(
     request: AutoAnalyzeStartRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    scope: AccessScope = Depends(get_access_scope),
     audit_ctx: AuditContext = Depends(get_audit_context),
 ) -> AutoAnalyzeStartResponse:
     """Start a new auto-analyze batch.
@@ -520,18 +532,21 @@ async def start_auto_analyze(
     """
     # Validate job_id if provided
     if request.job_id is not None:
-        _get_owned_job(db, request.job_id, current_user)
+        _get_owned_job(db, request.job_id, scope)
 
     # Fail before creating a batch when the user's AI credentials are missing
-    # or unusable, instead of failing every selected application.
-    try:
-        ai_provider_service.resolve_for_user(db, current_user.id)
-    except AIServiceError as exc:
-        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+    # or unusable, instead of failing every selected application. An admin
+    # batch spans several HR users, each analysed with their own AI
+    # configuration, so it is checked per application while it runs.
+    if not scope.is_admin:
+        try:
+            ai_provider_service.resolve_for_user(db, scope.user.id)
+        except AIServiceError as exc:
+            raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
 
     available = auto_analyze_service.get_available_new_count(
         db,
-        current_user.id,
+        scope.owner_id,
         job_id=request.job_id,
         company=request.company,
         position=request.position,
@@ -539,12 +554,13 @@ async def start_auto_analyze(
     try:
         batch = auto_analyze_service.create_auto_analyze_batch(
             db,
-            current_user,
+            scope.user,
             count=request.count,
             order=request.order,
             job_id=request.job_id,
             company=request.company,
             position=request.position,
+            all_owners=scope.is_admin,
         )
     except auto_analyze_service.InvalidBatchSizeError as exc:
         raise HTTPException(
@@ -568,7 +584,7 @@ async def start_auto_analyze(
         AuditAction.AI_BATCH_STARTED,
         resource_type=AuditResource.AI_ANALYSIS,
         resource_id=batch.id,
-        actor=current_user,
+        actor=scope.user,
         details={"selected": selected, "order": request.order},
         context=audit_ctx,
     )
@@ -594,7 +610,7 @@ async def start_auto_analyze(
 def get_auto_analyze_progress(
     batch_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    scope: AccessScope = Depends(get_access_scope),
 ) -> AutoAnalyzeProgressResponse:
     """Get the current progress of an auto-analyze batch.
 
@@ -603,7 +619,7 @@ def get_auto_analyze_progress(
     progress = auto_analyze_service.get_batch_progress(
         db,
         batch_id,
-        current_user.id,
+        scope.owner_id,
     )
     if progress is None:
         raise HTTPException(
@@ -621,14 +637,14 @@ def get_auto_analyze_progress(
 def cancel_auto_analyze(
     batch_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    scope: AccessScope = Depends(get_access_scope),
 ) -> AutoAnalyzeProgressResponse:
     """Cancel a running or queued auto-analyze batch.
 
     The batch will finish processing the current application if already
     analyzing, but no new applications will be started.
     """
-    batch = batch_crud.get_batch(db, batch_id, current_user.id)
+    batch = batch_crud.get_batch(db, batch_id, scope.owner_id)
     if batch is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

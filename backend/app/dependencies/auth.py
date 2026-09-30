@@ -9,6 +9,11 @@ Authorization for admin endpoints combines two independent facts:
   on every request, so a demotion takes effect immediately), and
 * the session's **active role** (the server-signed ``role`` claim), so a
   superuser who chose the HR workspace cannot use admin endpoints.
+
+HR endpoints (jobs, applications, interviews, dashboard) use
+``get_access_scope`` instead: a regular HR user works on their own data only,
+while an admin session works on every HR user's data with the *same* HR
+actions (admin = HR permissions + admin-only permissions).
 """
 
 from dataclasses import dataclass
@@ -124,3 +129,40 @@ def get_current_superuser(session: CurrentSession = Depends(get_current_session)
             detail="Switch to the admin workspace to use this.",
         )
     return session.user
+
+@dataclass(frozen=True)
+class AccessScope:
+    """Whose hiring data the caller may see and change on the HR endpoints.
+
+    * HR user (or a superuser who chose the HR workspace): ``owner_id`` is
+      their own id, so they only reach resources they own.
+    * Admin session (``is_superuser`` + admin role): ``owner_id`` is ``None``,
+      meaning "every HR user's data". Admins then run the exact same HR
+      actions (update status, analyze, schedule interviews, ...) on any
+      resource; there is no separate read-only admin path.
+    """
+
+    user: User
+    owner_id: int | None
+
+    @property
+    def is_admin(self) -> bool:
+        """True when the scope covers the whole organisation."""
+        return self.owner_id is None
+
+    def can_access(self, owner_id: int) -> bool:
+        """Whether a resource owned by ``owner_id`` is inside this scope."""
+        return self.owner_id is None or self.owner_id == owner_id
+
+
+def get_access_scope(session: CurrentSession = Depends(get_current_session)) -> AccessScope:
+    """Resolve the caller's data scope for the HR endpoints.
+
+    The admin-wide scope needs both the capability (``is_superuser``, read
+    from the database) and an admin session, exactly like
+    ``get_current_superuser``, so a demotion or a switch to the HR workspace
+    immediately narrows the scope back to the caller's own data.
+    """
+    user = session.user
+    is_admin = user.is_superuser and session.role == SessionRole.ADMIN
+    return AccessScope(user=user, owner_id=None if is_admin else user.id)
