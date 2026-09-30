@@ -13,7 +13,7 @@ import HiringPipeline from "../../components/dashboard/HiringPipeline";
 import LineTrendChart from "../../components/charts/LineTrendChart";
 import { useChartPalette } from "../../components/charts/chartTheme";
 import { APPLICATION_STATUS_LABELS, translateOr } from "../../utils/statusLabels";
-import type { ApplicationStatus } from "../../types/worker";
+import type { ApplicationStatus } from "../../types/candidate";
 
 const STATUS_ORDER: ApplicationStatus[] = ["new", "reviewing", "shortlisted", "interview", "rejected", "withdrawn"];
 const TERMINAL: ApplicationStatus[] = ["rejected", "withdrawn"];

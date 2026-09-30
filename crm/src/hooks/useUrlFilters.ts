@@ -21,6 +21,7 @@ export function useUrlFilters<T extends Record<string, string>>(defaults: T) {
     return result;
     // `defaults` is a module-level constant in every caller, so only the URL
     // needs to be a dependency.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params]);
 
   const page = Math.max(1, Number.parseInt(params.get("page") ?? "1", 10) || 1);

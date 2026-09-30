@@ -172,14 +172,14 @@ class TestDeleteJob:
         assert response.status_code == 204
         assert client.get("/api/jobs", headers=sample_job["headers"]).json() == []
 
-    def test_delete_job_with_workers_cascades(self, client, sample_job, worker_factory, db_session):
-        worker_factory(sample_job["id"])
+    def test_delete_job_with_applications_cascades(self, client, sample_job, application_factory, db_session):
+        application_factory(sample_job["id"])
         response = client.delete(f"/api/jobs/{sample_job['id']}", headers=sample_job["headers"])
         assert response.status_code == 204
         assert job_crud.get_job(db_session, sample_job["id"]) is None
-        from app.crud.worker import get_workers_for_job
+        from app.crud.application import get_applications_for_job
 
-        assert get_workers_for_job(db_session, sample_job["id"]) == []
+        assert get_applications_for_job(db_session, sample_job["id"]) == []
 
     def test_delete_other_users_job_is_not_found(self, client, sample_job, other_user):
         response = client.delete(f"/api/jobs/{sample_job['id']}", headers=other_user["headers"])
@@ -344,6 +344,23 @@ class TestAnalyzeJob:
             )
         assert response.status_code == 503
         assert "rate limit" in response.json()["detail"].lower()
+
+    def test_analyze_job_free_model_rate_limit_explains_and_sets_retry_after(self, client, user):
+        """A 429 names the busy free model and passes the provider's wait on."""
+        from app.services.ai.job_analyzer import AIRateLimitError
+
+        with patch("app.routers.jobs.analyze_vacancy", new_callable=AsyncMock) as mock_analyze:
+            mock_analyze.side_effect = AIRateLimitError(retry_after=37.2, model="qwen/qwen3.8-27b:free")
+            response = client.post(
+                "/api/jobs/analyze",
+                json={"content": VACANCY_CONTENT},
+                headers=user["headers"],
+            )
+        assert response.status_code == 429
+        assert response.headers["retry-after"] == "38"
+        detail = response.json()["detail"]
+        assert "qwen/qwen3.8-27b:free" in detail
+        assert "Settings → AI provider" in detail
 
 
 # ---------------------------------------------------------------------------

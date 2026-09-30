@@ -1,7 +1,6 @@
-"""SQLAlchemy model for workers/candidates and their applications.
+"""SQLAlchemy model for job applications (and the candidates they become).
 
-A ``Worker`` attached to a ``Job`` represents an Application (candidate
-submission). The record carries submission timing, the HR-controlled pipeline
+An ``Application`` belongs to a ``Job`` and is one candidate submission. The record carries submission timing, the HR-controlled pipeline
 statuses and the AI screening result (``ai_score`` + ``ai_analysis_details``).
 
 Pipeline model
@@ -78,10 +77,10 @@ class AnalysisStatus(str, enum.Enum):
     FAILED = "failed"
 
 
-class Worker(Base):
-    """A candidate/worker applying for a job."""
+class Application(Base):
+    """A candidate/application applying for a job."""
 
-    __tablename__ = "workers"
+    __tablename__ = "applications"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     job_id: Mapped[int] = mapped_column(
@@ -163,81 +162,12 @@ class Worker(Base):
         """Position name from the associated job."""
         return self.job.position if self.job else ""
 
-    job: Mapped["Job"] = relationship(back_populates="workers")
+    job: Mapped["Job"] = relationship(back_populates="applications")
     interviews: Mapped[list["Interview"]] = relationship(
         back_populates="candidate", passive_deletes=True
     )
     # Structured answers submitted through the public application form
     # (one-to-one; ``None`` for manually recorded candidates).
     application_response: Mapped["ApplicationResponse | None"] = relationship(
-        back_populates="worker", uselist=False, passive_deletes=True
+        back_populates="application", uselist=False, passive_deletes=True
     )
-
-
-class AnalysisBatchStatus(str, enum.Enum):
-    """Status of an auto-analyze batch job."""
-
-    QUEUED = "queued"
-    RUNNING = "running"
-    COMPLETED = "completed"
-    CANCELLED = "cancelled"
-    FAILED = "failed"
-
-
-class AnalysisBatch(Base):
-    """Tracks a batch auto-analyze operation on multiple applications."""
-
-    __tablename__ = "analysis_batches"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    owner_id: Mapped[int] = mapped_column(
-        ForeignKey("users.id", ondelete="CASCADE"), index=True
-    )
-    # JSON array of worker IDs in the order they should be processed
-    worker_ids: Mapped[list[int]] = mapped_column(JSON, default=list)
-    # Current position in the worker_ids list (index of next worker to process)
-    current_index: Mapped[int] = mapped_column(default=0, server_default="0")
-    # Number of workers successfully analyzed
-    successful_count: Mapped[int] = mapped_column(default=0, server_default="0")
-    # Number of workers that failed analysis
-    failed_count: Mapped[int] = mapped_column(default=0, server_default="0")
-    # Number of workers skipped because they were no longer eligible when
-    # their turn came (deleted, or analysed elsewhere in the meantime)
-    skipped_count: Mapped[int] = mapped_column(default=0, server_default="0")
-    # Currently processing worker ID (for progress tracking)
-    current_worker_id: Mapped[int | None] = mapped_column(default=None, nullable=True)
-    # Human-readable status
-    status: Mapped[AnalysisBatchStatus] = mapped_column(
-        Enum(
-            AnalysisBatchStatus,
-            name="analysis_batch_status",
-            values_callable=lambda x: [e.value for e in x],
-        ),
-        default=AnalysisBatchStatus.QUEUED,
-        server_default=AnalysisBatchStatus.QUEUED.value,
-    )
-    # Timestamp when batch was created
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=_utcnow, server_default=func.now()
-    )
-    # Timestamp when batch finished (completed, cancelled, or failed)
-    finished_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
-
-    #: Total number of workers in this batch
-    @property
-    def total(self) -> int:
-        return len(self.worker_ids)
-
-    #: Number of workers processed so far
-    @property
-    def processed(self) -> int:
-        return self.successful_count + self.failed_count + self.skipped_count
-
-    #: Remaining workers to process
-    @property
-    def remaining(self) -> int:
-        return self.total - self.processed
-
-    owner: Mapped["User"] = relationship(back_populates="analysis_batches")

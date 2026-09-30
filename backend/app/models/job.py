@@ -44,8 +44,8 @@ class Job(Base):
     )
 
     # passive_deletes: let the database ON DELETE CASCADE remove a job's
-    # workers when the job is deleted. Without it the ORM tries to set the
-    # child FK to NULL, which fails because workers.job_id is NOT NULL.
-    workers: Mapped[list["Worker"]] = relationship(
+    # applications when the job is deleted. Without it the ORM tries to set the
+    # child FK to NULL, which fails because applications.job_id is NOT NULL.
+    applications: Mapped[list["Application"]] = relationship(
         back_populates="job", passive_deletes=True
     )

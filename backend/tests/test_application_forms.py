@@ -6,7 +6,7 @@ Covers:
   configuration, ownership rules and validation errors.
 * Public endpoints (no JWT): token retrieval, safe payload shape and
   server-side submission validation against the stored field config.
-* Persistence: candidates (workers) created through the existing pipeline,
+* Persistence: candidates (applications) created through the existing pipeline,
   structured answers stored, resume files saved with safe server names.
 * Field normalisation: AI suggestions / defaults are data-only and constrained
   to the fixed field-type registry.
@@ -21,7 +21,7 @@ import pytest
 from tests.payloads import JOB_PAYLOAD
 
 from app.core.config import settings
-from app.crud.application_response import get_response_by_worker
+from app.crud.application_response import get_response_by_application
 from app.schemas.application_form import (
     MAX_FIELDS,
     FormValidationError,
@@ -394,32 +394,32 @@ class TestPublicSubmit:
         assert response.status_code == 201, response.text
         assert response.json() == {"status": "received"}
 
-        # Candidate created through the existing worker pipeline.
-        workers = client.get(
-            f"/api/workers?job_id={job['id']}", headers=user["headers"]
+        # Candidate created through the existing application pipeline.
+        applications = client.get(
+            f"/api/applications?job_id={job['id']}", headers=user["headers"]
         ).json()
-        assert len(workers) == 1
-        worker = workers[0]
-        assert worker["name"] == "Jane Doe"
-        assert worker["email"] == "jane@example.com"  # normalised
-        assert worker["resume_path"].startswith("resumes/")  # safe server name
-        assert worker["resume_path"].endswith(".pdf")
+        assert len(applications) == 1
+        application = applications[0]
+        assert application["name"] == "Jane Doe"
+        assert application["email"] == "jane@example.com"  # normalised
+        assert application["resume_path"].startswith("resumes/")  # safe server name
+        assert application["resume_path"].endswith(".pdf")
 
         # The uploaded file exists on disk under a generated name.
         from app.core.config import settings
 
-        stored = Path(settings.UPLOAD_DIR) / worker["resume_path"]
+        stored = Path(settings.UPLOAD_DIR) / application["resume_path"]
         assert stored.exists()
         assert stored.name != "my-resume.pdf"  # never trusts the filename
         assert stored.read_bytes() == b"%PDF-fake"
 
         # Structured answers stored next to the candidate.
-        answers = get_response_by_worker(db_session, worker["id"])
+        answers = get_response_by_application(db_session, application["id"])
         assert answers is not None
         by_field = {a["field_id"]: a for a in answers.responses}
         assert by_field[name_id]["value"] == "Jane Doe"
         assert by_field[email_id]["value"] == "jane@example.com"
-        assert by_field[resume_id]["value"] == worker["resume_path"]
+        assert by_field[resume_id]["value"] == application["resume_path"]
 
         # Job lead count incremented.
         fetched = client.get(f"/api/jobs/{job['id']}", headers=user["headers"]).json()
@@ -635,12 +635,12 @@ class TestPublicSubmit:
         response = submit_application(client, token, {f_motivation: "I want this job."})
         assert response.status_code == 201
 
-        workers = client.get(
-            f"/api/workers?job_id={job['id']}", headers=user["headers"]
+        applications = client.get(
+            f"/api/applications?job_id={job['id']}", headers=user["headers"]
         ).json()
-        assert len(workers) == 1
-        assert workers[0]["name"] == "Anonymous candidate"
-        assert workers[0]["email"].endswith("@candidates.local")
+        assert len(applications) == 1
+        assert applications[0]["name"] == "Anonymous candidate"
+        assert applications[0]["email"].endswith("@candidates.local")
 
 
 # ---------------------------------------------------------------------------
@@ -696,12 +696,12 @@ class TestDuplicateSubmissionGuard:
         resumes.mkdir(parents=True, exist_ok=True)
         stored_before = set(resumes.iterdir())
 
-        from app.crud import worker as worker_crud
+        from app.crud import application as application_crud
 
         def boom(*args, **kwargs):
             raise RuntimeError("database down")
 
-        monkeypatch.setattr(worker_crud, "create_worker", boom)
+        monkeypatch.setattr(application_crud, "create_application", boom)
         with pytest.raises(RuntimeError):
             submit_application(
                 client,

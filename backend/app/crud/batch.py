@@ -6,19 +6,17 @@ Contains only database access. Business logic belongs in services.
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models.worker import AnalysisBatch, AnalysisBatchStatus
-
-
+from app.models.analysis_batch import AnalysisBatch, AnalysisBatchStatus
 def create_batch(
     db: Session,
     *,
     owner_id: int,
-    worker_ids: list[int],
+    application_ids: list[int],
 ) -> AnalysisBatch:
     """Create a new analysis batch and return it."""
     batch = AnalysisBatch(
         owner_id=owner_id,
-        worker_ids=worker_ids,
+        application_ids=application_ids,
     )
     db.add(batch)
     db.commit()
@@ -51,7 +49,7 @@ def update_batch(
     successful_count: int | None = None,
     failed_count: int | None = None,
     skipped_count: int | None = None,
-    current_worker_id: int | None = None,
+    current_application_id: int | None = None,
     finished_at: bool = False,
 ) -> AnalysisBatch:
     """Update batch fields and return the refreshed instance."""
@@ -66,8 +64,8 @@ def update_batch(
         update_data["failed_count"] = failed_count
     if skipped_count is not None:
         update_data["skipped_count"] = skipped_count
-    if current_worker_id is not None:
-        update_data["current_worker_id"] = current_worker_id
+    if current_application_id is not None:
+        update_data["current_application_id"] = current_application_id
     if finished_at:
         from datetime import datetime, timezone
 

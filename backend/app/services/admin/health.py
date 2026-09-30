@@ -28,7 +28,8 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.crud import ai_analysis_run as run_crud
-from app.models.worker import AnalysisBatch, AnalysisBatchStatus, AnalysisStatus, Worker
+from app.models.analysis_batch import AnalysisBatch, AnalysisBatchStatus
+from app.models.application import AnalysisStatus, Application
 from app.services.application_analysis import STALE_ANALYSIS_SECONDS
 
 logger = logging.getLogger(__name__)
@@ -84,7 +85,10 @@ def check_ai_provider(db: Session) -> dict[str, Any]:
         "attempts_1h": recent["total"],
         "failed_1h": recent["failed"],
     }
-    if not cfg["api_key"] or not cfg["model"]:
+    # With REQUIRE_USER_AI_CONFIG every HR uses their own provider, so a
+    # missing platform key is expected; judge by recent attempts only.
+    metrics["per_user_credentials_required"] = settings.REQUIRE_USER_AI_CONFIG
+    if not settings.REQUIRE_USER_AI_CONFIG and (not cfg["api_key"] or not cfg["model"]):
         return _component(
             "ai_provider",
             "not_configured",
@@ -150,9 +154,9 @@ def check_workers(db: Session) -> dict[str, Any]:
         ).where(AnalysisBatch.status.in_(active))
     ).one()
     stale_analyses = db.execute(
-        select(func.count(Worker.id)).where(
-            Worker.analysis_status == AnalysisStatus.ANALYZING,
-            Worker.analysis_started_at < now - timedelta(seconds=STALE_ANALYSIS_SECONDS),
+        select(func.count(Application.id)).where(
+            Application.analysis_status == AnalysisStatus.ANALYZING,
+            Application.analysis_started_at < now - timedelta(seconds=STALE_ANALYSIS_SECONDS),
         )
     ).scalar_one()
     metrics = {

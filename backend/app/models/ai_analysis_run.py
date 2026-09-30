@@ -1,6 +1,6 @@
 """SQLAlchemy model for AI analysis attempts (admin AI monitoring).
 
-``workers`` only keeps the *latest* analysis state of an application, so a
+``applications`` only keeps the *latest* analysis state of an application, so a
 failure is overwritten by the next successful retry and provider problems
 leave no history. One row here is written per provider attempt (application
 screening or vacancy extraction), successful or not, which is what the AI
@@ -50,8 +50,8 @@ class AIAnalysisRun(Base):
     job_id: Mapped[int | None] = mapped_column(
         ForeignKey("jobs.id", ondelete="SET NULL"), nullable=True
     )
-    worker_id: Mapped[int | None] = mapped_column(
-        ForeignKey("workers.id", ondelete="SET NULL"), nullable=True
+    application_id: Mapped[int | None] = mapped_column(
+        ForeignKey("applications.id", ondelete="SET NULL"), nullable=True
     )
     provider: Mapped[str | None] = mapped_column(String(32), nullable=True)
     model: Mapped[str | None] = mapped_column(String(200), nullable=True)

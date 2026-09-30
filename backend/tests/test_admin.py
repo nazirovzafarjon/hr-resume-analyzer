@@ -12,8 +12,8 @@ import pytest
 from app.core.config import settings
 from app.models import User
 from app.schemas.application_analysis import ApplicationAnalysis
-from app.services import system_health
-from tests.payloads import INTERVIEW_PAYLOAD, JOB_PAYLOAD, WORKER_PAYLOAD
+from app.services.admin import health as system_health
+from tests.payloads import INTERVIEW_PAYLOAD, JOB_PAYLOAD, APPLICATION_PAYLOAD
 
 ADMIN_GET_ENDPOINTS = [
     "/api/admin/dashboard",
@@ -44,20 +44,20 @@ def _create_job(client, headers, **overrides):
     return response.json()
 
 
-def _create_worker(client, headers, job_id, **overrides):
+def _create_application(client, headers, job_id, **overrides):
     response = client.post(
-        f"/api/workers?job_id={job_id}", json={**WORKER_PAYLOAD, **overrides}, headers=headers
+        f"/api/applications?job_id={job_id}", json={**APPLICATION_PAYLOAD, **overrides}, headers=headers
     )
     assert response.status_code == 201, response.text
     return response.json()
 
 
-def _analyze(client, headers, worker_id, score):
+def _analyze(client, headers, application_id, score):
     with patch(
         "app.services.application_analysis.analyze_application", new_callable=AsyncMock
     ) as mock_analyze:
         mock_analyze.return_value = _analysis(score)
-        response = client.post(f"/api/workers/{worker_id}/analyze", headers=headers)
+        response = client.post(f"/api/applications/{application_id}/analyze", headers=headers)
     assert response.status_code == 200, response.text
 
 
@@ -66,18 +66,18 @@ def platform(client, user, other_user):
     """Two HR users with jobs, applications, a candidate and an interview."""
     job_a = _create_job(client, user["headers"], company_name="Acme Corp", position="Backend Dev")
     job_b = _create_job(client, other_user["headers"], company_name="Globex", position="Designer")
-    w1 = _create_worker(client, user["headers"], job_a["id"], name="Alice", email="alice@x.com")
-    w2 = _create_worker(client, user["headers"], job_a["id"], name="Bob", email="bob@x.com")
-    w3 = _create_worker(client, other_user["headers"], job_b["id"], name="Carol", email="carol@x.com")
+    w1 = _create_application(client, user["headers"], job_a["id"], name="Alice", email="alice@x.com")
+    w2 = _create_application(client, user["headers"], job_a["id"], name="Bob", email="bob@x.com")
+    w3 = _create_application(client, other_user["headers"], job_b["id"], name="Carol", email="carol@x.com")
     _analyze(client, user["headers"], w1["id"], 85)
-    client.post(f"/api/workers/{w1['id']}/convert-to-candidate", headers=user["headers"])
+    client.post(f"/api/applications/{w1['id']}/convert-to-candidate", headers=user["headers"])
     interview = client.post(
         "/api/interviews",
         json={**INTERVIEW_PAYLOAD, "candidate_id": w1["id"]},
         headers=user["headers"],
     )
     assert interview.status_code == 201, interview.text
-    return {"job_a": job_a, "job_b": job_b, "workers": [w1, w2, w3], "user": user, "other": other_user}
+    return {"job_a": job_a, "job_b": job_b, "applications": [w1, w2, w3], "user": user, "other": other_user}
 
 
 # ---------------------------------------------------------------------------
@@ -124,7 +124,7 @@ class TestAuthorization:
         other_job = platform["job_b"]["id"]
         headers = platform["user"]["headers"]
         assert client.get(f"/api/jobs/{other_job}", headers=headers).status_code == 404
-        names = {w["name"] for w in client.get("/api/workers", headers=headers).json()}
+        names = {w["name"] for w in client.get("/api/applications", headers=headers).json()}
         assert "Carol" not in names
 
     def test_profile_reports_role(self, client, admin, user):
@@ -249,7 +249,7 @@ class TestUserMutationsAreAudited:
         """Service-level safeguard: the only active admin cannot be removed."""
         from app.crud import user as user_crud
         from app.schemas.user import UserCreate
-        from app.services import user_admin
+        from app.services.admin import users as user_admin
 
         other_admin = user_crud.create_user(
             db_session, UserCreate(email="second@example.com", full_name="Second", password="Pass12345"),
@@ -426,8 +426,8 @@ class TestAdminApplications:
         assert filtered.json()["total"] == 0
 
     def test_detail_is_read_only_and_safe(self, client, admin, platform):
-        worker_id = platform["workers"][0]["id"]
-        body = client.get(f"/api/admin/applications/{worker_id}", headers=admin["headers"]).json()
+        application_id = platform["applications"][0]["id"]
+        body = client.get(f"/api/admin/applications/{application_id}", headers=admin["headers"]).json()
         assert body["analysis"]["match_percentage"] == 85
         assert body["hiring_status"] == "hire"  # human decision, untouched by the AI
         assert body["has_resume"] is True

@@ -22,7 +22,8 @@ from app.crud import ai_analysis_run as run_crud
 from app.models.ai_analysis_run import AIAnalysisRun
 from app.models.ai_provider_config import UserAIProviderConfig
 from app.models.user import User
-from app.models.worker import AnalysisBatch, AnalysisStatus, Worker
+from app.models.analysis_batch import AnalysisBatch
+from app.models.application import AnalysisStatus, Application
 from app.services.ai.job_analyzer import (
     AIInvalidResponseError,
     AIProviderAuthError,
@@ -88,7 +89,7 @@ def record_run(
     duration_ms: int | None,
     owner_id: int | None,
     job_id: int | None = None,
-    worker_id: int | None = None,
+    application_id: int | None = None,
     score: float | None = None,
     error: BaseException | None = None,
 ) -> None:
@@ -101,7 +102,7 @@ def record_run(
             status=STATUS_FAILED if error is not None else STATUS_COMPLETED,
             owner_id=owner_id,
             job_id=job_id,
-            worker_id=worker_id,
+            application_id=application_id,
             # cfg may be empty when resolving the provider itself failed.
             provider=(cfg.get("provider") or None),
             model=(str(cfg.get("model") or "")[:200] or None),
@@ -141,11 +142,11 @@ def overview(db: Session) -> dict[str, Any]:
     """Everything the AI monitoring page shows above the run table."""
     since_24h = datetime.now(timezone.utc) - timedelta(hours=24)
     status_rows = db.execute(
-        select(Worker.analysis_status, func.count(Worker.id)).group_by(Worker.analysis_status)
+        select(Application.analysis_status, func.count(Application.id)).group_by(Application.analysis_status)
     ).all()
     status_counts = {status.value: int(count) for status, count in status_rows}
     avg_score = db.execute(
-        select(func.avg(Worker.ai_score)).where(Worker.analysis_status == AnalysisStatus.COMPLETED)
+        select(func.avg(Application.ai_score)).where(Application.analysis_status == AnalysisStatus.COMPLETED)
     ).scalar()
 
     batches = db.execute(
@@ -214,7 +215,7 @@ def list_runs(db: Session, *, page: int, limit: int, **filters: Any) -> dict[str
                 "job_id": run.job_id,
                 "position": position,
                 "company_name": company,
-                "worker_id": run.worker_id,
+                "application_id": run.application_id,
                 "provider": run.provider,
                 "model": run.model,
                 "source": run.source,

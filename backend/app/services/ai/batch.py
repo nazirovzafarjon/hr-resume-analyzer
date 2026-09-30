@@ -20,17 +20,13 @@ from sqlalchemy.orm import Session
 
 from app.core.database import SessionLocal
 from app.crud import batch as batch_crud
-from app.crud import worker as worker_crud
+from app.crud import application as application_crud
+from app.models.analysis_batch import AnalysisBatch, AnalysisBatchStatus
+from app.models.application import AnalysisStatus, Application, ApplicationStatus
 from app.models.job import Job
 from app.models.user import User
-from app.models.worker import (
-    AnalysisBatch,
-    AnalysisBatchStatus,
-    AnalysisStatus,
-    ApplicationStatus,
-    Worker,
-)
 from app.services import application_analysis as single_analysis
+from app.services.ai import provider as ai_provider_service
 from app.services.ai.application_analyzer import analyze_application as ai_analyze
 from app.services.ai.job_analyzer import AIServiceError
 from app.services.resume_text import extract_resume_text
@@ -99,11 +95,11 @@ def _eligible_filter(
     """
     conditions = [
         Job.owner_id == owner_id,
-        Worker.application_status == ApplicationStatus.NEW,
-        Worker.analysis_status.in_(ELIGIBLE_ANALYSIS_STATUSES),
+        Application.application_status == ApplicationStatus.NEW,
+        Application.analysis_status.in_(ELIGIBLE_ANALYSIS_STATUSES),
     ]
     if job_id is not None:
-        conditions.append(Worker.job_id == job_id)
+        conditions.append(Application.job_id == job_id)
     if company is not None:
         conditions.append(Job.company_name == company)
     if position is not None:
@@ -111,7 +107,7 @@ def _eligible_filter(
     return conditions
 
 
-def _get_eligible_worker_ids(
+def _get_eligible_application_ids(
     db: Session,
     owner_id: int,
     *,
@@ -127,20 +123,20 @@ def _get_eligible_worker_ids(
         db: Database session.
         owner_id: The HR user's ID (for ownership scoping).
         order: "oldest" for created_at ASC, "newest" for created_at DESC.
-        limit: Maximum number of worker IDs to return (None for unlimited).
+        limit: Maximum number of application IDs to return (None for unlimited).
         job_id / company / position: Optional filters (``None`` = all).
     """
     query = (
-        select(Worker.id)
-        .join(Worker.job)
+        select(Application.id)
+        .join(Application.job)
         .where(*_eligible_filter(owner_id, job_id=job_id, company=company, position=position))
     )
 
     # Ordering: created_at ASC/DESC, then id for determinism
     if order == "newest":
-        query = query.order_by(Worker.created_at.desc(), Worker.id.desc())
+        query = query.order_by(Application.created_at.desc(), Application.id.desc())
     else:  # oldest (default)
-        query = query.order_by(Worker.created_at.asc(), Worker.id.asc())
+        query = query.order_by(Application.created_at.asc(), Application.id.asc())
 
     if limit is not None:
         query = query.limit(limit)
@@ -158,8 +154,8 @@ def get_available_new_count(
 ) -> int:
     """Count eligible applications (a COUNT query; no rows are loaded)."""
     query = (
-        select(func.count(Worker.id))
-        .join(Worker.job)
+        select(func.count(Application.id))
+        .join(Application.job)
         .where(*_eligible_filter(owner_id, job_id=job_id, company=company, position=position))
     )
     return db.execute(query).scalar_one()
@@ -172,8 +168,8 @@ def get_filter_options(db: Session, owner_id: int) -> list[dict[str, Any]]:
     applications per pair, so HR only sees choices that can select something.
     """
     query = (
-        select(Job.company_name, Job.position, func.count(Worker.id))
-        .join(Worker.job)
+        select(Job.company_name, Job.position, func.count(Application.id))
+        .join(Application.job)
         .where(*_eligible_filter(owner_id))
         .group_by(Job.company_name, Job.position)
         .order_by(Job.company_name, Job.position)
@@ -222,8 +218,8 @@ def create_auto_analyze_batch(
     if order not in ("oldest", "newest"):
         raise AutoAnalyzeError("Order must be 'oldest' or 'newest'.", status_code=422)
 
-    # Get eligible worker IDs
-    worker_ids = _get_eligible_worker_ids(
+    # Get eligible application IDs
+    application_ids = _get_eligible_application_ids(
         db,
         current_user.id,
         order=order,
@@ -233,20 +229,20 @@ def create_auto_analyze_batch(
         position=position,
     )
 
-    if not worker_ids:
+    if not application_ids:
         # Nothing matches: no batch, and the AI provider is never called.
         raise NoAvailableApplicationsError(
             "No new, unanalyzed applications match these filters."
         )
 
     # Cap to available count if user requested more than available
-    selected_count = len(worker_ids)
+    selected_count = len(application_ids)
 
     # Create the batch
     batch = batch_crud.create_batch(
         db,
         owner_id=current_user.id,
-        worker_ids=worker_ids,
+        application_ids=application_ids,
     )
 
     logger.info(
@@ -265,35 +261,38 @@ def create_auto_analyze_batch(
     return batch
 
 
-async def analyze_single_worker(
+async def analyze_single_application(
     db: Session,
-    worker: Worker,
+    application: Application,
 ) -> tuple[bool, str | None]:
-    """Analyze a single worker and persist the result.
+    """Analyze a single application and persist the result.
 
     This is the shared analysis function used by both manual and batch analysis.
 
     Args:
         db: Database session.
-        worker: The worker to analyze.
+        application: The application to analyze.
 
     Returns:
         Tuple of (success, error_message).
     """
     try:
-        await single_analysis.run_analysis(db, worker)
+        await single_analysis.run_analysis(db, application)
         return True, None
+    except ai_provider_service.AIConfigurationRequiredError:
+        # Not about this application: the whole batch cannot run.
+        raise
     except AIServiceError as exc:
         logger.warning(
-            "AI analysis failed for worker_id=%s: %s",
-            worker.id,
+            "AI analysis failed for application_id=%s: %s",
+            application.id,
             exc.message,
         )
         return False, exc.message
     except Exception as exc:
         logger.exception(
-            "Unexpected error analyzing worker_id=%s",
-            worker.id,
+            "Unexpected error analyzing application_id=%s",
+            application.id,
         )
         return False, "The analysis could not be completed. Please try again."
 
@@ -303,9 +302,9 @@ async def run_batch_analysis(batch_id: int) -> None:
 
     This is the main background processing function. It:
     1. Marks the batch as RUNNING
-    2. Processes workers one by one
-    3. Updates progress after each worker
-    4. Handles failures gracefully (continues with next worker)
+    2. Processes applications one by one
+    3. Updates progress after each application
+    4. Handles failures gracefully (continues with next application)
     5. Marks the batch as COMPLETED when done
 
     Args:
@@ -341,24 +340,24 @@ async def run_batch_analysis(batch_id: int) -> None:
             "Batch analysis started: batch_id=%s owner_id=%s total=%d",
             batch_id,
             batch.owner_id,
-            len(batch.worker_ids),
+            len(batch.application_ids),
         )
 
-        # Process each worker
-        worker_ids = batch.worker_ids
-        for idx, worker_id in enumerate(worker_ids):
+        # Process each application
+        application_ids = batch.application_ids
+        for idx, application_id in enumerate(application_ids):
             # Get fresh batch state
             db.expire(batch)
             batch = batch_crud.get_batch_by_id(db, batch_id)
             if batch is None:
                 return
 
-            # Check for cancellation before each worker
+            # Check for cancellation before each application
             if batch.status == AnalysisBatchStatus.CANCELLED:
                 logger.info(
-                    "Batch analysis cancelled at worker %d/%d: batch_id=%s",
+                    "Batch analysis cancelled at application %d/%d: batch_id=%s",
                     idx,
-                    len(worker_ids),
+                    len(application_ids),
                     batch_id,
                 )
                 return
@@ -366,15 +365,15 @@ async def run_batch_analysis(batch_id: int) -> None:
             # Skip applications that were deleted, moved to another owner or
             # analysed/started elsewhere since the batch was created: they are
             # neither failures nor worth a second (paid) AI call.
-            worker = db.get(Worker, worker_id)
+            application = db.get(Application, application_id)
             if (
-                worker is None
-                or worker.job.owner_id != batch.owner_id
-                or worker.analysis_status not in ELIGIBLE_ANALYSIS_STATUSES
+                application is None
+                or application.job.owner_id != batch.owner_id
+                or application.analysis_status not in ELIGIBLE_ANALYSIS_STATUSES
             ):
                 logger.info(
-                    "Skipping application no longer eligible: worker_id=%s batch_id=%s",
-                    worker_id,
+                    "Skipping application no longer eligible: application_id=%s batch_id=%s",
+                    application_id,
                     batch_id,
                 )
                 batch_crud.update_batch(
@@ -382,28 +381,47 @@ async def run_batch_analysis(batch_id: int) -> None:
                     batch,
                     skipped_count=batch.skipped_count + 1,
                     current_index=idx + 1,
-                    current_worker_id=None,
+                    current_application_id=None,
                 )
                 continue
 
-            # Update batch to show current worker
+            # Update batch to show current application
             batch_crud.update_batch(
                 db,
                 batch,
                 current_index=idx,
-                current_worker_id=worker_id,
+                current_application_id=application_id,
             )
 
-            # Analyze the worker
+            # Analyze the application
             logger.info(
-                "Analyzing worker %d/%d: worker_id=%s batch_id=%s",
+                "Analyzing application %d/%d: application_id=%s batch_id=%s",
                 idx + 1,
-                len(worker_ids),
-                worker_id,
+                len(application_ids),
+                application_id,
                 batch_id,
             )
 
-            success, error = await analyze_single_worker(db, worker)
+            try:
+                success, error = await analyze_single_application(db, application)
+            except ai_provider_service.AIConfigurationRequiredError:
+                # The owner removed their AI configuration mid-batch (it is
+                # resolved per application at run time). Stop instead of
+                # failing every remaining application; they stay "new".
+                logger.warning(
+                    "Batch analysis stopped, AI configuration removed: batch_id=%s at %d/%d",
+                    batch_id,
+                    idx,
+                    len(application_ids),
+                )
+                batch_crud.update_batch(
+                    db,
+                    batch,
+                    status=AnalysisBatchStatus.FAILED,
+                    finished_at=True,
+                    current_application_id=None,
+                )
+                return
 
             if success:
                 batch_crud.update_batch(
@@ -411,11 +429,11 @@ async def run_batch_analysis(batch_id: int) -> None:
                     batch,
                     successful_count=batch.successful_count + 1,
                     current_index=idx + 1,
-                    current_worker_id=None,
+                    current_application_id=None,
                 )
                 logger.info(
-                    "Worker analyzed successfully: worker_id=%s batch_id=%s",
-                    worker_id,
+                    "Application analyzed successfully: application_id=%s batch_id=%s",
+                    application_id,
                     batch_id,
                 )
             else:
@@ -424,11 +442,11 @@ async def run_batch_analysis(batch_id: int) -> None:
                     batch,
                     failed_count=batch.failed_count + 1,
                     current_index=idx + 1,
-                    current_worker_id=None,
+                    current_application_id=None,
                 )
                 logger.warning(
-                    "Worker analysis failed: worker_id=%s batch_id=%s error=%s",
-                    worker_id,
+                    "Application analysis failed: application_id=%s batch_id=%s error=%s",
+                    application_id,
                     batch_id,
                     error,
                 )
@@ -442,14 +460,14 @@ async def run_batch_analysis(batch_id: int) -> None:
             batch,
             status=AnalysisBatchStatus.COMPLETED,
             finished_at=True,
-            current_worker_id=None,
+            current_application_id=None,
         )
 
         logger.info(
             "Batch analysis completed: batch_id=%s total=%d successful=%d failed=%d "
             "skipped=%d duration=%.1fs",
             batch_id,
-            len(worker_ids),
+            len(application_ids),
             batch.successful_count,
             batch.failed_count,
             batch.skipped_count,
@@ -502,7 +520,7 @@ def get_batch_progress(
         "failed": batch.failed_count,
         "skipped": batch.skipped_count,
         "remaining": batch.remaining,
-        "current_application_id": batch.current_worker_id,
+        "current_application_id": batch.current_application_id,
         "created_at": batch.created_at,
         "finished_at": batch.finished_at,
     }

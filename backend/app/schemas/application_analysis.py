@@ -1,7 +1,7 @@
 """Pydantic schemas for AI application analysis.
 
 The AI provider's answer is untrusted input: everything below is normalised and
-validated before it is stored in ``workers.ai_analysis_details``.
+validated before it is stored in ``applications.ai_analysis_details``.
 
 Two rules are encoded here explicitly:
 
@@ -18,7 +18,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.models.worker import AnalysisStatus
+from app.models.application import AnalysisStatus
 
 #: Advisory AI recommendation values (mirror the hiring categories, but are not
 #: the HR decision).
@@ -187,11 +187,11 @@ class ApplicationAnalysis(BaseModel):
 class ApplicationAnalysisResponse(BaseModel):
     """Stored analysis state of an application.
 
-    Returned by ``GET /api/workers/{id}/analysis``: it reads PostgreSQL only and
+    Returned by ``GET /api/applications/{id}/analysis``: it reads PostgreSQL only and
     never triggers a new AI request.
     """
 
-    worker_id: int
+    application_id: int
     analysis_status: AnalysisStatus
     analysis_error: str | None = None
     analysis_started_at: datetime | None = None

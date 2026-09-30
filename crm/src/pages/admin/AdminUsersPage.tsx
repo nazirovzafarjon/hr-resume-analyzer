@@ -1,11 +1,12 @@
 import { useCallback, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Eye, ShieldOff, ShieldPlus, Trash2, UserCheck, UserX } from "lucide-react";
+import { Eye, Pencil, ShieldOff, ShieldPlus, Trash2, UserCheck, UserX } from "lucide-react";
 import PageHeader from "../../components/ui/PageHeader";
 import PageMeta from "../../components/seo/PageMeta";
 import Card from "../../components/ui/Card";
 import FilterBar from "../../components/ui/FilterBar";
 import ServerTable from "../../components/admin/ServerTable";
+import EditUserDialog from "../../components/admin/EditUserDialog";
 import UserActionDialog, { type UserAction } from "../../components/admin/UserActionDialog";
 import { AccountStatusBadge, RoleBadge } from "../../components/admin/badges";
 import {
@@ -42,6 +43,7 @@ export default function AdminUsersPage() {
   const commitSearch = useCallback((q: string) => setFilters({ q }), [setFilters]);
   const [search, setSearch] = useSearchInput(values.q, commitSearch);
   const [pending, setPending] = useState<{ action: UserAction; user: AdminUserRow } | null>(null);
+  const [editing, setEditing] = useState<AdminUserRow | null>(null);
 
   const params = { ...values, page, limit: PAGE_SIZE };
   const query = useApiQuery(() => fetchAdminUsers(params), JSON.stringify(params));
@@ -105,6 +107,15 @@ export default function AdminUsersPage() {
             >
               <Eye size={15} aria-hidden="true" />
             </Link>
+            <button
+              type="button"
+              className="row-action row-action--icon"
+              title={t("admin.users.edit.action")}
+              aria-label={`${t("admin.users.edit.action")}: ${row.full_name}`}
+              onClick={() => setEditing(row)}
+            >
+              <Pencil size={15} aria-hidden="true" />
+            </button>
             {/* Self-protection mirrors the backend: no self-demotion,
                 deactivation or deletion is even offered. */}
             {!isSelf(row) && (
@@ -195,6 +206,16 @@ export default function AdminUsersPage() {
           emptyMessage={t("admin.users.emptyMessage")}
         />
       </Card>
+
+      <EditUserDialog
+        user={editing}
+        isSelf={editing?.id === me?.id}
+        onClose={() => setEditing(null)}
+        onDone={() => {
+          setEditing(null);
+          query.reload();
+        }}
+      />
 
       <UserActionDialog
         pending={pending}

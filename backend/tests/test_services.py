@@ -1,14 +1,14 @@
 """Unit tests for business-logic services.
 
-* ``app.services.resume_analyzer`` - keyword-based resume analysis heuristics.
+* ``app.services.ai.heuristic`` - keyword-based resume analysis heuristics.
 * ``app.services.job`` - lead counting and analytics aggregation.
 """
 
 import pytest
 
-from app.models.worker import HiringStatus
+from app.models.application import HiringStatus
 from app.services.job import increment_leads_count, job_analytics
-from app.services.resume_analyzer import (
+from app.services.ai.heuristic import (
     _extract_skills,
     analyze_resume,
     score_candidate,
@@ -146,11 +146,11 @@ class TestJobAnalytics:
     def test_aggregates_jobs_and_candidates(self, db_session):
         from app.crud import user as user_crud
         from app.crud.job import create_job
-        from app.crud.worker import create_worker
+        from app.crud.application import create_application
         from app.schemas.job import JobCreate
         from app.schemas.user import UserCreate
-        from app.schemas.worker import WorkerCreate
-        from tests.payloads import JOB_PAYLOAD, WORKER_PAYLOAD
+        from app.schemas.application import ApplicationCreate
+        from tests.payloads import JOB_PAYLOAD, APPLICATION_PAYLOAD
 
         owner_one = user_crud.create_user(
             db_session, UserCreate(email="one@example.com", full_name="One", password="PassPass123")
@@ -174,9 +174,9 @@ class TestJobAnalytics:
             owner_id=owner_two.id,
             payload=JobCreate(**{**JOB_PAYLOAD, "company_name": "Other", "position": "QA"}),
         )
-        create_worker(db_session, acme_backend.id, WorkerCreate(**WORKER_PAYLOAD))
-        create_worker(db_session, acme_backend.id, WorkerCreate(**{**WORKER_PAYLOAD, "name": "Second"}))
-        create_worker(db_session, acme_data.id, WorkerCreate(**WORKER_PAYLOAD))
+        create_application(db_session, acme_backend.id, ApplicationCreate(**APPLICATION_PAYLOAD))
+        create_application(db_session, acme_backend.id, ApplicationCreate(**{**APPLICATION_PAYLOAD, "name": "Second"}))
+        create_application(db_session, acme_data.id, ApplicationCreate(**APPLICATION_PAYLOAD))
 
         result = job_analytics(db_session, owner_id=owner_one.id, category="company")
 
@@ -185,34 +185,34 @@ class TestJobAnalytics:
         breakdown = {row["category"]: row for row in result["breakdown"]}
         assert breakdown["Acme"] == {"category": "Acme", "jobs": 2, "candidates": 3}
 # ---------------------------------------------------------------------------
-# resume analyzer service: analyze_and_update_worker
+# resume analyzer service: analyze_and_update_application
 # ---------------------------------------------------------------------------
 
 
-class TestAnalyzeAndUpdateWorker:
+class TestAnalyzeAndUpdateApplication:
     def _seed(self, db_session):
         from app.crud import user as user_crud
         from app.crud.job import create_job
-        from app.crud.worker import create_worker
+        from app.crud.application import create_application
         from app.schemas.job import JobCreate
         from app.schemas.user import UserCreate
-        from app.schemas.worker import WorkerCreate
-        from tests.payloads import JOB_PAYLOAD, WORKER_PAYLOAD
+        from app.schemas.application import ApplicationCreate
+        from tests.payloads import JOB_PAYLOAD, APPLICATION_PAYLOAD
 
         owner = user_crud.create_user(
             db_session, UserCreate(email="owner@example.com", full_name="Owner", password="PassPass123")
         )
         job = create_job(db_session, owner_id=owner.id, payload=JobCreate(**JOB_PAYLOAD))
-        worker = create_worker(db_session, job.id, WorkerCreate(**WORKER_PAYLOAD))
-        return job, worker
+        application = create_application(db_session, job.id, ApplicationCreate(**APPLICATION_PAYLOAD))
+        return job, application
 
     def test_persists_score_details_and_recommendation(self, db_session):
-        from app.services.resume_analyzer import analyze_and_update_worker
+        from app.services.ai.heuristic import analyze_and_update_application
 
-        job, worker = self._seed(db_session)
-        updated = analyze_and_update_worker(
+        job, application = self._seed(db_session)
+        updated = analyze_and_update_application(
             db_session,
-            worker,
+            application,
             resume_text="Expert in Python, FastAPI and PostgreSQL.",
             job_requirements=job.required_skills,
         )
@@ -231,22 +231,22 @@ class TestAnalyzeAndUpdateWorker:
         assert "strong match" in updated.ai_analysis_details["summary"]
 
         # Actually committed to the database, not just in memory.
-        db_session.refresh(worker)
-        assert worker.ai_score == 100.0
-        assert worker.hiring_status == HiringStatus.STRONG_HIRE
+        db_session.refresh(application)
+        assert application.ai_score == 100.0
+        assert application.hiring_status == HiringStatus.STRONG_HIRE
 
     def test_overwrites_previous_analysis(self, db_session):
-        from app.services.resume_analyzer import analyze_and_update_worker
+        from app.services.ai.heuristic import analyze_and_update_application
 
-        job, worker = self._seed(db_session)
-        analyze_and_update_worker(
+        job, application = self._seed(db_session)
+        analyze_and_update_application(
             db_session,
-            worker,
+            application,
             resume_text="Expert in Python, FastAPI and PostgreSQL.",
             job_requirements=job.required_skills,
         )
-        re_analyzed = analyze_and_update_worker(
-            db_session, worker, resume_text="I do marketing.", job_requirements=job.required_skills
+        re_analyzed = analyze_and_update_application(
+            db_session, application, resume_text="I do marketing.", job_requirements=job.required_skills
         )
         assert re_analyzed.ai_score == 0.0
         assert re_analyzed.hiring_status == HiringStatus.DO_NOT_HIRE

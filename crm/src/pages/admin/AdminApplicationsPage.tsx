@@ -60,7 +60,7 @@ const PAGE_SIZE = 25;
 
 /**
  * Platform-wide applications, or (mode="candidates") only those moved into
- * the hiring pipeline. Both are `workers` rows on the backend.
+ * the hiring pipeline. Both are `applications` rows on the backend.
  */
 export default function AdminApplicationsPage({ mode }: { mode: "applications" | "candidates" }) {
   const { t } = useLanguage();

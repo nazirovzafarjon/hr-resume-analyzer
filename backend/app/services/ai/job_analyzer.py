@@ -15,6 +15,8 @@ import asyncio
 import json
 import logging
 import re
+import time
+from email.utils import parsedate_to_datetime
 from typing import Any
 
 import httpx
@@ -116,10 +118,49 @@ class AIInvalidResponseError(AIServiceError):
 
 
 class AIRateLimitError(AIServiceError):
-    """Raised when the provider returns 429."""
+    """Raised when the provider keeps returning 429.
 
-    def __init__(self, message: str = "AI service rate limit exceeded. Please try again later.") -> None:
-        super().__init__(message, status_code=429)
+    ``retry_after`` is how long the provider asked us to wait (seconds), when
+    it said so; ``model`` is the model that was rate limited. Both feed the
+    user-facing message and the HTTP ``Retry-After`` header.
+    """
+
+    def __init__(
+        self,
+        message: str | None = None,
+        *,
+        retry_after: float | None = None,
+        model: str | None = None,
+    ) -> None:
+        self.retry_after = retry_after
+        self.model = model
+        super().__init__(message or rate_limit_message(model, retry_after), status_code=429)
+
+
+def _describe_wait(seconds: float | None) -> str:
+    """Human wording for a wait, rounded up so users do not retry too early."""
+    if seconds is None:
+        return "about a minute"
+    if seconds < 60:
+        return f"about {max(5, int(-(-seconds // 5) * 5))} seconds"
+    minutes = int(-(-seconds // 60))
+    return "about a minute" if minutes == 1 else f"about {minutes} minutes"
+
+
+def rate_limit_message(model: str | None, retry_after: float | None = None) -> str:
+    """User-facing explanation of a provider rate limit.
+
+    Free OpenRouter models (``...:free``) share one rate limit across every
+    user of the model, so the useful advice there is to switch models.
+    """
+    wait = _describe_wait(retry_after)
+    if model and model.endswith(":free"):
+        return (
+            f'The free AI model "{model}" is busy right now: free models share one '
+            f"rate limit with everyone using them. Try again in {wait}, or choose a "
+            "paid model in Settings → AI provider."
+        )
+    return f"The AI provider's rate limit was reached. Try again in {wait}."
 
 
 # ---------------------------------------------------------------------------
@@ -242,17 +283,36 @@ def _strip_json_markdown(text: str) -> str:
 
 
 def _parse_retry_after(response: httpx.Response) -> float | None:
-    """Parse the Retry-After header from a provider response.
+    """Seconds the provider asked us to wait, or None when it did not say.
 
-    Returns seconds to wait, or None when the header is missing / unparseable.
+    Reads, in order:
+
+    * ``Retry-After`` as seconds or as an HTTP date (RFC 9110);
+    * ``X-RateLimit-Reset``, which OpenRouter sends for account-level limits,
+      as a Unix timestamp in milliseconds or seconds (or a plain delay).
     """
-    raw = response.headers.get("retry-after")
-    if not raw:
-        return None
-    try:
-        return float(raw)
-    except (TypeError, ValueError):
-        return None
+    raw = (response.headers.get("retry-after") or "").strip()
+    if raw:
+        try:
+            return max(0.0, float(raw))
+        except ValueError:
+            try:
+                return max(0.0, parsedate_to_datetime(raw).timestamp() - time.time())
+            except (TypeError, ValueError):
+                pass
+
+    reset = (response.headers.get("x-ratelimit-reset") or "").strip()
+    if reset:
+        try:
+            value = float(reset)
+        except ValueError:
+            return None
+        if value > 1e11:  # Unix time in milliseconds (as seconds this is year 5138)
+            return max(0.0, value / 1000 - time.time())
+        if value > 1e9:  # Unix time in seconds
+            return max(0.0, value - time.time())
+        return max(0.0, value)
+    return None
 
 
 def _error_reason(response: httpx.Response, limit: int = 300) -> str:
@@ -293,14 +353,15 @@ def _error_reason(response: httpx.Response, limit: int = 300) -> str:
 
 
 def _get_retry_delay(attempt: int, retry_base_delay: float, retry_after: float | None) -> float:
-    """Calculate the delay before the next retry attempt.
+    """Delay before the next attempt.
 
-    If the provider returned a Retry-After header, honor it (capped at
-    retry_base_delay * 4 to avoid unreasonable waits).
-    Otherwise use exponential backoff: retry_base_delay * 2^attempt.
+    The provider's own instruction (``retry_after``) wins: retrying sooner is
+    guaranteed to be rejected again. Without one, exponential backoff:
+    ``retry_base_delay * 2 ** attempt``. Whether the wait is acceptable at all
+    (per-wait cap, total budget) is decided by the caller.
     """
     if retry_after is not None:
-        return min(retry_after, retry_base_delay * 4)
+        return retry_after
     return retry_base_delay * (2 ** attempt)
 
 
@@ -512,7 +573,12 @@ async def _make_request_with_retry(
     """
     max_retries = cfg["max_retries"]
     retry_base_delay = cfg["retry_base_delay"]
+    # Always present in configs built by Settings.ai_provider_config().
+    max_retry_wait = cfg.get("max_retry_wait", 30)
+    retry_budget = cfg.get("retry_budget", 45)
     provider = cfg["provider"]
+    model = cfg.get("model")
+    waited = 0.0
 
     for attempt in range(max_retries + 1):
         try:
@@ -603,20 +669,30 @@ async def _make_request_with_retry(
             log_parts.append(f"reason={_error_reason(response)}")
             logger.warning("AI provider request failed; %s", " ".join(log_parts))
 
-            if attempt < max_retries:
+            # Retry only while the wait is one we are willing to make: not
+            # longer than the per-wait cap when the provider set it, and
+            # within the call's total waiting budget.
+            too_long = retry_after is not None and retry_after > max_retry_wait
+            over_budget = waited + delay > retry_budget
+            if attempt < max_retries and not too_long and not over_budget:
                 await asyncio.sleep(delay)
+                waited += delay
                 continue
 
-            # Retries exhausted.
+            # Giving up.
             if status_code == 429:
                 logger.warning(
-                    "AI provider request exhausted retries: provider=%s status=%s attempts=%d reason=%s",
+                    "AI provider rate limit, giving up: provider=%s model=%s status=%s "
+                    "attempts=%d waited=%.0fs retry_after=%s reason=%s",
                     provider,
+                    model,
                     status_code,
-                    max_retries + 1,
+                    attempt + 1,
+                    waited,
+                    retry_after,
                     _error_reason(response),
                 )
-                raise AIRateLimitError()
+                raise AIRateLimitError(retry_after=retry_after, model=model)
             else:
                 logger.warning(
                     "AI provider unavailable: provider=%s status=%s attempts=%d",
@@ -649,13 +725,14 @@ async def _make_request_with_retry(
 # Public API
 # ---------------------------------------------------------------------------
 
-async def analyze_vacancy(
-    vacancy_content: str, cfg: dict[str, Any] | None = None
-) -> JobAIAnalysisResult:
+async def analyze_vacancy(vacancy_content: str, *, cfg: dict[str, Any]) -> JobAIAnalysisResult:
     """Analyse a vacancy using the configured AI provider and return structured job information.
 
     Args:
         vacancy_content: The full vacancy / job-requirement text to analyse.
+        cfg: The requesting user's provider config from
+            ``app.services.ai.provider.resolve_for_user``. Required, so no AI
+            call can bypass the per-user credential resolution.
 
     Returns:
         JobAIAnalysisResult with the extracted company_name, position,
@@ -669,8 +746,6 @@ async def analyze_vacancy(
     if not vacancy_content or not vacancy_content.strip():
         raise AIServiceError("Vacancy content cannot be empty.", status_code=422)
 
-    if cfg is None:
-        cfg = settings.ai_provider_config()
     max_content_length = cfg["max_content_length"]
     if len(vacancy_content) > max_content_length:
         raise AIServiceError(

@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
 from app.core.config import settings
-from app.models.worker import Worker
+from app.models.application import Application
 
 _RESUMES_DIR = "resumes"
 
@@ -54,14 +54,14 @@ def _download_name(candidate_name: str, suffix: str) -> str:
     return f"{cleaned or 'Candidate'} - CV{suffix}"
 
 
-def get_resume_file(worker: Worker) -> ResumeFile:
-    """Return the CV to serve for ``worker``.
+def get_resume_file(application: Application) -> ResumeFile:
+    """Return the CV to serve for ``application``.
 
     Raises:
         ResumeUnavailableError: No CV recorded, an unsafe/unsupported stored
             path, or the file is gone from disk.
     """
-    stored = (worker.resume_path or "").strip()
+    stored = (application.resume_path or "").strip()
     if not stored or "\\" in stored or "://" in stored:
         raise ResumeUnavailableError(NO_RESUME)
 
@@ -85,5 +85,5 @@ def get_resume_file(worker: Worker) -> ResumeFile:
     return ResumeFile(
         path=resolved,
         media_type=media_type,
-        filename=_download_name(worker.name, suffix),
+        filename=_download_name(application.name, suffix),
     )

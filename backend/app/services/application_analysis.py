@@ -25,11 +25,11 @@ from sqlalchemy.orm import Session
 
 from app.core.database import SessionLocal
 from app.models.job import Job
-from app.models.worker import AnalysisStatus, Worker
+from app.models.application import AnalysisStatus, Application
 from app.schemas.application_analysis import ApplicationAnalysis
 from app.services.ai.application_analyzer import analyze_application
-from app.services import ai_monitoring
-from app.services import ai_provider as ai_provider_service
+from app.services.ai import monitoring as ai_monitoring
+from app.services.ai import provider as ai_provider_service
 from app.services import audit
 from app.services.ai.job_analyzer import AIServiceError
 from app.services.resume_text import extract_resume_text
@@ -95,7 +95,7 @@ def _format_value(value: object) -> str:
     return str(value)
 
 
-def build_form_answers(worker: Worker) -> str:
+def build_form_answers(application: Application) -> str:
     """Render every answer the applicant submitted as ``Label: value`` lines.
 
     All submitted fields are included (the public form supports HR-authored
@@ -103,7 +103,7 @@ def build_form_answers(worker: Worker) -> str:
     manually by HR have no stored answers, so their identity fields are used
     instead.
     """
-    response = worker.application_response
+    response = application.application_response
     answers = (response.responses if response is not None else None) or []
 
     lines: list[str] = []
@@ -119,22 +119,22 @@ def build_form_answers(worker: Worker) -> str:
 
     if not lines:
         # Manually recorded candidate: fall back to the identity fields.
-        lines.append(f"Applicant name: {worker.name}")
-        lines.append(f"Applicant email: {worker.email}")
+        lines.append(f"Applicant name: {application.name}")
+        lines.append(f"Applicant email: {application.email}")
     return "\n".join(lines)
 
 
-def collect_analysis_inputs(worker: Worker) -> tuple[str, str, str, str | None]:
+def collect_analysis_inputs(application: Application) -> tuple[str, str, str, str | None]:
     """Return ``(job_requirements, form_answers, resume_text, resume_reason)``.
 
     ``resume_reason`` explains why no resume text is available (unsupported
     format, missing file, scanned PDF, ...) and is ``None`` when text was
     extracted.
     """
-    resume = extract_resume_text(worker.resume_path or "")
+    resume = extract_resume_text(application.resume_path or "")
     return (
-        build_job_requirements(worker.job),
-        build_form_answers(worker),
+        build_job_requirements(application.job),
+        build_form_answers(application),
         resume.text,
         resume.unavailable_reason,
     )
@@ -143,11 +143,11 @@ def collect_analysis_inputs(worker: Worker) -> tuple[str, str, str, str | None]:
 # ---------------------------------------------------------------------------
 
 
-def _is_run_active(worker: Worker) -> bool:
+def _is_run_active(application: Application) -> bool:
     """True when an analysis run is currently in flight (and not stale)."""
-    if worker.analysis_status != AnalysisStatus.ANALYZING:
+    if application.analysis_status != AnalysisStatus.ANALYZING:
         return False
-    started = worker.analysis_started_at
+    started = application.analysis_started_at
     if started is None:
         return True
     if started.tzinfo is None:  # Defensive: treat naive values as UTC.
@@ -155,23 +155,23 @@ def _is_run_active(worker: Worker) -> bool:
     return _utcnow() - started < timedelta(seconds=STALE_ANALYSIS_SECONDS)
 
 
-def _mark_failed(db: Session, worker: Worker, message: str | None) -> None:
+def _mark_failed(db: Session, application: Application, message: str | None) -> None:
     """Persist a failed analysis attempt (the application itself is kept)."""
-    worker.analysis_status = AnalysisStatus.FAILED
-    worker.analysis_error = (message or UNEXPECTED_FAILURE_MESSAGE)[:500]
-    worker.analysis_started_at = None
+    application.analysis_status = AnalysisStatus.FAILED
+    application.analysis_error = (message or UNEXPECTED_FAILURE_MESSAGE)[:500]
+    application.analysis_started_at = None
     db.commit()
-    db.refresh(worker)
+    db.refresh(application)
     logger.warning(
-        "Application analysis failed: worker_id=%s reason=%s",
-        worker.id,
-        worker.analysis_error,
+        "Application analysis failed: application_id=%s reason=%s",
+        application.id,
+        application.analysis_error,
     )
 
 
 def _record_outcome(
     db: Session,
-    worker: Worker,
+    application: Application,
     owner_id: int,
     cfg: dict,
     started: float,
@@ -191,8 +191,8 @@ def _record_outcome(
         cfg=cfg,
         duration_ms=round((time.monotonic() - started) * 1000),
         owner_id=owner_id,
-        job_id=worker.job_id,
-        worker_id=worker.id,
+        job_id=application.job_id,
+        application_id=application.id,
         score=score,
         error=error,
     )
@@ -200,14 +200,14 @@ def _record_outcome(
         db,
         audit.AuditAction.AI_ANALYSIS_FAILED if error else audit.AuditAction.AI_ANALYSIS_COMPLETED,
         resource_type=audit.AuditResource.APPLICATION,
-        resource_id=worker.id,
-        details={"job_id": worker.job_id, "owner_id": owner_id, "score": score}
+        resource_id=application.id,
+        details={"job_id": application.job_id, "owner_id": owner_id, "score": score}
         if error is None
-        else {"job_id": worker.job_id, "owner_id": owner_id, "category": ai_monitoring.categorize(error)},
+        else {"job_id": application.job_id, "owner_id": owner_id, "category": ai_monitoring.categorize(error)},
     )
 
 
-async def run_analysis(db: Session, worker: Worker, *, force: bool = False) -> Worker:
+async def run_analysis(db: Session, application: Application, *, force: bool = False) -> Application:
     """Analyse one application and store the structured result.
 
     The job requirements, the submitted form answers and the extracted resume
@@ -217,7 +217,7 @@ async def run_analysis(db: Session, worker: Worker, *, force: bool = False) -> W
 
     Args:
         db: Active database session.
-        worker: The application/candidate being analysed.
+        application: The application/candidate being analysed.
         force: When ``False`` (default) an application that already has a stored
             analysis is returned as-is, so the provider is never called
             implicitly (page loads must not trigger AI).
@@ -228,41 +228,52 @@ async def run_analysis(db: Session, worker: Worker, *, force: bool = False) -> W
     """
     if (
         not force
-        and worker.analysis_status == AnalysisStatus.COMPLETED
-        and worker.ai_analysis_details
+        and application.analysis_status == AnalysisStatus.COMPLETED
+        and application.ai_analysis_details
     ):
         logger.info(
-            "Application already analysed -- skipping AI call: worker_id=%s",
-            worker.id,
+            "Application already analysed -- skipping AI call: application_id=%s",
+            application.id,
         )
-        return worker
+        return application
 
-    if _is_run_active(worker):
+    if _is_run_active(application):
         raise AnalysisInProgressError()
 
+    # Credentials first (the job owner's; see app.services.ai.provider). With
+    # no AI configuration there is nothing to attempt, so the application is
+    # left exactly as it was: not "failed" and not recorded as an AI attempt.
+    owner_id = application.job.owner_id
+    started = time.monotonic()
+    try:
+        cfg = ai_provider_service.resolve_for_user(db, owner_id)
+    except ai_provider_service.AIConfigurationRequiredError:
+        raise
+    except AIServiceError as exc:
+        # A saved key that cannot be used: a real, retryable failure.
+        _mark_failed(db, application, exc.message)
+        _record_outcome(db, application, owner_id, {}, started, error=exc)
+        raise
+
     job_requirements, form_answers, resume_text, resume_reason = (
-        collect_analysis_inputs(worker)
+        collect_analysis_inputs(application)
     )
 
-    worker.analysis_status = AnalysisStatus.ANALYZING
-    worker.analysis_started_at = _utcnow()
-    worker.analysis_error = None
+    application.analysis_status = AnalysisStatus.ANALYZING
+    application.analysis_started_at = _utcnow()
+    application.analysis_error = None
     db.commit()
-    db.refresh(worker)
+    db.refresh(application)
 
     logger.info(
-        "Application analysis started: worker_id=%s job_id=%s resume_text_available=%s",
-        worker.id,
-        worker.job_id,
+        "Application analysis started: application_id=%s job_id=%s resume_text_available=%s",
+        application.id,
+        application.job_id,
         bool(resume_text.strip()),
     )
 
-    cfg: dict = {}
-    owner_id = worker.job.owner_id
     started = time.monotonic()
     try:
-        # The job owner's own provider when configured, else the platform's.
-        cfg = ai_provider_service.resolve_for_user(db, owner_id)
         analysis = await analyze_application(
             job_requirements=job_requirements,
             form_answers=form_answers,
@@ -271,57 +282,57 @@ async def run_analysis(db: Session, worker: Worker, *, force: bool = False) -> W
         )
     except AIServiceError as exc:
         safe = ai_provider_service.safe_error_for(cfg, exc)
-        _mark_failed(db, worker, safe.message)
-        _record_outcome(db, worker, owner_id, cfg, started, error=exc)
+        _mark_failed(db, application, safe.message)
+        _record_outcome(db, application, owner_id, cfg, started, error=exc)
         if safe is exc:
             raise
         raise safe from None
     except Exception as exc:
         logger.exception(
-            "Unexpected error while analysing application: worker_id=%s", worker.id
+            "Unexpected error while analysing application: application_id=%s", application.id
         )
-        _mark_failed(db, worker, UNEXPECTED_FAILURE_MESSAGE)
-        _record_outcome(db, worker, owner_id, cfg, started, error=exc)
+        _mark_failed(db, application, UNEXPECTED_FAILURE_MESSAGE)
+        _record_outcome(db, application, owner_id, cfg, started, error=exc)
         raise
 
     if resume_reason:
         analysis = analysis.model_copy(update={"resume_text_available": False})
 
     analysis = analysis.model_copy(update={"analyzed_at": _utcnow()})
-    worker.ai_score = analysis.match_percentage
-    worker.ai_analysis_details = analysis.model_dump(mode="json")
-    worker.analysis_status = AnalysisStatus.COMPLETED
-    worker.analysis_error = None
-    worker.analysis_started_at = None
+    application.ai_score = analysis.match_percentage
+    application.ai_analysis_details = analysis.model_dump(mode="json")
+    application.analysis_status = AnalysisStatus.COMPLETED
+    application.analysis_error = None
+    application.analysis_started_at = None
     # Deliberately NOT touching application_status, hiring_status or
     # interview_status: the AI assists HR, it never decides for them.
     db.commit()
-    db.refresh(worker)
-    _record_outcome(db, worker, owner_id, cfg, started, score=worker.ai_score)
+    db.refresh(application)
+    _record_outcome(db, application, owner_id, cfg, started, score=application.ai_score)
 
     logger.info(
-        "Application analysis completed: worker_id=%s match=%s model=%s",
-        worker.id,
+        "Application analysis completed: application_id=%s match=%s model=%s",
+        application.id,
         analysis.match_percentage,
         analysis.model,
     )
-    return worker
+    return application
 
 
-def stored_analysis(worker: Worker) -> ApplicationAnalysis | None:
+def stored_analysis(application: Application) -> ApplicationAnalysis | None:
     """Return the analysis stored in PostgreSQL, or ``None``.
 
     Reads only — this is what ``GET`` endpoints use, so no request can trigger a
     new provider call. Unreadable legacy payloads degrade to ``None``.
     """
-    details = worker.ai_analysis_details
+    details = application.ai_analysis_details
     if not isinstance(details, dict) or not details:
         return None
     try:
         return ApplicationAnalysis.model_validate(details)
     except ValidationError:
         logger.warning(
-            "Stored analysis for worker_id=%s could not be read", worker.id
+            "Stored analysis for application_id=%s could not be read", application.id
         )
         return None
 
@@ -331,7 +342,7 @@ def stored_analysis(worker: Worker) -> ApplicationAnalysis | None:
 # ---------------------------------------------------------------------------
 
 
-def convert_to_candidate(db: Session, worker: Worker) -> Worker:
+def convert_to_candidate(db: Session, application: Application) -> Application:
     """Move an application into the candidate (hiring/interview) pipeline.
 
     Idempotent and concurrency-safe: the row is updated only while
@@ -340,34 +351,34 @@ def convert_to_candidate(db: Session, worker: Worker) -> Worker:
     ``leads_count`` is not touched — moving an application onwards is not a new
     application.
     """
-    if worker.candidate_at is not None:
+    if application.candidate_at is not None:
         logger.info(
-            "Application is already in the candidate pipeline: worker_id=%s",
-            worker.id,
+            "Application is already in the candidate pipeline: application_id=%s",
+            application.id,
         )
-        return worker
+        return application
 
     result = db.execute(
-        update(Worker)
-        .where(Worker.id == worker.id, Worker.candidate_at.is_(None))
+        update(Application)
+        .where(Application.id == application.id, Application.candidate_at.is_(None))
         .values(candidate_at=_utcnow())
         .execution_options(synchronize_session=False)
     )
     db.commit()
-    db.refresh(worker)
+    db.refresh(application)
 
     if result.rowcount:
         logger.info(
-            "Application moved to the candidate pipeline: worker_id=%s job_id=%s",
-            worker.id,
-            worker.job_id,
+            "Application moved to the candidate pipeline: application_id=%s job_id=%s",
+            application.id,
+            application.job_id,
         )
     else:
         logger.info(
-            "Concurrent candidate conversion ignored (already converted): worker_id=%s",
-            worker.id,
+            "Concurrent candidate conversion ignored (already converted): application_id=%s",
+            application.id,
         )
-    return worker
+    return application
 
 
 # ---------------------------------------------------------------------------
@@ -375,7 +386,7 @@ def convert_to_candidate(db: Session, worker: Worker) -> Worker:
 # ---------------------------------------------------------------------------
 
 
-async def run_analysis_in_background(worker_id: int) -> None:
+async def run_analysis_in_background(application_id: int) -> None:
     """Analyse a freshly submitted application in its own database session.
 
     Called after a public submission returns. The applicant's request must not
@@ -384,23 +395,23 @@ async def run_analysis_in_background(worker_id: int) -> None:
     """
     db = SessionLocal()
     try:
-        worker = db.get(Worker, worker_id)
-        if worker is None:
+        application = db.get(Application, application_id)
+        if application is None:
             logger.warning(
-                "Background analysis skipped: worker_id=%s no longer exists",
-                worker_id,
+                "Background analysis skipped: application_id=%s no longer exists",
+                application_id,
             )
             return
-        await run_analysis(db, worker)
+        await run_analysis(db, application)
     except AIServiceError as exc:
         logger.warning(
-            "Background application analysis failed: worker_id=%s reason=%s",
-            worker_id,
+            "Background application analysis failed: application_id=%s reason=%s",
+            application_id,
             exc.message,
         )
     except Exception:
         logger.exception(
-            "Unexpected background analysis error: worker_id=%s", worker_id
+            "Unexpected background analysis error: application_id=%s", application_id
         )
     finally:
         db.close()

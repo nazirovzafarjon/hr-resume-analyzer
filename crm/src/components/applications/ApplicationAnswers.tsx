@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { FileText } from "lucide-react";
 import { useLanguage } from "../../contexts/LanguageContext";
-import type { ApplicantAnswer } from "../../types/worker";
+import type { ApplicantAnswer } from "../../types/candidate";
 
 type ApplicationAnswersProps = {
   answers: ApplicantAnswer[];

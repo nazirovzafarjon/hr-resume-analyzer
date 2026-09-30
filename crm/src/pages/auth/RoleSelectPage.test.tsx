@@ -30,6 +30,7 @@ function Seed({ result, children }: { result?: RoleSelectionRequired; children: 
     setReady(true);
     // Runs once per test tree: completeSignIn is stable and each test
     // passes a fresh result, so no dependencies are needed.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   return ready ? <>{children}</> : null;
 }

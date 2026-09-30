@@ -9,7 +9,7 @@ export type InterviewStats = {
   cancelled: number;
 };
 
-/** Payload for scheduling a new interview (candidate selected from the worker list). */
+/** Payload for scheduling a new interview (candidate selected from the applications list). */
 export type InterviewCreateInput = {
   candidate_id: number;
   interviewer: string;

@@ -99,6 +99,17 @@
       "notFoundMessage": "This account does not exist or was deleted.",
       "backToList": "Back to users",
       "selfNote": "This is your own account. You cannot deactivate, demote or delete yourself.",
+      "edit": {
+        "action": "Edit user",
+        "status": "Account status",
+        "activeLabel": "Active — can sign in",
+        "changesTitle": "Saving will apply:",
+        "title": "Edit user",
+        "fullName": "Full name",
+        "save": "Save changes",
+        "nameRequired": "Full name is required.",
+        "done": "{name} was saved."
+      },
       "profile": "Account",
       "signIn": "Sign-in methods",
       "signInPassword": "Password",
@@ -141,7 +152,7 @@
         },
         "delete": {
           "title": "Delete account permanently?",
-          "message": "{name} and all of their jobs, applications and interviews will be deleted. This cannot be undone.",
+          "message": "{name} ({email}) and all of their jobs, applications and interviews will be deleted. This cannot be undone.",
           "confirm": "Delete permanently",
           "done": "{name} was deleted."
         }
@@ -525,7 +536,8 @@
         "free_percent": "Free space (%)",
         "active_batches": "Active batches",
         "stuck_batches": "Stuck batches",
-        "stale_analyses": "Stale analyses"
+        "stale_analyses": "Stale analyses",
+        "per_user_credentials_required": "Each HR uses their own AI key"
       }
     }
   }

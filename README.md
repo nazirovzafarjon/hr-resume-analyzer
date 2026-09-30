@@ -8,7 +8,7 @@ HR users manage the hiring pipeline for job vacancies:
 * HR users create accountsand authenticate with **JWT** tokens.
 * They create **jobs** (vacancies) describing the company, position, required
   skillsand experience.
-* They record **workers/candidates** (leads) who applied for those jobs,
+* They record **applications/candidates** (leads) who applied for those jobs,
   track their **hiring status** (strong hire / hire / weak hire / do not hire)and
   **interview status** (in process / completed / not completed).
 * A **dashboard** gives them analytics (total jobs/candidates/leads, breakdown
@@ -17,8 +17,17 @@ HR users manage the hiring pipeline for job vacancies:
   required skillsand suggests a hiring recommendation. It is currently a local
   heuristic (see “Resume analysis” below)so the MVP needs no external AI service.
 
-**Who uses it:** HR users manage their own jobsand candidatesonly (each user sees
-only the data they created)and superusers manage user accounts.
+**Who uses it:**
+
+| Role | Can do |
+|---|---|
+| **HR user** | Manage their own account, jobs, applications/candidates, interviews and dashboard. Never sees another HR user's data or any admin feature. |
+| **Admin (superuser)** | Everything an HR user can do in the HR workspace, **plus** the admin console: manage user accounts, see platform-wide data **read-only** for oversight and support, moderate (delete) jobs, and monitor AI usage, audit logs, errors, health and runtime settings. |
+
+Admin access needs two things, both checked server-side on every request: an
+account with `is_superuser=True` **and** a session opened in the *admin
+workspace* (see “Sessions and workspaces” under Authorization). The frontend
+only mirrors these rules for a better UX.
 
 
 
@@ -43,11 +52,29 @@ only the data they created)and superusers manage user accounts.
 * Ownership is guaranteed by design: the user is always resolved from the JWT,
   so these endpoints can never touch another user's account
 
-### User management (superuser only)
-* List, read, update, delete registered users
-* Deactivate / reactivate accounts (deactivated accounts cannot log in)
-* Promote users to superuser
-* Guardrails: an admin cannot demote/deactivate/delete their own account
+### User management (admin only)
+* List, read, update, delete registered users (`/api/users`)
+* Edit a user's full name, account status (`is_active`) and role (`is_superuser`)
+* Deactivate / reactivate accounts (deactivated accounts cannot log in and
+  their existing tokens stop working immediately)
+* Promote users to admin / demote other admins to HR
+* Guardrails: an admin cannot demote/deactivate/delete their own account, and
+  the last active admin can never be removed (400)
+* Deleting a user cascade-deletes their jobs, applications and interviews
+* Every change is written to the audit log
+
+### Admin console (admin only, `/api/admin/*`)
+Read-only, platform-wide views that support user management and operations.
+Admins do **not** get write access to HR users' jobs or applications; the only
+content action is job moderation (delete), which is audited.
+
+* Dashboard and analytics across all HR users
+* Users directory with search/filter/sort/pagination and a per-user detail view
+  (usage stats, recent jobs/applications, recent audit activity)
+* Jobs, applications, candidates and interviews across all HR users (read-only)
+  plus `DELETE /api/admin/jobs/{id}` for moderation
+* AI analysis monitoring, audit logs, system errors and system health
+* Runtime settings (e.g. whether public registration is open), audited
 
 ### Job management
 * Create, list, read, update, delete jobs
@@ -55,9 +82,9 @@ only the data they created)and superusers manage user accounts.
   required experience,and a running lead count
 * Jobs are scoped to their owner: users only ever see/manage their own jobs
 
-### Worker / candidate management
-* Create, list, read, update, delete workers/candidates
-* Each worker belongs to a job; creating a worker increments the job's lead count
+### Application / candidate management
+* Create, list, read, update, delete applications/candidates
+* Each application belongs to a job; creating an application increments the job's lead count
 * Update hiring statusand interview status (validated enums; invalid values → 422)
 
 ### Dashboard / analytics
@@ -101,8 +128,8 @@ only the data they created)and superusers manage user accounts.
 * **email-validator** — email format validation
 * **python-jose** — JWT encode/decode
 * **bcrypt** — password hashing
-* **Alembic** — migrations (scaffolded; the app currently auto-creates schema,
-  see “Database” below)
+* **Alembic** — migrations, applied automatically at startup (see “Migrations”
+  below)
 * **pytest** + **FastAPI TestClient** — testing
 ## Project Structure
 
@@ -114,22 +141,36 @@ backend/
 │   │   ├── config.py        # Settings read from environment / .env
 │   │   ├── database.py      # Engine, session factory, declarative Base, get_db
 │   │   └── security.py      # Password hashing, JWT create/validate
-│   ├── models/              # SQLAlchemy models: User, Job, Worker
+│   ├── models/              # SQLAlchemy models: User, Job, Application
 │   ├── schemas/             # Pydantic request/response models (auth, user, job,
-│   │                        #   worker, dashboard, analysis)
+│   │                        #   application, dashboard, analysis)
 │   ├── crud/                # Plain database operations (no business logic)
 │   │   ├── user.py
 │   │   ├── job.py
-│   │   └── worker.py
+│   │   └── application.py
 │   ├── services/            # Business logic
 │   │   ├── auth.py          # register, authenticate, tokens, password reset
+│   │   ├── profile.py       # own-account settings (name/email, profile image)
 │   │   ├── job.py           # lead counting, analytics aggregation
-│   │   └── resume_analyzer.py  # keyword resume scoring heuristics
+│   │   ├── application_analysis.py  # analyze one application, convert to candidate
+│   │   ├── ai/              # AI integration
+│   │   │   ├── provider.py      # which provider/key/model a user's AI calls use
+│   │   │   ├── job_analyzer.py  # AI job-vacancy analysis
+│   │   │   ├── application_analyzer.py  # AI application analysis
+│   │   │   ├── batch.py         # auto-analyze batches
+│   │   │   ├── monitoring.py    # records AI runs for the admin console
+│   │   │   └── heuristic.py     # keyword resume scoring heuristics
+│   │   └── admin/           # Admin console
+│   │       ├── users.py         # user management rules (self/last-admin guards)
+│   │       ├── directory.py     # platform-wide read views
+│   │       ├── stats.py         # dashboard + analytics
+│   │       ├── health.py        # system health checks
+│   │       └── errors.py        # persists 5xx errors
 │   ├── routers/             # API endpoints
 │   │   ├── auth.py          # /api/auth/*
 │   │   ├── users.py         # /api/users/* (superuser only)
 │   │   ├── jobs.py          # /api/jobs/*
-│   │   ├── workers.py       # /api/workers/*
+│   │   ├── applications.py  # /api/applications/*
 │   │   └── dashboard.py     # /api/dashboard/*
 │   └── dependencies/
 │       └── auth.py          # get_current_user / get_current_superuser
@@ -143,7 +184,7 @@ backend/
 │   ├── test_password_reset.py # forgot/reset/skip/refresh + token purposes
 │   ├── test_users.py        # superuser user management + user CRUD
 │   ├── test_jobs.py         # job endpoints + job CRUD
-│   ├── test_workers.py      # worker endpoints + worker CRUD
+│   ├── test_applications.py # application endpoints + application CRUD
 │   ├── test_dashboard.py    # analytics + recent activity endpoints
 │   └── test_services.py     # resume analysis + job service units
 ├── pytest.ini
@@ -217,17 +258,33 @@ uvicorn app.main:app --reload
 Visit http://localhost:8000/docs (Swagger UI) or
 http://localhost:8000/redoc (ReDoc).
 
-### 4. (Optional) Alembic
-Alembic is scaffolded (`alembic.ini`, `alembic/env.py`)and wired to the same
-`Base.metadata`, so migrations can be introduced later:
+### 4. Database schema and migrations
+Nothing to run by hand: at startup the API brings the schema to the revision
+the code expects (`app/core/migrations.py`), under a PostgreSQL advisory lock
+so several API processes cannot race:
+
+| Database state | What startup does |
+|---|---|
+| Empty (fresh install) | Creates every table from the models and stamps the Alembic head |
+| Behind the code's revision | Applies the pending migrations (`alembic upgrade head`) |
+| At the code's revision | Nothing to migrate |
+| Has tables but no Alembic revision | Refuses to start and explains how to stamp it |
+
+Set `DB_AUTO_MIGRATE=false` to apply migrations yourself (e.g. as a separate
+deploy step); the API then refuses to start on an out-of-date schema and names
+the command to run. Changing the schema means adding a migration:
 
 ```bash
-alembic revision --autogenerate -m "initial schema"
+alembic revision --autogenerate -m "describe the change"
 alembic upgrade head
 ```
 
-Today the app uses `Base.metadata.create_all()` at startup instead, so an empty
-database works out of the box.,
+> **Why not just `create_all()`?** It only creates *missing* tables and never
+> renames or alters existing ones. Before startup ran migrations, starting new
+> code on an unmigrated database created an empty `applications` table next to
+> `workers` and split the data. Revision `2cb0c8660dbf` also repairs that state
+> (stray rows are copied over and the stray table is kept as
+> `applications_orphaned`).
 
 ---
 
@@ -250,6 +307,7 @@ All settings are read from real environment variables or the `.env` file
 | `RESEND_API_KEY` | *(empty)* | Resend API key (https://resend.com/api-keys). When empty, reset links are written to the server log instead of being emailed. |
 | `EMAIL_FROM` | `onboarding@resend.dev` | Verified from-address for reset emails. The sandbox `onboarding@resend.dev` sender only delivers to the address your Resend account was registered with. |
 | `DATABASE_URL` | `postgresql://postgres:postgres@localhost:5432/resume_analyzer` | SQLAlchemy database URL. |
+| `DB_AUTO_MIGRATE` | `true` | Apply pending Alembic migrations at startup. `false`: refuse to start on an out-of-date schema and ask for `alembic upgrade head`. |
 | `BACKEND_CORS_ORIGINS` | `http://localhost:5173,http://localhost:5174` | Comma-separated browser origins allowed to call the API: the CRM (`crm/`) and the landing site (`landing/`, for its Contact form). |
 | `SUPERUSER_EMAIL` | *(empty)* | If set, a superuser is seeded at startup when no superuser exists yet. Needed to use the admin `/api/users` endpoints. |
 | `SUPERUSER_PASSWORD` | *(empty)* | Password for the seeded superuser. |
@@ -259,18 +317,54 @@ All settings are read from real environment variables or the `.env` file
 
 ### AI Provider Configuration
 
+#### Per-user AI credentials (who pays for which call)
+
+Each HR user can save their own **provider, API key and model ID** in
+**Settings → AI provider** (`GET/PUT/DELETE /api/auth/me/ai-provider`, plus
+`POST .../test` to check them). Every AI feature resolves credentials for the
+user who owns the data through one gateway, `resolve_for_user` in
+`app/services/ai/provider.py`:
+
+| User's state | `REQUIRE_USER_AI_CONFIG=true` (default) | `REQUIRE_USER_AI_CONFIG=false` |
+|---|---|---|
+| Saved own provider | Their provider + key + model, never mixed with `.env` | Same |
+| Nothing saved | 400 "AI is not set up for your account…" (nothing attempted, nothing marked failed) | The platform provider below |
+| Saved key can't be decrypted | Clear error, no fallback | Same |
+
+* **Features covered:** vacancy analysis (`POST /api/jobs/analyze`), manual
+  application analysis, background analysis of public submissions, and Auto
+  Analyze batches. The analyzers take the resolved config as a *required*
+  argument, so a new feature cannot skip the gateway.
+* **Changes apply to the next call:** configurations are read from the
+  database on every AI call and nothing is cached across users; there is no
+  restart. Batches resolve the owner's configuration per application at run
+  time and only ever carry ids; removing the configuration mid-batch stops the
+  batch and leaves the remaining applications untouched.
+* **Secrets:** keys are encrypted at rest with Fernet using
+  `AI_CREDENTIAL_ENCRYPTION_KEY` (server environment only; saving is refused
+  without it), decrypted only for the call, never returned (the UI shows the
+  last four characters), never logged, and never kept in browser storage.
+
+#### Platform (environment) settings
+
 All settings are read from real environment variables or the `.env` file
 (`app/core/config.py`). The `AI_*` variables take precedence over provider-specific
-legacy variables.
+legacy variables. The provider, key and model here are used for HR work only
+when `REQUIRE_USER_AI_CONFIG=false`; the retry and timeout settings apply to
+every AI call.
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
+| `REQUIRE_USER_AI_CONFIG` | `true` | `true`: every HR must save their own provider, key and model before AI features run for them. `false`: HRs without one use the platform provider below. |
+| `AI_CREDENTIAL_ENCRYPTION_KEY` | *(empty)* | Fernet key that encrypts users' saved API keys. Generate with `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`. |
 | `AI_PROVIDER` | `openrouter` | AI provider: `openrouter`, `groq`, or `gemini`. |
 | `AI_MODEL` | *(empty)* | Model identifier. Falls back to `OPENROUTER_MODEL` for OpenRouter. |
 | `AI_API_KEY` | *(empty)* | API key for the configured provider. Falls back to `OPENROUTER_API_KEY`. |
 | `AI_BASE_URL` | *(provider default)* | Base URL for the provider's API. |
 | `AI_MAX_RETRIES` | `3` | Maximum retry attempts for transient failures (429, 503, network). |
 | `AI_RETRY_BASE_DELAY` | `2` | Base delay in seconds for exponential backoff. |
+| `AI_MAX_RETRY_WAIT` | `30` | Longest single wait (seconds) honoured when the provider says how long to back off; a longer request ends the retries at once. |
+| `AI_RETRY_BUDGET` | `45` | Total seconds one AI call may spend waiting between retries. |
 | `AI_REQUEST_TIMEOUT` | `60` | Request timeout in seconds. |
 | `AI_HTTP_REFERER` | *(empty)* | HTTP-Referer header for provider attribution. Falls back to `OPENROUTER_REFERER`. |
 | `AI_APP_TITLE` | `Resume Analyzer` | X-Title header for provider attribution. Falls back to `OPENROUTER_APP_TITLE`. |
@@ -310,11 +404,21 @@ No source-code changes are required.
 #### Rate limiting
 
 Changing the model name does **not** eliminate rate limits. Rate limits are
-enforced by the provider's infrastructure and account quota. The application
-handles 429 responses with exponential backoff retries (configurable via
-`AI_MAX_RETRIES` and `AI_RETRY_BASE_DELAY`). Attribution headers (`HTTP-Referer`,
-`X-Title`) are for application identification only and do not guarantee
-rate-limit avoidance.
+enforced by the provider's infrastructure and account quota. On a 429 the
+application:
+
+* waits as long as the provider asks (`Retry-After`, or OpenRouter's
+  `X-RateLimit-Reset` for account limits) up to `AI_MAX_RETRY_WAIT`, otherwise
+  backs off exponentially (`AI_RETRY_BASE_DELAY`, up to `AI_MAX_RETRIES`);
+* stops early, without sending requests that are bound to fail, when the
+  provider asks for a longer wait or the call's `AI_RETRY_BUDGET` is spent;
+* reports a specific message: for OpenRouter `:free` models it names the
+  model, explains that free models share one rate limit with everyone using
+  them, and suggests choosing a paid model in **Settings → AI provider**. The
+  job-analysis endpoint also returns the wait as a `Retry-After` header.
+
+Attribution headers (`HTTP-Referer`, `X-Title`) are for application
+identification only and do not guarantee rate-limit avoidance.
 
 ---
 
@@ -340,8 +444,8 @@ your environment.,
 | Model | Table | Key fields | Relationships |
 | --- | --- | --- | --- |
 | `User` | `users` | id, email (unique, indexed), hashed_password, full_name, is_active, is_superuser | has many `jobs` (cascade delete via DB) |
-| `Job` | `jobs` | id, owner_id (FK users.id, indexed), company_name, position, description, required_skills, required_experience, leads_count, created_at | belongs to `User`; has many `workers` (cascade delete via DB) |
-| `Worker` | `workers` | id,, job_id,, name,, email,, resume_path,, hiring_status,, interview_status,, created_at | belongs to `Job` |
+| `Job` | `jobs` | id, owner_id (FK users.id, indexed), company_name, position, description, required_skills, required_experience, leads_count, created_at | belongs to `User`; has many `applications` (cascade delete via DB) |
+| `Application` | `applications` | id,, job_id,, name,, email,, resume_path,, hiring_status,, interview_status,, created_at | belongs to `Job` |
 
 Enum columns use SQLAlchemy `Enum` with Python `enum.Enum` values:
 
@@ -349,10 +453,10 @@ Enum columns use SQLAlchemy `Enum` with Python `enum.Enum` values:
 * `InterviewStatus`: `in_process`, `completed`, `not_completed` (default `not_completed`)
 
 ### Migrations
-Alembic is scaffolded and wired to `Base.metadata` out of the box. The MVP does not
-require migrations — at startup the app calls `_ensure_database()` (creates the
-database if missing)and `Base.metadata.create_all()` (creates missing tables)and
-optionally seeds the first superuser.,
+At startup the app calls `_ensure_database()` (creates the database if
+missing), then `prepare_schema()` (creates a fresh schema or applies pending
+Alembic migrations; see “Database schema and migrations” above) and optionally
+seeds the first superuser.
 
 ### Test database strategy
 Tests never touch the development/production database. `tests/conftest.py` sets
@@ -455,10 +559,24 @@ for every address, so local development keeps working and account existence is
 never revealed.
 
 ### Authorization
-* `get_current_user` — requires a valid Bearer JWT (401 without/invalid/expired).
-* `get_current_superuser` — requires `is_superuser=True` (403 for regular HR users).
-* Owned resources (jobs,, workers,, dashboard data)are scoped per user: reading or
+* `get_current_user` — requires a valid Bearer JWT for an active account
+  (401 without/invalid/expired token or a deactivated account).
+* `get_current_superuser` — requires `is_superuser=True` **and** an admin
+  session (403 `"Admin privileges required"` for HR accounts, 403 `"Switch to
+  the admin workspace to use this."` for an admin account in an HR session).
+  Guards `/api/users/*` and every `/api/admin/*` route.
+* Owned resources (jobs,, applications,, dashboard data)are scoped per user: reading or
   modifying another user's resource returns 404, never revealing that it exists.,
+
+### Sessions and workspaces
+Every session is signed with a workspace (`role` claim): `user` (HR) or
+`admin`. HR-only accounts always get `user`. An admin account chooses at
+sign-in (the login returns `requires_role_selection` and a short-lived
+selection token for `POST /api/auth/select-role`) and can switch later by
+calling `POST /api/auth/select-role` with its current session; the old access
+token is revoked. The server grants `admin` only to accounts that really have
+it, so a client cannot upgrade itself by editing a token, storage or the URL.
+
 ---
 
 ## API Documentation
@@ -839,7 +957,7 @@ it when no image is set still succeeds (nothing to remove).
 ---
 
 ### DELETE /api/users/{user_id}
-**Purpose:** Delete a user (their jobs and workers cascade-delete). Superuser only.,
+**Purpose:** Delete a user (their jobs and applications cascade-delete). Superuser only.,
 
 **Success (204 No Content).,
 
@@ -934,7 +1052,7 @@ it when no image is set still succeeds (nothing to remove).
 ---
 
 ### DELETE /api/jobs/{job_id}
-**Purpose:** Delete a job (its workers cascade-delete)..,
+**Purpose:** Delete a job (its applications cascade-delete)..,
 
 **Authentication:** Required.,
 
@@ -944,8 +1062,8 @@ it when no image is set still succeeds (nothing to remove).
 
 ---
 
-### GET /api/workers?job_id={job_id}
-**Purpose:** List workers/candidates for one of the user's jobs.,
+### GET /api/applications?job_id={job_id}
+**Purpose:** List applications/candidates for one of the user's jobs.,
 
 **Authentication:** Required.,
 
@@ -971,8 +1089,8 @@ it when no image is set still succeeds (nothing to remove).
 
 ---
 
-### POST /api/workers?job_id={job_id}
-**Purpose:** Record a new worker application and increment the job's `leads_count`.,
+### POST /api/applications?job_id={job_id}
+**Purpose:** Record a new application by hand and increment the job's `leads_count`.,
 
 **Authentication:** Required.,
 
@@ -989,25 +1107,25 @@ it when no image is set still succeeds (nothing to remove).
 
 `resume_path` is optional.,
 
-**Success (201 Created):** `WorkerResponse` with default `hiring_status:"hire"`, `interview_status:"not_completed"`.,
+**Success (201 Created):** `ApplicationItemResponse` with default `hiring_status:"hire"`, `interview_status:"not_completed"`.,
 
 **Errors:** `401`, `404`, `422` (missing/empty name.,
 
 ---
 
-### GET /api/workers/{worker_id}
-**Purpose:** Read a single worker.,
+### GET /api/applications/{application_id}
+**Purpose:** Read a single application.,
 
 **Authentication:** Required.,
 
-**Success (200):** `WorkerResponse`.,
+**Success (200):** `ApplicationItemResponse`.,
 
 **Errors:** `401`, `404`.,
 
 ---
 
-### PATCH /api/workers/{worker_id}
-**Purpose:** Update worker fields (typically hiring/interview status).,
+### PATCH /api/applications/{application_id}
+**Purpose:** Update application fields (typically hiring/interview status).,
 
 **Authentication:** Required.,
 
@@ -1019,7 +1137,7 @@ it when no image is set still succeeds (nothing to remove).
 }
 ```
 
-**Success (200):** updated `WorkerResponse`.,
+**Success (200):** updated `ApplicationItemResponse`.,
 
 **Errors:**
 * `401`
@@ -1028,8 +1146,8 @@ it when no image is set still succeeds (nothing to remove).
 
 ---
 
-### DELETE /api/workers/{worker_id}
-**Purpose:** Delete a worker.,
+### DELETE /api/applications/{application_id}
+**Purpose:** Delete an application.,
 
 **Authentication:** Required.,
 
@@ -1060,7 +1178,7 @@ it when no image is set still succeeds (nothing to remove).
 }
 ```
 
-`total_candidates` counts actual worker rows; `total_leads` sums the per-job
+`total_candidates` counts actual application rows; `total_leads` sums the per-job
 `leads_count` counter.,
 
 **Errors:** `400` — invalid category,, `401`.,
@@ -1181,7 +1299,7 @@ from one client within 10 minutes; in-process limit), `503` (database unavailabl
   candidates,, leads,and a grouped breakdown by `company`, `position`, or
   `required_experience`;; raises `ValueError` for unsupported categories.,
 
-### Resume analysis (`app/services/resume_analyzer.py`)
+### Resume analysis (`app/services/ai/heuristic.py`)
 * `analyze_resume(resume_text,, job_requirements,) -> AnalysisResult` — case-insensitive,,
   substring matching of required skills against the resume;; returns `score` ((0–100,
   percent of required skills found), matched/missing skills,, per-skill matches,, and a summary..
@@ -1200,11 +1318,11 @@ from one client within 10 minutes; in-process limit), `503` (database unavailabl
 `get_jobs_for_user(db,, owner_id,)`, `get_recent_jobs(db,, owner_id,, limit=5,)`,
 `update_job(db,, job,, payload,)`, `delete_job(db,, job_id,)`.
 
-### CRUD — workers (`app/crud/worker.py`)
-`create_worker(db,, job_id,, payload,)`, `get_worker(db,, worker_id,)`,
-`get_workers_for_job(db,, job_id,)`, `get_recent_workers(db,, owner_id,, limit=5,)`
+### CRUD — applications (`app/crud/application.py`)
+`create_application(db,, job_id,, payload,)`, `get_application(db,, application_id,)`,
+`get_applications_for_job(db,, job_id,)`, `get_recent_applications(db,, owner_id,, limit=5,)`
 ((uses `contains_eager` to avoid N+1 for dashboard recent leads),,
-`update_worker(db,, worker,, payload,)`, `delete_worker(db,, worker_id,)`.
+`update_application(db,, application,, payload,)`, `delete_application(db,, application_id,)`.
 
 ---
 
@@ -1240,14 +1358,14 @@ HR → Authorization: Bearer <jwt>
   → 201 + JobResponse
 ```
 
-### Worker creation flow
+### Application creation flow
 ```text
-HR → POST /api/workers?job_id=...
+HR → POST /api/applications?job_id=...
   → get_current_user ((401)
   → ownership check:: job must belong to current user ((404 otherwise)
-  → crud.create_worker inserts row
+  → crud.create_application inserts row
   → service.increment_leads_count bumps job.leads_count
-  → 201 + WorkerResponse
+  → 201 + ApplicationItemResponse
 ```
 
 ### Protected endpoint flow
@@ -1269,7 +1387,7 @@ Request + Authorization header
 | Validation failure (bad email,, empty name,, missing field,, bad enum,, bad query) | `422` | FastAPI validation detail |
 | Missing / invalid / expired token,, deleted/inactive user | `401` | `{"detail": "Not authenticated"}` or `"Invalid or expired token"` |
 | Authenticated non-superuser hits admin route | `403` | `{"detail": "Admin privileges required"}` |
-| Resource not found (or not owned) | `404` | `"User/Job/Worker not found"` |
+| Resource not found (or not owned) | `404` | `"User/Job/Application not found"` |
 | Duplicate email at registration | `400` | `"A user with this email already exists"` |
 | Email change to an address another account uses | `400` | `"A user with this email already exists"` |
 | Wrong current password at `PATCH /api/auth/me/password` | `400` | `"Current password is incorrect"` |
@@ -1325,7 +1443,7 @@ Both docs let you try every endpoint directly from the browser.,
 
 ## Resume analysis (current heuristics)
 
-`app/services/resume_analyzer.py` implements deterministic, keyword-based logic:
+`app/services/ai/heuristic.py` implements deterministic, keyword-based logic:
 
 * required skills are split on commas/semicolons/newlines,
 * matching is case-insensitiveand substring based (`"SQL"` matches `"PostgreSQL"`),

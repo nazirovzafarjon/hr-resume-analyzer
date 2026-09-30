@@ -143,12 +143,19 @@ export default function AIProviderSettings() {
   }
 
   const custom = status.source === "custom";
+  // No own provider and no platform fallback: AI features are off for this user.
+  const missing = !custom && status.required;
+  const badge = custom
+    ? { tone: "success" as const, label: s("usingCustom") }
+    : missing
+      ? { tone: "warning" as const, label: s("notConfigured") }
+      : { tone: "neutral" as const, label: s("usingDefault") };
 
   return (
     <Card
       title={s("title")}
-      subtitle={s("subtitle")}
-      action={<Badge tone={custom ? "success" : "neutral"}>{custom ? s("usingCustom") : s("usingDefault")}</Badge>}
+      subtitle={status.required ? s("subtitleRequired") : s("subtitle")}
+      action={<Badge tone={badge.tone}>{badge.label}</Badge>}
     >
       <form
         className="ai-provider-form"
@@ -159,6 +166,11 @@ export default function AIProviderSettings() {
         noValidate
       >
         {!status.can_save && <AuthMessage type="error">{s("disabled")}</AuthMessage>}
+        {missing && status.can_save && (
+          <p className="alert alert--info" role="status">
+            {s("requiredHint")}
+          </p>
+        )}
 
         <Select
           label={s("provider")}

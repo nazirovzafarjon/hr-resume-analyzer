@@ -7,7 +7,7 @@ Responsibilities:
   (lenient) — both end up in the same stored JSON structure.
 * Build the candidate-facing payload (no private data).
 * Validate submitted candidate data server-side against the stored
-  configuration and persist it through the existing Worker pipeline.
+  configuration and persist it through the existing Application pipeline.
 
 The public form's layout is rendered by the frontend's fixed template; this
 module only ever deals with *data*.
@@ -28,7 +28,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.crud import application_form as application_form_crud
 from app.crud import application_response as application_response_crud
-from app.crud import worker as worker_crud
+from app.crud import application as application_crud
 from app.models.application_form import ApplicationForm
 from app.models.job import Job
 from app.schemas.application_form import (
@@ -42,7 +42,7 @@ from app.schemas.application_form import (
     slugify_key,
     validate_application_form_fields,
 )
-from app.schemas.worker import WorkerCreate
+from app.schemas.application import ApplicationCreate
 from app.services import job as job_service
 
 logger = logging.getLogger(__name__)
@@ -441,7 +441,7 @@ def validate_submission_values(
 
 
 # ---------------------------------------------------------------------------
-# Candidate identity mapping (Worker record integration)
+# Candidate identity mapping (Application record integration)
 # ---------------------------------------------------------------------------
 
 _NAME_KEYS = ("full_name", "name", "first_name")
@@ -451,7 +451,7 @@ _EMAIL_KEYS = ("email", "email_address")
 def extract_candidate_identity(
     fields: list[dict], values: dict[str, Any]
 ) -> tuple[str, str]:
-    """Map submitted values to the Worker record's name/email.
+    """Map submitted values to the Application record's name/email.
 
     Matches canonical keys first (``full_name``/``name``, ``email``), then
     falls back to a key/label search. When the HR-authored form has neither a
@@ -507,15 +507,15 @@ def _has_recent_submission(
     db: Session, job_id: int, email: str, window_seconds: int = 60
 ) -> bool:
     """Guard against accidental duplicate submissions (same job + email)."""
-    from app.models.worker import Worker
+    from app.models.application import Application
 
     cutoff = datetime.now(timezone.utc) - timedelta(seconds=window_seconds)
     recent = (
-        db.query(Worker.id)
+        db.query(Application.id)
         .filter(
-            Worker.job_id == job_id,
-            Worker.email == email,
-            Worker.submitted_at >= cutoff,
+            Application.job_id == job_id,
+            Application.email == email,
+            Application.submitted_at >= cutoff,
         )
         .first()
     )
@@ -553,7 +553,7 @@ def submit_public_application(
 ) -> int:
     """Validate and persist a public application submission.
 
-    Returns the created worker/candidate id. Reuses the existing Worker
+    Returns the created application/candidate id. Reuses the existing Application
     pipeline (name/email/resume_path/hiring status) and stores the structured
     answers next to it, so the HR candidate flow keeps working unchanged.
     """
@@ -590,14 +590,14 @@ def submit_public_application(
             if not resume_path:
                 resume_path = path
 
-        worker = worker_crud.create_worker(
-            db, job.id, WorkerCreate(name=name, email=email, resume_path=resume_path)
+        application = application_crud.create_application(
+            db, job.id, ApplicationCreate(name=name, email=email, resume_path=resume_path)
         )
     except Exception:
         _delete_stored_files(stored_files.values())
         raise
     application_response_crud.create_response(
-        db, worker.id, _build_response_snapshot(fields, values, stored_files)
+        db, application.id, _build_response_snapshot(fields, values, stored_files)
     )
     job_service.increment_leads_count(db, job.id)
-    return worker.id
+    return application.id

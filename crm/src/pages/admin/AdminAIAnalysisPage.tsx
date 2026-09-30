@@ -80,9 +80,9 @@ export default function AdminAIAnalysisPage() {
         header: t("admin.ai.target"),
         render: (row) => (
           <div>
-            {row.worker_id ? (
-              <Link className="table-primary" to={`/admin/applications/${row.worker_id}`}>
-                {t("admin.ai.kind.application")} #{row.worker_id}
+            {row.application_id ? (
+              <Link className="table-primary" to={`/admin/applications/${row.application_id}`}>
+                {t("admin.ai.kind.application")} #{row.application_id}
               </Link>
             ) : (
               <span className="table-primary">{t(`admin.ai.kind.${row.kind}`)}</span>

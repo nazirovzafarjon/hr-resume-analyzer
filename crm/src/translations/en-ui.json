@@ -14,7 +14,8 @@
     "navGroup": {
       "recruitment": "Recruitment",
       "insights": "Insights",
-      "system": "System"
+      "system": "System",
+      "admin": "Admin"
     }
   },
   "appearance": {

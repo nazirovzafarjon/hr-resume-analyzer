@@ -8,6 +8,7 @@ import pytest
 
 from app.crud import user as user_crud
 from app.schemas.user import UserCreate
+from tests.conftest import TEST_USER_PASSWORD
 
 
 # ---------------------------------------------------------------------------
@@ -55,6 +56,13 @@ class TestGetUser:
     def test_get_missing_user_returns_404(self, client, admin):
         response = client.get("/api/users/999999", headers=admin["headers"])
         assert response.status_code == 404
+
+    def test_get_user_as_regular_user_forbidden(self, client, user, other_user):
+        response = client.get(f"/api/users/{other_user['id']}", headers=user["headers"])
+        assert response.status_code == 403
+
+    def test_get_user_without_token(self, client, user):
+        assert client.get(f"/api/users/{user['id']}").status_code == 401
 class TestUpdateUser:
     def test_admin_updates_full_name(self, client, admin, user_factory, db_session):
         user_factory()
@@ -90,6 +98,46 @@ class TestUpdateUser:
         response = client.put(f"/api/users/{admin['id']}", json={"full_name": "X"}, headers=user["headers"])
         assert response.status_code == 403
 
+    def test_regular_user_cannot_promote_themselves(self, client, user):
+        response = client.put(
+            f"/api/users/{user['id']}", json={"is_superuser": True}, headers=user["headers"]
+        )
+        assert response.status_code == 403
+
+    def test_update_without_token(self, client, user):
+        assert client.put(f"/api/users/{user['id']}", json={"full_name": "X"}).status_code == 401
+
+    def test_admin_promotes_hr_user(self, client, admin, user):
+        response = client.put(
+            f"/api/users/{user['id']}", json={"is_superuser": True}, headers=admin["headers"]
+        )
+        assert response.status_code == 200
+        assert response.json()["is_superuser"] is True
+
+    def test_admin_demotes_another_admin(self, client, admin, db_session):
+        other_admin = user_crud.create_user(
+            db_session,
+            UserCreate(email="second@example.com", full_name="Second Admin", password="Pass12345"),
+            is_superuser=True,
+        )
+        response = client.put(
+            f"/api/users/{other_admin.id}", json={"is_superuser": False}, headers=admin["headers"]
+        )
+        assert response.status_code == 200
+        assert response.json()["is_superuser"] is False
+
+    def test_deactivated_user_loses_access(self, client, admin, user):
+        response = client.put(
+            f"/api/users/{user['id']}", json={"is_active": False}, headers=admin["headers"]
+        )
+        assert response.status_code == 200
+        # The existing token stops working and a fresh sign-in is refused.
+        assert client.get("/api/auth/me", headers=user["headers"]).status_code == 401
+        login = client.post(
+            "/api/auth/login", json={"email": user["email"], "password": TEST_USER_PASSWORD}
+        )
+        assert login.status_code == 401
+
     def test_admin_cannot_demote_own_account(self, client, admin):
         response = client.put(
             f"/api/users/{admin['id']}",
@@ -118,11 +166,11 @@ class TestDeleteUser:
         # row being gone is a reliable assertion (unlike the identity map).
         assert user_crud.get_user_by_email(db_session, "hr@example.com") is None
 
-    def test_delete_user_removes_their_jobs_and_workers(
-        self, client, admin, db_session, sample_job, worker_factory
+    def test_delete_user_removes_their_jobs_and_applications(
+        self, client, admin, db_session, sample_job, application_factory
     ):
-        worker_response = worker_factory(sample_job["id"])  # hr@example.com owns a job with a worker
-        worker_id = worker_response.json()["id"]
+        application_response = application_factory(sample_job["id"])  # hr@example.com owns a job with an application
+        application_id = application_response.json()["id"]
         job_id = sample_job["id"]
         target = user_crud.get_user_by_email(db_session, "hr@example.com")
         target_id = target.id
@@ -132,11 +180,11 @@ class TestDeleteUser:
         # Query-based checks: each lookup hits the DB, so deleted rows return
         # None reliably (unlike lookups through the session identity map).
         from app.crud.job import get_job
-        from app.crud.worker import get_worker
+        from app.crud.application import get_application
 
         assert user_crud.get_user_by_email(db_session, "hr@example.com") is None
         assert get_job(db_session, job_id) is None
-        assert get_worker(db_session, worker_id) is None
+        assert get_application(db_session, application_id) is None
 
     def test_admin_cannot_delete_own_account(self, client, admin):
         response = client.delete(f"/api/users/{admin['id']}", headers=admin["headers"])
@@ -144,6 +192,13 @@ class TestDeleteUser:
 
     def test_delete_missing_user_returns_404(self, client, admin):
         assert client.delete("/api/users/999999", headers=admin["headers"]).status_code == 404
+
+    def test_delete_as_regular_user_forbidden(self, client, user, other_user):
+        response = client.delete(f"/api/users/{other_user['id']}", headers=user["headers"])
+        assert response.status_code == 403
+
+    def test_delete_without_token(self, client, user):
+        assert client.delete(f"/api/users/{user['id']}").status_code == 401
 # ---------------------------------------------------------------------------
 # User CRUD functions
 # ---------------------------------------------------------------------------

@@ -1,11 +1,10 @@
 /**
- * Candidate and Application ("worker") types.
+ * Application and candidate types.
  *
- * A Worker record represents an Application attached to a Job. Once moved
- * forward by HR into the candidate pipeline, `is_candidate` becomes true
- * (`candidate_at` timestamp is set).
+ * Each record is one application attached to a job. Once HR moves it into the
+ * candidate pipeline, `is_candidate` becomes true (`candidate_at` is set).
  *
- * Values match backend `app/schemas/worker.py` and `app/models/worker.py`.
+ * Values match backend `app/schemas/application.py` and `app/models/application.py`.
  */
 
 export type ApplicationStatus =
@@ -58,7 +57,7 @@ export type ApplicantAnswer = {
   value: unknown;
 };
 
-export type WorkerInterviewSummary = {
+export type CandidateInterviewSummary = {
   id: number;
   interviewer: string;
   scheduled_at: string;
@@ -91,7 +90,7 @@ export type CandidateDetail = Candidate & {
   resume_url?: string | null;
   responses: ApplicantAnswer[];
   analysis?: ApplicationAnalysis | null;
-  interviews: WorkerInterviewSummary[];
+  interviews: CandidateInterviewSummary[];
 };
 
 export type CandidateStatusUpdate = {

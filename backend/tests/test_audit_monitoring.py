@@ -9,7 +9,8 @@ from fastapi.testclient import TestClient
 from app.core.config import settings
 from app.main import create_app
 from app.schemas.application_analysis import ApplicationAnalysis
-from app.services import audit, error_monitor
+from app.services import audit
+from app.services.admin import errors as error_monitor
 from app.services.ai.job_analyzer import AIProviderUnavailableError, AIRateLimitError
 from tests.conftest import TEST_USER_PASSWORD
 
@@ -58,10 +59,10 @@ class TestAuditTrail:
         assert body["total"] == 1
         assert "BrandNewPass456" not in json.dumps(body)
 
-    def test_domain_events(self, client, admin, sample_worker):
-        headers = sample_worker["headers"]
+    def test_domain_events(self, client, admin, sample_application):
+        headers = sample_application["headers"]
         client.patch(
-            f"/api/workers/{sample_worker['id']}",
+            f"/api/applications/{sample_application['id']}",
             json={"application_status": "reviewing", "name": "Renamed"},
             headers=headers,
         )
@@ -71,8 +72,8 @@ class TestAuditTrail:
         assert update["details"]["fields"] == ["application_status", "name"]
         assert "Renamed" not in json.dumps(update)
 
-        client.delete(f"/api/workers/{sample_worker['id']}", headers=headers)
-        client.delete(f"/api/jobs/{sample_worker['job_id']}", headers=headers)
+        client.delete(f"/api/applications/{sample_application['id']}", headers=headers)
+        client.delete(f"/api/jobs/{sample_application['job_id']}", headers=headers)
         actions = {e["action"] for e in _logs(client, admin, limit=100)["items"]}
         assert {"CREATE_JOB", "CREATE_APPLICATION", "DELETE_APPLICATION", "DELETE_JOB"} <= actions
 
@@ -231,22 +232,22 @@ class TestSystemErrors:
 
 
 class TestAIMonitoring:
-    def _analyze(self, client, worker, **mock_kwargs):
+    def _analyze(self, client, application, **mock_kwargs):
         with patch(
             "app.services.application_analysis.analyze_application", new_callable=AsyncMock
         ) as mock_analyze:
             for key, value in mock_kwargs.items():
                 setattr(mock_analyze, key, value)
             return client.post(
-                f"/api/workers/{worker['id']}/analyze?force=true", headers=worker["headers"]
+                f"/api/applications/{application['id']}/analyze?force=true", headers=application["headers"]
             )
 
-    def test_success_and_failure_are_recorded(self, client, admin, sample_worker, monkeypatch):
+    def test_success_and_failure_are_recorded(self, client, admin, sample_application, monkeypatch):
         monkeypatch.setattr(settings, "AI_API_KEY", "sk-or-SuperSecretKey123456")
-        self._analyze(client, sample_worker, side_effect=AIRateLimitError())
+        self._analyze(client, sample_application, side_effect=AIRateLimitError())
         self._analyze(
             client,
-            sample_worker,
+            sample_application,
             return_value=ApplicationAnalysis(match_percentage=72, summary="ok"),
         )
 
@@ -277,9 +278,9 @@ class TestAIMonitoring:
         actions = {e["action"] for e in _logs(client, admin, resource_type="application")["items"]}
         assert {"AI_ANALYSIS_FAILED", "AI_ANALYSIS_COMPLETED"} <= actions
 
-    def test_unexpected_error_is_recorded(self, client, admin, sample_worker):
+    def test_unexpected_error_is_recorded(self, client, admin, sample_application):
         with pytest.raises(RuntimeError):
-            self._analyze(client, sample_worker, side_effect=RuntimeError("provider exploded"))
+            self._analyze(client, sample_application, side_effect=RuntimeError("provider exploded"))
         run = client.get("/api/admin/ai-analysis/runs", headers=admin["headers"]).json()["items"][0]
         assert run["error_category"] == "unexpected"
         assert "exploded" not in (run["error_message"] or "")
@@ -295,7 +296,7 @@ class TestAIMonitoring:
         )
         assert response.status_code == 422
 
-    def test_monitoring_failure_does_not_break_analysis(self, client, sample_worker, monkeypatch):
+    def test_monitoring_failure_does_not_break_analysis(self, client, sample_application, monkeypatch):
         from app.crud import ai_analysis_run as run_crud
 
         def boom(*args, **kwargs):
@@ -303,7 +304,7 @@ class TestAIMonitoring:
 
         monkeypatch.setattr(run_crud, "create_run", boom)
         response = self._analyze(
-            client, sample_worker, return_value=ApplicationAnalysis(match_percentage=60, summary="ok")
+            client, sample_application, return_value=ApplicationAnalysis(match_percentage=60, summary="ok")
         )
         assert response.status_code == 200
         assert response.json()["analysis_status"] == "completed"

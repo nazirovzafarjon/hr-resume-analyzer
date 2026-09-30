@@ -4,9 +4,9 @@ from datetime import datetime
 
 from pydantic import BaseModel
 
-from app.models.worker import HiringStatus
+from app.models.application import HiringStatus
 
-from app.models.worker import InterviewStatus
+from app.models.application import InterviewStatus
 
 
 class CategoryBreakdown(BaseModel):

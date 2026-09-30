@@ -22,12 +22,12 @@ from app.models.ai_analysis_run import AIAnalysisRun
 from app.models.interview import Interview, InterviewStatus as InterviewSessionStatus
 from app.models.job import Job
 from app.models.user import User
-from app.models.worker import (
+from app.models.application import (
     AnalysisStatus,
     ApplicationStatus,
     HiringStatus,
     InterviewStatus,
-    Worker,
+    Application,
 )
 
 #: Analysis filter values exposed by the API -> the stored statuses they cover.
@@ -68,8 +68,8 @@ def _jobs_per_owner():
 
 def _applications_per_owner():
     return (
-        select(Job.owner_id.label("owner_id"), func.count(Worker.id).label("applications_count"))
-        .join(Worker, Worker.job_id == Job.id)
+        select(Job.owner_id.label("owner_id"), func.count(Application.id).label("applications_count"))
+        .join(Application, Application.job_id == Job.id)
         .group_by(Job.owner_id)
         .subquery()
     )
@@ -137,11 +137,11 @@ def user_activity_counts(db: Session, user_id: int) -> UserActivityCounts:
     jobs = db.execute(select(func.count(Job.id)).where(Job.owner_id == user_id)).scalar_one()
     apps, candidates, analyzed = db.execute(
         select(
-            func.count(Worker.id),
-            func.count(Worker.id).filter(Worker.candidate_at.is_not(None)),
-            func.count(Worker.id).filter(Worker.analysis_status == AnalysisStatus.COMPLETED),
+            func.count(Application.id),
+            func.count(Application.id).filter(Application.candidate_at.is_not(None)),
+            func.count(Application.id).filter(Application.analysis_status == AnalysisStatus.COMPLETED),
         )
-        .join(Job, Job.id == Worker.job_id)
+        .join(Job, Job.id == Application.job_id)
         .where(Job.owner_id == user_id)
     ).one()
     interviews = db.execute(
@@ -184,17 +184,17 @@ def filter_companies(db: Session, limit: int = 500) -> list[str]:
 # ---------------------------------------------------------------------------
 
 
-def _worker_counts_per_job():
+def _application_counts_per_job():
     return (
         select(
-            Worker.job_id.label("job_id"),
-            func.count(Worker.id).label("applications_count"),
-            func.count(Worker.id).filter(Worker.candidate_at.is_not(None)).label("candidates_count"),
-            func.count(Worker.id)
-            .filter(Worker.analysis_status == AnalysisStatus.COMPLETED)
+            Application.job_id.label("job_id"),
+            func.count(Application.id).label("applications_count"),
+            func.count(Application.id).filter(Application.candidate_at.is_not(None)).label("candidates_count"),
+            func.count(Application.id)
+            .filter(Application.analysis_status == AnalysisStatus.COMPLETED)
             .label("analyzed_count"),
         )
-        .group_by(Worker.job_id)
+        .group_by(Application.job_id)
         .subquery()
     )
 
@@ -214,7 +214,7 @@ def list_jobs(
     order: str = "desc",
 ) -> tuple[list[Any], int]:
     """Rows are ``(Job, owner_email, owner_name, applications, candidates, analyzed)``."""
-    counts = _worker_counts_per_job()
+    counts = _application_counts_per_job()
     applications = func.coalesce(counts.c.applications_count, 0)
     stmt = (
         select(
@@ -258,20 +258,20 @@ def list_jobs(
 def job_status_breakdown(db: Session, job_id: int) -> dict[str, int]:
     """Application-status counts for one job."""
     rows = db.execute(
-        select(Worker.application_status, func.count(Worker.id))
-        .where(Worker.job_id == job_id)
-        .group_by(Worker.application_status)
+        select(Application.application_status, func.count(Application.id))
+        .where(Application.job_id == job_id)
+        .group_by(Application.application_status)
     ).all()
     return {status.value: int(count) for status, count in rows}
 
 
 # ---------------------------------------------------------------------------
-# Applications / candidates (both are ``workers`` rows)
+# Applications / candidates (both are ``applications`` rows)
 # ---------------------------------------------------------------------------
 
 
 @dataclass
-class WorkerFilters:
+class ApplicationFilters:
     candidates_only: bool = False
     search: str | None = None
     owner_id: int | None = None
@@ -287,29 +287,29 @@ class WorkerFilters:
     date_to: datetime | None = None
 
 
-def list_workers(
+def list_applications(
     db: Session,
-    filters: WorkerFilters,
+    filters: ApplicationFilters,
     *,
     page: int,
     limit: int,
     sort: str = "submitted_at",
     order: str = "desc",
 ) -> tuple[list[Any], int]:
-    """Rows are ``(Worker, Job, owner_email, owner_name)``."""
+    """Rows are ``(Application, Job, owner_email, owner_name)``."""
     stmt = (
-        select(Worker, Job, User.email, User.full_name)
-        .join(Job, Job.id == Worker.job_id)
+        select(Application, Job, User.email, User.full_name)
+        .join(Job, Job.id == Application.job_id)
         .join(User, User.id == Job.owner_id)
     )
     if filters.candidates_only:
-        stmt = stmt.where(Worker.candidate_at.is_not(None))
+        stmt = stmt.where(Application.candidate_at.is_not(None))
     if filters.search:
         pattern = contains_pattern(filters.search)
         stmt = stmt.where(
             or_(
-                Worker.name.ilike(pattern, escape="\\"),
-                Worker.email.ilike(pattern, escape="\\"),
+                Application.name.ilike(pattern, escape="\\"),
+                Application.email.ilike(pattern, escape="\\"),
                 Job.position.ilike(pattern, escape="\\"),
                 Job.company_name.ilike(pattern, escape="\\"),
             )
@@ -319,52 +319,52 @@ def list_workers(
     if filters.company:
         stmt = stmt.where(Job.company_name == filters.company)
     if filters.job_id is not None:
-        stmt = stmt.where(Worker.job_id == filters.job_id)
+        stmt = stmt.where(Application.job_id == filters.job_id)
     if filters.analysis:
-        stmt = stmt.where(Worker.analysis_status.in_(ANALYSIS_FILTERS[filters.analysis]))
+        stmt = stmt.where(Application.analysis_status.in_(ANALYSIS_FILTERS[filters.analysis]))
     if filters.application_status is not None:
-        stmt = stmt.where(Worker.application_status == filters.application_status)
+        stmt = stmt.where(Application.application_status == filters.application_status)
     if filters.hiring_status is not None:
-        stmt = stmt.where(Worker.hiring_status == filters.hiring_status)
+        stmt = stmt.where(Application.hiring_status == filters.hiring_status)
     if filters.interview_status is not None:
-        stmt = stmt.where(Worker.interview_status == filters.interview_status)
+        stmt = stmt.where(Application.interview_status == filters.interview_status)
     # A score only means something once an analysis completed (unanalysed
     # rows default to 0), so a score filter implies "analyzed".
     if filters.score_min is not None or filters.score_max is not None:
-        stmt = stmt.where(Worker.analysis_status == AnalysisStatus.COMPLETED)
+        stmt = stmt.where(Application.analysis_status == AnalysisStatus.COMPLETED)
         if filters.score_min is not None:
-            stmt = stmt.where(Worker.ai_score >= filters.score_min)
+            stmt = stmt.where(Application.ai_score >= filters.score_min)
         if filters.score_max is not None:
-            stmt = stmt.where(Worker.ai_score <= filters.score_max)
-    stmt = _date_range(stmt, Worker.submitted_at, filters.date_from, filters.date_to)
+            stmt = stmt.where(Application.ai_score <= filters.score_max)
+    stmt = _date_range(stmt, Application.submitted_at, filters.date_from, filters.date_to)
 
     sort_columns = {
-        "submitted_at": Worker.submitted_at,
-        "candidate_at": Worker.candidate_at,
-        "name": Worker.name,
-        "ai_score": Worker.ai_score,
+        "submitted_at": Application.submitted_at,
+        "candidate_at": Application.candidate_at,
+        "name": Application.name,
+        "ai_score": Application.ai_score,
     }
-    stmt = _ordered(stmt, sort_columns[sort], order, Worker.id)
+    stmt = _ordered(stmt, sort_columns[sort], order, Application.id)
     return paginate(db, stmt, page, limit)
 
 
-def worker_summary(db: Session, candidates_only: bool) -> dict[str, Any]:
+def application_summary(db: Session, candidates_only: bool) -> dict[str, Any]:
     """Platform-wide status counts shown above the applications/candidates table."""
 
     def scoped(stmt: Select[Any]) -> Select[Any]:
-        return stmt.where(Worker.candidate_at.is_not(None)) if candidates_only else stmt
+        return stmt.where(Application.candidate_at.is_not(None)) if candidates_only else stmt
 
     def grouped(column: Any) -> dict[str, int]:
-        stmt = scoped(select(column, func.count(Worker.id)).group_by(column))
+        stmt = scoped(select(column, func.count(Application.id)).group_by(column))
         return {value.value: int(count) for value, count in db.execute(stmt).all()}
 
-    total = db.execute(scoped(select(func.count(Worker.id)))).scalar_one()
+    total = db.execute(scoped(select(func.count(Application.id)))).scalar_one()
     return {
         "total": int(total),
-        "analysis_status": grouped(Worker.analysis_status),
-        "application_status": grouped(Worker.application_status),
-        "hiring_status": grouped(Worker.hiring_status),
-        "interview_status": grouped(Worker.interview_status),
+        "analysis_status": grouped(Application.analysis_status),
+        "application_status": grouped(Application.application_status),
+        "hiring_status": grouped(Application.hiring_status),
+        "interview_status": grouped(Application.interview_status),
     }
 
 
@@ -388,18 +388,18 @@ def list_interviews(
     sort: str = "scheduled_at",
     order: str = "desc",
 ) -> tuple[list[Any], int]:
-    """Rows are ``(Interview, Worker, Job, hr_email, hr_name)``."""
+    """Rows are ``(Interview, Application, Job, hr_email, hr_name)``."""
     stmt = (
-        select(Interview, Worker, Job, User.email, User.full_name)
-        .join(Worker, Worker.id == Interview.candidate_id)
-        .join(Job, Job.id == Worker.job_id)
+        select(Interview, Application, Job, User.email, User.full_name)
+        .join(Application, Application.id == Interview.candidate_id)
+        .join(Job, Job.id == Application.job_id)
         .join(User, User.id == Interview.hr_id)
     )
     if search:
         pattern = contains_pattern(search)
         stmt = stmt.where(
             or_(
-                Worker.name.ilike(pattern, escape="\\"),
+                Application.name.ilike(pattern, escape="\\"),
                 Interview.interviewer.ilike(pattern, escape="\\"),
                 Job.position.ilike(pattern, escape="\\"),
             )

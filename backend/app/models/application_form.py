@@ -7,7 +7,7 @@ bootstraps them safely and existing data is untouched):
   job: which fields candidates must fill in, in which order, plus the public
   token used in the shareable application link. One per job.
 * ``ApplicationResponse`` — the candidate's structured answers snapshot for a
-  submission (one per worker/candidate). Stored next to the existing Worker
+  submission (one per application/candidate). Stored next to the existing Application
   record so the candidate pipeline keeps working unchanged.
 
 Stored data is always *configuration/answers*, never generated UI: the public
@@ -54,7 +54,7 @@ class ApplicationForm(Base):
 class ApplicationResponse(Base):
     """A candidate's structured answers for one application submission.
 
-    One row per submitted application (worker). ``responses`` snapshots what
+    One row per submitted application (application). ``responses`` snapshots what
     the candidate answered (field id/key/label/type + value) so the HR
     pipeline keeps a stable record even if the form config changes later.
     """
@@ -62,12 +62,12 @@ class ApplicationResponse(Base):
     __tablename__ = "application_responses"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    worker_id: Mapped[int] = mapped_column(
-        ForeignKey("workers.id", ondelete="CASCADE"), unique=True, index=True
+    application_id: Mapped[int] = mapped_column(
+        ForeignKey("applications.id", ondelete="CASCADE"), unique=True, index=True
     )
     responses: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
 
-    worker: Mapped["Worker"] = relationship(back_populates="application_response")
+    application: Mapped["Application"] = relationship(back_populates="application_response")

@@ -5,7 +5,7 @@ import {
   getWorker,
   updateWorker,
   deleteWorker,
-} from "../../services/workersService";
+} from "../../services/applicationsService";
 import { formatDate } from "../../utils/date";
 import PageHeader from "../../components/ui/PageHeader";
 import PageMeta from "../../components/seo/PageMeta";
@@ -25,7 +25,7 @@ import type {
   CandidateDetail,
   HiringStatus,
   InterviewStatus,
-} from "../../types/worker";
+} from "../../types/candidate";
 
 /** /candidates/:id — candidate profile, interview progress, and stored AI screening. */
 export default function CandidateDetailsPage() {

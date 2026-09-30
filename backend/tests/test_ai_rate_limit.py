@@ -28,9 +28,11 @@ from app.services.ai.job_analyzer import (
     AIProviderUnavailableError,
     AIInvalidResponseError,
     analyze_vacancy,
+    rate_limit_message,
     _strip_json_markdown,
     _get_retry_delay,
     _error_reason,
+    _parse_retry_after,
 )
 
 VACANCY_CONTENT = "We need a Python developer at TestCorp."
@@ -59,6 +61,8 @@ def _make_cfg(provider="openrouter", model="test/model", api_key=FAKE_API_KEY):
         "base_url": base_urls.get(provider, "https://openrouter.ai/api/v1"),
         "max_retries": 3,
         "retry_base_delay": 2,
+        "max_retry_wait": 30,
+        "retry_budget": 45,
         "request_timeout": 60,
         "http_referer": "http://localhost:8000",
         "app_title": "Resume Analyzer",
@@ -147,9 +151,54 @@ class TestGetRetryDelay:
     def test_retry_after_honored(self):
         assert _get_retry_delay(0, 2, 5) == 5
 
-    def test_retry_after_capped(self):
-        # retry_base_delay * 4 = 8, so 100 should be capped to 8
-        assert _get_retry_delay(0, 2, 100) == 8
+    def test_retry_after_is_not_shortened(self):
+        # Retrying sooner than the provider asked is bound to be rejected;
+        # whether to wait that long at all is the retry loop's decision.
+        assert _get_retry_delay(0, 2, 100) == 100
+
+
+class TestParseRetryAfter:
+    def test_seconds(self):
+        assert _parse_retry_after(_FakeResponse(429, headers={"retry-after": "7"})) == 7
+
+    def test_http_date(self):
+        from email.utils import format_datetime
+        from datetime import datetime, timedelta, timezone
+
+        when = format_datetime(datetime.now(timezone.utc) + timedelta(seconds=40), usegmt=True)
+        wait = _parse_retry_after(_FakeResponse(429, headers={"retry-after": when}))
+        assert 35 <= wait <= 41
+
+    def test_openrouter_reset_in_milliseconds(self):
+        import time as _time
+
+        reset_ms = str(int((_time.time() + 20) * 1000))
+        wait = _parse_retry_after(_FakeResponse(429, headers={"x-ratelimit-reset": reset_ms}))
+        assert 15 <= wait <= 21
+
+    def test_past_reset_means_no_wait(self):
+        assert _parse_retry_after(_FakeResponse(429, headers={"x-ratelimit-reset": "1000000000000"})) == 0
+
+    def test_missing_or_garbage(self):
+        assert _parse_retry_after(_FakeResponse(429)) is None
+        assert _parse_retry_after(_FakeResponse(429, headers={"retry-after": "soon"})) is None
+
+
+class TestRateLimitMessage:
+    def test_free_model_suggests_switching(self):
+        message = rate_limit_message("qwen/qwen3.8-27b:free", 37)
+        assert '"qwen/qwen3.8-27b:free"' in message
+        assert "about 40 seconds" in message
+        assert "Settings → AI provider" in message
+
+    def test_paid_model_without_known_wait(self):
+        message = rate_limit_message("deepseek/deepseek-v4.1-flash")
+        assert "rate limit was reached" in message
+        assert "about a minute" in message
+        assert "Settings" not in message
+
+    def test_minutes(self):
+        assert "about 3 minutes" in rate_limit_message(None, 125)
 
 
 # ---------------------------------------------------------------------------
@@ -165,7 +214,7 @@ class TestAnalyzeVacancySuccess:
         with patch("app.services.ai.job_analyzer._get_client", return_value=mock_client), \
              patch("app.services.ai.job_analyzer.settings") as mock_settings:
             mock_settings.ai_provider_config.return_value = cfg
-            result = _run(analyze_vacancy(VACANCY_CONTENT))
+            result = _run(analyze_vacancy(VACANCY_CONTENT, cfg=cfg))
         assert result.company_name == "Acme Corp"
         assert result.position == "Python Developer"
         assert result.required_skills == "Python, FastAPI"
@@ -180,7 +229,7 @@ class TestAnalyzeVacancySuccess:
         with patch("app.services.ai.job_analyzer._get_client", return_value=mock_client), \
              patch("app.services.ai.job_analyzer.settings") as mock_settings:
             mock_settings.ai_provider_config.return_value = cfg
-            result = _run(analyze_vacancy(VACANCY_CONTENT))
+            result = _run(analyze_vacancy(VACANCY_CONTENT, cfg=cfg))
         assert result.company_name == "Acme Corp"
 
     def test_success_logs_provider_and_model(self, caplog):
@@ -191,7 +240,7 @@ class TestAnalyzeVacancySuccess:
              patch("app.services.ai.job_analyzer.settings") as mock_settings:
             mock_settings.ai_provider_config.return_value = cfg
             with caplog.at_level(logging.INFO, logger="app.services.ai.job_analyzer"):
-                _run(analyze_vacancy(VACANCY_CONTENT))
+                _run(analyze_vacancy(VACANCY_CONTENT, cfg=cfg))
         assert "AI request succeeded" in caplog.text
         assert "provider=openrouter" in caplog.text
 
@@ -210,7 +259,7 @@ class TestAnalyzeVacancyInvalidJson:
              patch("app.services.ai.job_analyzer.settings") as mock_settings:
             mock_settings.ai_provider_config.return_value = cfg
             with pytest.raises(AIInvalidResponseError):
-                _run(analyze_vacancy(VACANCY_CONTENT))
+                _run(analyze_vacancy(VACANCY_CONTENT, cfg=cfg))
 
     def test_invalid_json_does_not_leak_content(self, caplog):
         fake_resp = _FakeResponse(status_code=200, text_data="this is not json")
@@ -220,7 +269,7 @@ class TestAnalyzeVacancyInvalidJson:
              patch("app.services.ai.job_analyzer.settings") as mock_settings:
             mock_settings.ai_provider_config.return_value = cfg
             with pytest.raises(AIInvalidResponseError):
-                _run(analyze_vacancy(VACANCY_CONTENT))
+                _run(analyze_vacancy(VACANCY_CONTENT, cfg=cfg))
         assert FAKE_API_KEY not in caplog.text
 
 
@@ -240,7 +289,7 @@ class TestAnalyzeVacancy429Retry:
              patch("app.services.ai.job_analyzer.settings") as mock_settings:
             mock_settings.ai_provider_config.return_value = cfg
             with patch("asyncio.sleep") as mock_sleep:
-                result = _run(analyze_vacancy(VACANCY_CONTENT))
+                result = _run(analyze_vacancy(VACANCY_CONTENT, cfg=cfg))
             assert result.company_name == "Acme Corp"
             mock_sleep.assert_called_once()
 
@@ -254,7 +303,7 @@ class TestAnalyzeVacancy429Retry:
             mock_settings.ai_provider_config.return_value = cfg
             with patch("asyncio.sleep") as mock_sleep:
                 with pytest.raises(AIRateLimitError):
-                    _run(analyze_vacancy(VACANCY_CONTENT))
+                    _run(analyze_vacancy(VACANCY_CONTENT, cfg=cfg))
             # 4 attempts total: initial + 3 retries
             assert mock_client.post.call_count == 4
 
@@ -267,7 +316,7 @@ class TestAnalyzeVacancy429Retry:
              patch("app.services.ai.job_analyzer.settings") as mock_settings:
             mock_settings.ai_provider_config.return_value = cfg
             with patch("asyncio.sleep"), pytest.raises(AIRateLimitError):
-                _run(analyze_vacancy(VACANCY_CONTENT))
+                _run(analyze_vacancy(VACANCY_CONTENT, cfg=cfg))
         log_text = caplog.text
         assert "status=429" in log_text
         assert FAKE_API_KEY not in log_text
@@ -283,13 +332,13 @@ class TestAnalyzeVacancy429Retry:
              patch("app.services.ai.job_analyzer.settings") as mock_settings:
             mock_settings.ai_provider_config.return_value = cfg
             with patch("asyncio.sleep") as mock_sleep:
-                result = _run(analyze_vacancy(VACANCY_CONTENT))
+                result = _run(analyze_vacancy(VACANCY_CONTENT, cfg=cfg))
             mock_sleep.assert_called_once()
             call_kwargs = mock_sleep.call_args
             assert call_kwargs[0][0] == 5  # retry_after=5
 
-    def test_429_retry_after_capped(self):
-        fake_429 = _FakeResponse(status_code=429, json_data={"error": {"message": "rate limited"}}, headers={"retry-after": "100"})
+    def test_429_retry_after_within_cap_is_honoured_in_full(self):
+        fake_429 = _FakeResponse(status_code=429, json_data={"error": {"message": "rate limited"}}, headers={"retry-after": "25"})
         fake_200 = _FakeResponse(status_code=200, json_data={"choices": [{"message": {"content": json.dumps(AI_ANALYSIS_RESPONSE)}}]})
         mock_client = _mock_client_with_response(fake_429)
         mock_client.post = AsyncMock(side_effect=[fake_429, fake_200])
@@ -298,10 +347,35 @@ class TestAnalyzeVacancy429Retry:
              patch("app.services.ai.job_analyzer.settings") as mock_settings:
             mock_settings.ai_provider_config.return_value = cfg
             with patch("asyncio.sleep") as mock_sleep:
-                result = _run(analyze_vacancy(VACANCY_CONTENT))
-            mock_sleep.assert_called_once()
-            call_kwargs = mock_sleep.call_args
-            assert call_kwargs[0][0] == 8  # capped at retry_base_delay * 4 = 8
+                _run(analyze_vacancy(VACANCY_CONTENT, cfg=cfg))
+            mock_sleep.assert_called_once_with(25)
+
+    def test_429_retry_after_over_cap_gives_up_without_more_requests(self):
+        fake_429 = _FakeResponse(status_code=429, json_data={"error": {"message": "rate limited"}}, headers={"retry-after": "100"})
+        mock_client = _mock_client_with_response(fake_429)
+        cfg = _make_cfg(model="qwen/qwen3.8-27b:free")
+        with patch("app.services.ai.job_analyzer._get_client", return_value=mock_client), \
+             patch("app.services.ai.job_analyzer.settings") as mock_settings:
+            mock_settings.ai_provider_config.return_value = cfg
+            with patch("asyncio.sleep") as mock_sleep, pytest.raises(AIRateLimitError) as caught:
+                _run(analyze_vacancy(VACANCY_CONTENT, cfg=cfg))
+        mock_sleep.assert_not_called()
+        assert mock_client.post.call_count == 1
+        assert caught.value.retry_after == 100
+        assert caught.value.model == "qwen/qwen3.8-27b:free"
+        assert "about 2 minutes" in caught.value.message
+
+    def test_429_stops_when_the_waiting_budget_is_spent(self):
+        fake_429 = _FakeResponse(status_code=429, json_data={"error": {"message": "rate limited"}})
+        mock_client = _mock_client_with_response(fake_429)
+        cfg = {**_make_cfg(), "retry_budget": 7}  # backoff 2 + 4 fits, the next 8 does not
+        with patch("app.services.ai.job_analyzer._get_client", return_value=mock_client), \
+             patch("app.services.ai.job_analyzer.settings") as mock_settings:
+            mock_settings.ai_provider_config.return_value = cfg
+            with patch("asyncio.sleep") as mock_sleep, pytest.raises(AIRateLimitError):
+                _run(analyze_vacancy(VACANCY_CONTENT, cfg=cfg))
+        assert [c.args[0] for c in mock_sleep.call_args_list] == [2, 4]
+        assert mock_client.post.call_count == 3
 
 
 # ---------------------------------------------------------------------------
@@ -320,7 +394,7 @@ class TestAnalyzeVacancy503Retry:
              patch("app.services.ai.job_analyzer.settings") as mock_settings:
             mock_settings.ai_provider_config.return_value = cfg
             with patch("asyncio.sleep"):
-                result = _run(analyze_vacancy(VACANCY_CONTENT))
+                result = _run(analyze_vacancy(VACANCY_CONTENT, cfg=cfg))
         assert result.company_name == "Acme Corp"
 
     def test_503_exhausted_raises_unavailable(self):
@@ -332,7 +406,7 @@ class TestAnalyzeVacancy503Retry:
              patch("app.services.ai.job_analyzer.settings") as mock_settings:
             mock_settings.ai_provider_config.return_value = cfg
             with patch("asyncio.sleep"), pytest.raises(AIProviderUnavailableError):
-                _run(analyze_vacancy(VACANCY_CONTENT))
+                _run(analyze_vacancy(VACANCY_CONTENT, cfg=cfg))
 
 
 # ---------------------------------------------------------------------------
@@ -351,7 +425,7 @@ class TestAnalyzeVacancy401:
             mock_settings.ai_provider_config.return_value = cfg
             with patch("asyncio.sleep") as mock_sleep:
                 with pytest.raises(AIProviderAuthError):
-                    _run(analyze_vacancy(VACANCY_CONTENT))
+                    _run(analyze_vacancy(VACANCY_CONTENT, cfg=cfg))
             mock_sleep.assert_not_called()
             assert mock_client.post.call_count == 1
 
@@ -370,7 +444,7 @@ class TestAnalyzeVacancyNetworkFailure:
              patch("app.services.ai.job_analyzer.settings") as mock_settings:
             mock_settings.ai_provider_config.return_value = cfg
             with patch("asyncio.sleep"), pytest.raises(AIProviderUnavailableError):
-                _run(analyze_vacancy(VACANCY_CONTENT))
+                _run(analyze_vacancy(VACANCY_CONTENT, cfg=cfg))
             assert mock_client.post.call_count == 4  # initial + 3 retries
 
     def test_network_error_exhausted_raises_unavailable(self):
@@ -381,7 +455,7 @@ class TestAnalyzeVacancyNetworkFailure:
              patch("app.services.ai.job_analyzer.settings") as mock_settings:
             mock_settings.ai_provider_config.return_value = cfg
             with patch("asyncio.sleep"), pytest.raises(AIProviderUnavailableError):
-                _run(analyze_vacancy(VACANCY_CONTENT))
+                _run(analyze_vacancy(VACANCY_CONTENT, cfg=cfg))
 
 
 # ---------------------------------------------------------------------------
@@ -455,7 +529,7 @@ class TestProviderSelection:
         with patch("app.services.ai.job_analyzer._get_client", return_value=mock_client), \
              patch("app.services.ai.job_analyzer.settings") as mock_settings:
             mock_settings.ai_provider_config.return_value = cfg
-            result = _run(analyze_vacancy(VACANCY_CONTENT))
+            result = _run(analyze_vacancy(VACANCY_CONTENT, cfg=cfg))
         assert result.company_name == "Acme Corp"
         assert result.position == "Python Developer"
 
@@ -466,7 +540,7 @@ class TestProviderSelection:
         with patch("app.services.ai.job_analyzer._get_client", return_value=mock_client), \
              patch("app.services.ai.job_analyzer.settings") as mock_settings:
             mock_settings.ai_provider_config.return_value = cfg
-            result = _run(analyze_vacancy(VACANCY_CONTENT))
+            result = _run(analyze_vacancy(VACANCY_CONTENT, cfg=cfg))
         assert result.company_name == "Acme Corp"
 
 
@@ -562,7 +636,7 @@ class TestAnalyzeEndpointIntegration:
              patch("app.services.ai.job_analyzer.settings") as mock_settings:
             mock_settings.ai_provider_config.return_value = cfg
             with pytest.raises(AIRateLimitError):
-                _run(analyze_vacancy(VACANCY_CONTENT))
+                _run(analyze_vacancy(VACANCY_CONTENT, cfg=cfg))
         log_text = caplog.text
         assert FAKE_API_KEY not in log_text
         assert "Authorization" not in log_text
@@ -577,12 +651,12 @@ class TestAnalyzeEndpointIntegration:
 class TestAnalyzeVacancyValidation:
     def test_empty_content_raises_422(self):
         with pytest.raises(AIServiceError) as exc_info:
-            _run(analyze_vacancy(""))
+            _run(analyze_vacancy("", cfg=_make_cfg()))
         assert exc_info.value.status_code == 422
 
     def test_whitespace_content_raises_422(self):
         with pytest.raises(AIServiceError) as exc_info:
-            _run(analyze_vacancy("   "))
+            _run(analyze_vacancy("   ", cfg=_make_cfg()))
         assert exc_info.value.status_code == 422
 
     def test_content_too_long_raises_422(self):
@@ -590,7 +664,7 @@ class TestAnalyzeVacancyValidation:
         with patch("app.services.ai.job_analyzer.settings") as mock_settings:
             mock_settings.ai_provider_config.return_value = cfg
             with pytest.raises(AIServiceError) as exc_info:
-                _run(analyze_vacancy("x" * 50001))
+                _run(analyze_vacancy("x" * 50001, cfg=cfg))
         assert exc_info.value.status_code == 422
 
     def test_missing_api_key_raises_auth_error(self):
@@ -598,7 +672,7 @@ class TestAnalyzeVacancyValidation:
         with patch("app.services.ai.job_analyzer.settings") as mock_settings:
             mock_settings.ai_provider_config.return_value = cfg
             with pytest.raises(AIProviderAuthError):
-                _run(analyze_vacancy(VACANCY_CONTENT))
+                _run(analyze_vacancy(VACANCY_CONTENT, cfg=cfg))
 
 
 # ---------------------------------------------------------------------------
@@ -658,7 +732,7 @@ class TestProviderErrorBodyLogging:
              patch("app.services.ai.job_analyzer.settings") as mock_settings:
             mock_settings.ai_provider_config.return_value = cfg
             with patch("asyncio.sleep"), pytest.raises(AIRateLimitError):
-                _run(analyze_vacancy(VACANCY_CONTENT))
+                _run(analyze_vacancy(VACANCY_CONTENT, cfg=cfg))
         log_text = caplog.text
         assert "rate-limited upstream" in log_text
         assert FAKE_API_KEY not in log_text
@@ -676,7 +750,7 @@ class TestProviderErrorBodyLogging:
              patch("app.services.ai.job_analyzer.settings") as mock_settings:
             mock_settings.ai_provider_config.return_value = cfg
             with pytest.raises(AIServiceError):
-                _run(analyze_vacancy(VACANCY_CONTENT))
+                _run(analyze_vacancy(VACANCY_CONTENT, cfg=cfg))
         assert "No endpoints found matching the model you requested." in caplog.text
 
     def test_error_reason_never_includes_user_vacancy_content(self):
