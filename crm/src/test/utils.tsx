@@ -6,6 +6,7 @@ import type { ReactNode } from "react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { render } from "@testing-library/react";
 import { AuthProvider } from "../context/AuthContext";
+import { CandidateAuthProvider } from "../context/CandidateAuthContext";
 import { ThemeProvider } from "../contexts/ThemeContext";
 import { LanguageProvider } from "../contexts/LanguageContext";
 import { ToastProvider } from "../contexts/ToastContext";
@@ -33,26 +34,33 @@ export function LocationProbe() {
   return <div data-testid="location">{location.pathname}</div>;
 }
 
-type Options = { path?: string; routes?: { path: string; element: ReactNode }[] };
+type Options = {
+  path?: string;
+  /** Route pattern for `ui` when it needs URL params (defaults to `path`). */
+  pattern?: string;
+  routes?: { path: string; element: ReactNode }[];
+};
 
 /** Render `ui` at `path` inside the app providers, plus extra routes. */
-export function renderWithProviders(ui: ReactNode, { path = "/", routes = [] }: Options = {}) {
+export function renderWithProviders(ui: ReactNode, { path = "/", pattern, routes = [] }: Options = {}) {
   return render(
     <MemoryRouter initialEntries={[path]}>
       <AuthProvider>
-        <ThemeProvider>
-          <LanguageProvider>
-            <ToastProvider>
-              <Routes>
-                <Route path={path.split("?")[0]} element={ui} />
-                {routes.map((route) => (
-                  <Route key={route.path} path={route.path} element={route.element} />
-                ))}
-                <Route path="*" element={<LocationProbe />} />
-              </Routes>
-            </ToastProvider>
-          </LanguageProvider>
-        </ThemeProvider>
+        <CandidateAuthProvider>
+          <ThemeProvider>
+            <LanguageProvider>
+              <ToastProvider>
+                <Routes>
+                  <Route path={pattern ?? path.split("?")[0]} element={ui} />
+                  {routes.map((route) => (
+                    <Route key={route.path} path={route.path} element={route.element} />
+                  ))}
+                  <Route path="*" element={<LocationProbe />} />
+                </Routes>
+              </ToastProvider>
+            </LanguageProvider>
+          </ThemeProvider>
+        </CandidateAuthProvider>
       </AuthProvider>
     </MemoryRouter>,
   );

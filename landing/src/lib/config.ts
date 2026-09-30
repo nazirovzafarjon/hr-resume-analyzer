@@ -33,9 +33,14 @@ export const CONTACT_EMAIL: string | null =
  */
 export const SESSION_HINT_COOKIE = "resumeAnalyzer.signedIn";
 
-/** Entry points into the CRM: its existing auth pages and the workspace. */
+/**
+ * Entry points into the CRM app: the HR workspace (login, register,
+ * dashboard) and the Candidate Portal (its own sign-in and account).
+ */
 export const appLinks = {
   login: `${APP_URL}/login`,
   register: `${APP_URL}/register`,
   workspace: `${APP_URL}/dashboard`,
+  candidateLogin: `${APP_URL}/candidate/login`,
+  candidateRegister: `${APP_URL}/candidate/register`,
 } as const;

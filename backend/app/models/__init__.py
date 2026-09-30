@@ -14,7 +14,9 @@ from app.models.application import (
     InterviewStatus,
 )
 from app.models.application_form import ApplicationForm, ApplicationResponse
+from app.models.application_status_history import ApplicationStatusHistory
 from app.models.audit_log import AuditLog
+from app.models.candidate_account import CandidateAccount
 from app.models.contact_message import ContactMessage
 from app.models.interview import Interview
 from app.models.job import Job
@@ -27,6 +29,8 @@ __all__ = [
     "User",
     "Job",
     "Application",
+    "ApplicationStatusHistory",
+    "CandidateAccount",
     "Interview",
     "ApplicationForm",
     "ApplicationResponse",

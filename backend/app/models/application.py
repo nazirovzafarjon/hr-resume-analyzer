@@ -55,6 +55,8 @@ class ApplicationStatus(str, enum.Enum):
     REVIEWING = "reviewing"
     SHORTLISTED = "shortlisted"
     INTERVIEW = "interview"
+    # Final positive decision (the candidate sees "Application accepted").
+    HIRED = "hired"
     REJECTED = "rejected"
     WITHDRAWN = "withdrawn"
 
@@ -85,6 +87,12 @@ class Application(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     job_id: Mapped[int] = mapped_column(
         ForeignKey("jobs.id", ondelete="CASCADE"), index=True
+    )
+    # Candidate Portal account that submitted this application while signed in
+    # (None for guest submissions and HR-entered applications). Deleting the
+    # account keeps the application for HR.
+    candidate_account_id: Mapped[int | None] = mapped_column(
+        ForeignKey("candidate_accounts.id", ondelete="SET NULL"), index=True, nullable=True
     )
     name: Mapped[str] = mapped_column(String(255))
     email: Mapped[str] = mapped_column(String(255))
@@ -163,6 +171,14 @@ class Application(Base):
         return self.job.position if self.job else ""
 
     job: Mapped["Job"] = relationship(back_populates="applications")
+    candidate_account: Mapped["CandidateAccount | None"] = relationship(
+        back_populates="applications"
+    )
+    status_history: Mapped[list["ApplicationStatusHistory"]] = relationship(
+        back_populates="application",
+        passive_deletes=True,
+        order_by="ApplicationStatusHistory.created_at, ApplicationStatusHistory.id",
+    )
     interviews: Mapped[list["Interview"]] = relationship(
         back_populates="candidate", passive_deletes=True
     )

@@ -12,6 +12,7 @@ export type ApplicationStatus =
   | "reviewing"
   | "shortlisted"
   | "interview"
+  | "hired"
   | "rejected"
   | "withdrawn";
 

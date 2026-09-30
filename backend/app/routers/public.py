@@ -12,6 +12,8 @@ from app.core.database import get_db
 from app.crud import job as job_crud
 from app.crud import application as application_crud
 from app.crud import application_form as application_form_crud
+from app.dependencies.candidate_auth import get_optional_candidate
+from app.models.candidate_account import CandidateAccount
 from app.models.job import Job
 from app.schemas.application_form import PublicApplicationResponse, PublicSubmissionResult
 from app.schemas.contact_message import ContactMessageCreate, ContactMessageResult
@@ -196,6 +198,7 @@ async def public_submit_application(
     token: str,
     request: Request,
     db: Session = Depends(get_db),
+    candidate: CandidateAccount | None = Depends(get_optional_candidate),
 ):
     """Accept a candidate submission for a published application form.
 
@@ -205,7 +208,9 @@ async def public_submit_application(
 
     The payload is fully validated server-side against the stored field
     configuration before anything is persisted. No authentication — the
-    token is the credential.
+    token is the credential. A signed-in Candidate Portal account (optional
+    ``candidate_access`` bearer token) gets the application linked to it, so
+    it shows up in their portal; guests can still apply.
     """
     form, job = _get_form_with_job(db, token)
 
@@ -244,7 +249,7 @@ async def public_submit_application(
 
     try:
         application_id = application_form_service.submit_public_application(
-            db, job, form, values, files
+            db, job, form, values, files, candidate_account_id=candidate.id if candidate else None
         )
     except application_form_service.SubmissionValidationError as exc:
         raise HTTPException(

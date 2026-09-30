@@ -67,23 +67,16 @@ def update_profile(db: Session, user: User, payload: UserProfileUpdate) -> User:
         raise ValueError("A user with this email already exists") from exc
 
 
-def save_profile_image(
-    db: Session,
-    user: User,
-    content: bytes,
-    *,
-    content_type: str | None,
-) -> User:
-    """Validate, store and attach a new profile image for ``user``.
+def store_profile_image(content: bytes, content_type: str | None) -> str:
+    """Validate and store an uploaded profile image; return its server URL.
+
+    Shared by HR users and Candidate Portal accounts (same rules, same folder).
 
     Validation never trusts the raw filename or the declared content type
     alone: the file's real content is checked (magic bytes), the declared type
     must be an allowed image MIME type, and the upload must stay under the
     configured size limit. The stored filename is a fresh UUID — the client's
     filename is never used on disk, which also rules out path traversal.
-
-    An existing profile image is replaced (the old file is removed after the
-    database commit succeeds).
 
     Raises:
         ValueError: If the content is too large or not a supported image.
@@ -107,9 +100,32 @@ def save_profile_image(
     # uuid4().hex always produces a unique, filesystem-safe name.
     stored_name = f"{uuid4().hex}{_ALLOWED_IMAGE_TYPES[detected_type]}"
     (images_dir / stored_name).write_bytes(content)
+    return f"/uploads/{_PROFILE_IMAGES_DIR}/{stored_name}"
 
+
+def delete_profile_image_file(image_url: str | None) -> None:
+    """Best-effort removal of a stored profile image (after the DB commit)."""
+    _delete_image_file(image_url)
+
+
+def save_profile_image(
+    db: Session,
+    user: User,
+    content: bytes,
+    *,
+    content_type: str | None,
+) -> User:
+    """Validate, store and attach a new profile image for ``user``.
+
+    An existing profile image is replaced (the old file is removed after the
+    database commit succeeds).
+
+    Raises:
+        ValueError: If the content is too large or not a supported image.
+    """
+    new_path = store_profile_image(content, content_type)
     old_path = user.profile_image
-    user.profile_image = f"/uploads/{_PROFILE_IMAGES_DIR}/{stored_name}"
+    user.profile_image = new_path
     db.commit()
     db.refresh(user)
 

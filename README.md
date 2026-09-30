@@ -22,6 +22,7 @@ HR users manage the hiring pipeline for job vacancies:
 | Role | Can do |
 |---|---|
 | **HR user** | Manage their own account, jobs, applications/candidates, interviews and dashboard. Never sees another HR user's data or any admin feature. |
+| **Candidate** (Candidate Portal) | Their own account, the applications they submitted while signed in, each application's status and timeline, candidate-safe resume feedback, and their interviews. Never sees HR data, other candidates or any HR/admin feature. |
 | **Admin (superuser)** | **Every HR permission, on every HR user's data**, **plus** the admin console: manage user accounts (activate/deactivate, promote/demote, delete), organisation-wide dashboards and analytics, job moderation, and monitoring of AI usage, audit logs, errors, health and runtime settings. |
 
 Admin access needs two things, both checked server-side on every request: an
@@ -76,6 +77,51 @@ session has the same permissions as the owning HR user (see “Authorization”)
   the HR screens to manage them, plus `DELETE /api/admin/jobs/{id}` for moderation
 * AI analysis monitoring, audit logs, system errors and system health
 * Runtime settings (e.g. whether public registration is open), audited
+
+### Candidate Portal (`/candidate`, `/api/candidate/*`)
+The second side of the platform: job seekers follow their applications.
+
+* **Separate identity.** Candidates live in `candidate_accounts`, not `users`,
+  and their tokens carry candidate-only purposes (`candidate_access`,
+  `candidate_refresh`, `candidate_password_reset`). The HR guard accepts only
+  `access` tokens and the candidate guard only `candidate_access`, so neither
+  token works on the other side. Hashing and JWT signing are shared.
+* **Applying.** The existing public form (`/apply/:token`) is reused. Sent with
+  a candidate token (optional), the new application is linked to the account
+  (`applications.candidate_account_id`); guests can still apply. Applications
+  are **never linked by matching email** (emails are not verified).
+* **What a candidate sees**, all scoped to the signed-in account (another
+  candidate's records answer 404):
+  * a dashboard (total / active / upcoming interviews / completed, next
+    interview, recent applications) computed by the backend;
+  * each application with a friendly **candidate status** derived from the HR
+    pipeline (`submitted`, `ai_review`, `hr_review`, `interview_invited`,
+    `interview_scheduled`, `decision_pending`, `accepted`, `rejected`,
+    `withdrawn`) — separate from the AI result and the interview status;
+  * a five-step **timeline** built from stored facts (`application_status_history`,
+    the analysis time, interviews); unknown dates are left empty, never guessed;
+  * **candidate-safe AI feedback**: match percentage and skill/requirement lists
+    only. The HR recommendation, recruiter-oriented AI text, internal
+    `ai_score`, provider errors and interviewer notes are never exposed;
+  * interviews (date, time, duration, online/in-person, http(s) meeting link for
+    upcoming ones);
+  * profile (name, email, phone, photo, password, password reset by email).
+* HR gets one new application status, `hired` (the candidate sees "Application
+  accepted").
+
+| Endpoint | Purpose |
+|---|---|
+| `POST /api/candidate/auth/register` · `login` · `refresh` · `logout` | Candidate session (refresh tokens are single-use) |
+| `POST /api/candidate/auth/forgot-password` · `reset-password` | Password reset by emailed link (`/candidate/reset-password`) |
+| `GET/PATCH /api/candidate/profile`, `PATCH …/profile/password`, `POST/DELETE …/profile/image` | Own profile |
+| `GET /api/candidate/dashboard` | Counts, next interview, recent applications |
+| `GET /api/candidate/applications`, `GET …/applications/{id}` | Own applications; detail includes job, answers, safe AI feedback, timeline, interviews |
+| `GET /api/candidate/applications/{id}/resume` | Download own submitted CV |
+| `GET /api/candidate/interviews`, `GET …/interviews/{id}` | Own interviews |
+* Future phases (not built): candidate ↔ HR messaging, an AI assistant,
+  interview confirmation/rescheduling, notifications, job discovery. See the
+  `TODO(CANDIDATE-PORTAL)` / `TODO(FUTURE)` notes in
+  `app/models/candidate_account.py` and `app/services/candidate_portal.py`.
 
 ### Job management
 * Create, list, read, update, delete jobs

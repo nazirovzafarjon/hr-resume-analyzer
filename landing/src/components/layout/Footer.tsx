@@ -1,5 +1,6 @@
 import Logo from "../ui/Logo";
 import { useI18n } from "../../i18n";
+import { appLinks } from "../../lib/config";
 
 /** Site footer: brand, grouped links and legal line. No social links until real accounts exist. */
 export default function Footer() {
@@ -8,7 +9,9 @@ export default function Footer() {
     {
       title: t.footer.product,
       links: [
-        { href: "/#features", label: t.footer.features },
+        { href: "/#features", label: t.nav.forCompanies },
+        { href: "/#for-candidates", label: t.nav.forCandidates },
+        { href: appLinks.candidateLogin, label: t.nav.candidatePortal },
         { href: "/#how-it-works", label: t.footer.howItWorks },
         { href: "/#analytics", label: t.footer.analytics },
       ],

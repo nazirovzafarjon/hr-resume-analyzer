@@ -5,9 +5,14 @@
  * through the immutable PublicApplicationFormTemplate inside the public
  * page shell, validates locally for fast feedback, then POSTs to the public
  * submission endpoint (no JWT — the token is the credential).
+ *
+ * Candidate Portal: a banner above the form offers an account (or shows who
+ * is applying). A signed-in candidate's submission carries their candidate
+ * token, so the application appears in their portal. The form template itself
+ * is untouched.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { RotateCw } from "lucide-react";
 import AuthLayout from "../../components/auth/AuthLayout";
 import Button from "../../components/ui/Button";
@@ -15,6 +20,8 @@ import { Skeleton } from "../../components/ui/Skeleton";
 import { getPublicApplication, submitPublicApplication } from "../../services/publicService";
 import PublicApplicationFormTemplate from "../../components/application-form/PublicApplicationFormTemplate";
 import ApplicationSuccess from "../../components/application-form/ApplicationSuccess";
+import ApplyAccountBanner from "../../components/candidate/ApplyAccountBanner";
+import { useCandidateAuth } from "../../context/CandidateAuthContext";
 import PageMeta from "../../components/seo/PageMeta";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { validateApplicationValues, validateResumeFile } from "../../utils/applicationFields";
@@ -93,6 +100,7 @@ export default function ApplyPage() {
   const { t } = useLanguage();
   const params = useParams();
   const token = params.token as string;
+  const { isAuthenticated: candidateSignedIn, profile: candidateProfile } = useCandidateAuth();
   const [application, setApplication] = useState<PublicApplication | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<LoadError | null>(null);
@@ -143,6 +151,22 @@ export default function ApplyPage() {
   useEffect(() => {
     loadApplication();
   }, [loadApplication]);
+
+  // Signed-in candidates start with their name/email/phone filled in (only
+  // empty fields; they can still edit everything before submitting).
+  useEffect(() => {
+    if (!application || !candidateProfile) return;
+    setValues((prev) => {
+      const next = { ...prev };
+      for (const field of application.fields) {
+        if (next[field.id]) continue;
+        if (field.type === "email") next[field.id] = candidateProfile.email;
+        else if (field.type === "phone" && candidateProfile.phone) next[field.id] = candidateProfile.phone;
+        else if (["full_name", "name"].includes(field.key)) next[field.id] = candidateProfile.full_name;
+      }
+      return next;
+    });
+  }, [application, candidateProfile]);
 
   function clearFieldError(fieldId: string) {
     setFieldErrors((prev) => {
@@ -266,6 +290,14 @@ export default function ApplyPage() {
           company={job.company_name}
           alreadyReceived={outcome === "already_received"}
         />
+        <div className="apply-account-banner" role="note">
+          <p>{candidateSignedIn ? t("portal.apply.trackMessage") : t("portal.apply.guestAfter")}</p>
+          <div className="apply-account-actions">
+            <Link className="btn btn--primary btn--sm" to={candidateSignedIn ? "/candidate/applications" : "/candidate/register"}>
+              {candidateSignedIn ? t("portal.apply.track") : t("portal.auth.createAccount")}
+            </Link>
+          </div>
+        </div>
       </>
     ) : (
       <>
@@ -274,6 +306,7 @@ export default function ApplyPage() {
           description={metaDescription}
           og={{ title: pageTitle, description: metaDescription }}
         />
+        <ApplyAccountBanner returnTo={`/apply/${token}`} />
         <PublicApplicationFormTemplate
           job={job}
           fields={application.fields}

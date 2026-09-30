@@ -2,6 +2,7 @@ import { BrowserRouter, useRoutes, useSearchParams } from "react-router-dom";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 import type { ReactNode } from "react";
 import { AuthProvider } from "./context/AuthContext";
+import { CandidateAuthProvider } from "./context/CandidateAuthContext";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { LanguageProvider } from "./contexts/LanguageContext";
 import { ToastProvider } from "./contexts/ToastContext";
@@ -46,7 +47,7 @@ function AppRoutes() {
 
 /**
  * Root component: browser router → global error boundary → Google OAuth gate →
- * auth provider → theme + language + notifications → route table.
+ * auth provider (HR) → candidate auth provider (Candidate Portal) → theme + language + notifications → route table.
  *
  * <Toaster /> lives outside the route tree so every page (and the shell) can
  * raise notifications without owning any presentation.
@@ -57,14 +58,16 @@ export default function App() {
       <ErrorBoundary>
         <GoogleOAuthGate>
           <AuthProvider>
-            <ThemeProvider>
-              <LanguageProvider>
-                <ToastProvider>
-                  <AppRoutes />
-                  <Toaster />
-                </ToastProvider>
-              </LanguageProvider>
-            </ThemeProvider>
+            <CandidateAuthProvider>
+              <ThemeProvider>
+                <LanguageProvider>
+                  <ToastProvider>
+                    <AppRoutes />
+                    <Toaster />
+                  </ToastProvider>
+                </LanguageProvider>
+              </ThemeProvider>
+            </CandidateAuthProvider>
           </AuthProvider>
         </GoogleOAuthGate>
       </ErrorBoundary>

@@ -42,14 +42,15 @@ DEFAULT_FROM = "onboarding@resend.dev"
 _REQUEST_TIMEOUT_SECONDS = 20
 
 
-def build_reset_link(token: str) -> str:
+def build_reset_link(token: str, path: str = "/reset-password") -> str:
     """Absolute frontend URL a user clicks to reach the reset page.
 
     The token is URL-encoded so special characters survive transit inside the
-    email HTML/text body.
+    email HTML/text body. ``path`` selects the page (the Candidate Portal uses
+    ``/candidate/reset-password``).
     """
     base = settings.FRONTEND_BASE_URL.rstrip("/")
-    return f"{base}/reset-password?token={quote(token, safe='')}"
+    return f"{base}{path}?token={quote(token, safe='')}"
 
 
 def _configured_sender() -> str:
@@ -117,7 +118,7 @@ def _render_reset_html(reset_link: str) -> str:
 </html>"""
 
 
-def send_reset_password_email(email: str, token: str) -> bool:
+def send_reset_password_email(email: str, token: str, path: str = "/reset-password") -> bool:
     """Send the "Reset Your Password" email for ``token`` to ``email``.
 
     Builds the one-click reset link from ``FRONTEND_BASE_URL``, renders the HTML
@@ -131,7 +132,7 @@ def send_reset_password_email(email: str, token: str) -> bool:
     Failures are logged, never raised, so the forgot-password endpoint can keep
     its identical response for every address (no account enumeration).
     """
-    reset_link = build_reset_link(token)
+    reset_link = build_reset_link(token, path)
     api_key = _api_key()
     if api_key is None:
         logger.warning(

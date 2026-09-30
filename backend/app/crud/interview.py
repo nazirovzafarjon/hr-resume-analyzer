@@ -122,3 +122,34 @@ def delete_interview(db: Session, db_obj: Interview) -> None:
     """Delete the given interview."""
     db.delete(db_obj)
     db.commit()
+
+# ---------------------------------------------------------------------------
+# Candidate Portal (always scoped to one candidate account)
+# ---------------------------------------------------------------------------
+
+
+def _candidate_query(db: Session, candidate_account_id: int):
+    """Interviews on applications submitted by one candidate account."""
+    return (
+        db.query(Interview)
+        .join(Interview.candidate)
+        .join(Application.job)
+        .filter(Application.candidate_account_id == candidate_account_id)
+        .options(contains_eager(Interview.candidate).contains_eager(Application.job))
+    )
+
+
+def list_candidate_interviews(db: Session, candidate_account_id: int) -> list[Interview]:
+    """All of the candidate's interviews, soonest first."""
+    return (
+        _candidate_query(db, candidate_account_id)
+        .order_by(Interview.scheduled_at.asc(), Interview.id.asc())
+        .all()
+    )
+
+
+def get_candidate_interview(
+    db: Session, candidate_account_id: int, interview_id: int
+) -> Interview | None:
+    """The interview if it is on one of the candidate's applications, else ``None``."""
+    return _candidate_query(db, candidate_account_id).filter(Interview.id == interview_id).first()

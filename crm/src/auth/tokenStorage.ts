@@ -70,3 +70,31 @@ export function clearToken(): void {
   window.localStorage.removeItem(REFRESH_TOKEN_KEY);
   writeSessionHint(false);
 }
+/*
+ * Candidate Portal session.
+ *
+ * Kept under separate keys so an HR session and a candidate session in the
+ * same browser never overwrite each other (they are different identities
+ * with different token types; see backend app/models/candidate_account.py).
+ * No landing-site hint cookie: the landing links to the portal directly.
+ */
+const CANDIDATE_TOKEN_KEY = "resumeAnalyzer.candidate.accessToken";
+const CANDIDATE_REFRESH_TOKEN_KEY = "resumeAnalyzer.candidate.refreshToken";
+
+export function getCandidateToken(): string | null {
+  return window.localStorage.getItem(CANDIDATE_TOKEN_KEY);
+}
+
+export function getCandidateRefreshToken(): string | null {
+  return window.localStorage.getItem(CANDIDATE_REFRESH_TOKEN_KEY);
+}
+
+export function saveCandidateTokens(accessToken: string, refreshToken: string): void {
+  window.localStorage.setItem(CANDIDATE_TOKEN_KEY, accessToken);
+  window.localStorage.setItem(CANDIDATE_REFRESH_TOKEN_KEY, refreshToken);
+}
+
+export function clearCandidateTokens(): void {
+  window.localStorage.removeItem(CANDIDATE_TOKEN_KEY);
+  window.localStorage.removeItem(CANDIDATE_REFRESH_TOKEN_KEY);
+}

@@ -2,9 +2,8 @@ import type { Dictionary } from "./en";
 
 export const uz: Dictionary = {
   meta: {
-    title: "Resume Analyzer — HR jamoalari uchun aqlli ishga qabul",
-    description:
-      "Resume Analyzer HR jamoalariga vakansiyalarni e'lon qilish, arizalarni yig'ish, rezyumelarni vakansiya talablari bo'yicha tahlil qilish hamda nomzodlar, suhbatlar va qarorlarni bir joyda boshqarishda yordam beradi.",
+    title: "Resume Analyzer — kompaniyalar va nomzodlar uchun AI yordamidagi ishga olish",
+    description: "Ikki tomon uchun ishga olish platformasi: kompaniyalar vakansiya e'lon qiladi, rezyumelarni tahlil qiladi va suhbatlarni boshqaradi; nomzodlar ariza topshiradi, jarayonni kuzatadi va rezyumesi vakansiyaga qanchalik mosligini ko'radi.",
   },
   common: {
     appName: "Resume Analyzer",
@@ -29,18 +28,21 @@ export const uz: Dictionary = {
     themeDark: "Qorong'i",
     themeSystem: "Tizim",
     home: "Resume Analyzer bosh sahifasi",
+    forCompanies: "Kompaniyalarga",
+    forCandidates: "Nomzodlarga",
+    candidatePortal: "Nomzod portali",
   },
   hero: {
-    eyebrow: "HR jamoalari uchun ishga qabul platformasi",
-    titleLead: "Aqlliroq yollang.",
-    titleTail: "Munosib nomzodni tezroq toping.",
-    subtitle:
-      "Vakansiyalarni e'lon qilish, arizalarni yig'ish, rezyumelarni tahlil qilish va har bir nomzod, suhbat hamda qarorni bir joyda tartibli saqlashning oddiy usuli.",
-    primaryCta: "Boshlash",
-    secondaryCta: "Imkoniyatlarni ko'rish",
-    note: "Hisob yaratishingiz bilan ish maydoningiz tayyor bo'ladi.",
+    eyebrow: "Kompaniyalar va nomzodlar uchun AI yordamidagi ishga olish platformasi",
+    titleLead: "Aqlli ishga olish.",
+    titleTail: "Nomzod uchun tushunarli jarayon.",
+    subtitle: "Kompaniyalar uchun AI yordamidagi ishga olish — nomzodlar uchun esa shaffof ariza jarayoni. Vakansiyalarni e'lon qiling va barcha nomzodlarni bir joyda boshqaring, arizachilar esa arizasi qaysi bosqichda ekanini ko'radi.",
+    primaryCta: "Men xodim yollayman",
+    secondaryCta: "Men ish qidiryapman",
+    note: "Kompaniyalar ishga olish maydonini, nomzodlar shaxsiy portalni oladi.",
     mockupLabel:
       "Resume Analyzer boshqaruv panelining namunaviy ko'rinishi: ishlar, arizalar, nomzodlar va suhbatlar misol ma'lumotlar bilan.",
+    trackApplication: "Ariza topshirganmisiz? Arizangizni kuzating",
   },
   mockup: {
     nav: ["Boshqaruv paneli", "Ishlar", "Arizalar", "Nomzodlar", "Suhbatlar", "Tahlil"],
@@ -67,7 +69,7 @@ export const uz: Dictionary = {
     ],
   },
   features: {
-    eyebrow: "Imkoniyatlar",
+    eyebrow: "Kompaniyalarga",
     title: "Ishga qabul uchun kerakli hamma narsa — bir joyda",
     subtitle:
       "Birinchi vakansiyadan yakuniy qarorgacha Resume Analyzer ishni tartibga soladi — jamoangiz qog'ozlar bilan emas, odamlar bilan shug'ullanadi.",
@@ -97,6 +99,85 @@ export const uz: Dictionary = {
         text: "Ishlar, nomzodlar, arizalar va suhbatlar bo'yicha boshqaruv panellarida faollikni kuzatib boring.",
       },
     ],
+  },
+  candidates: {
+    eyebrow: "Nomzodlarga",
+    title: "Bir marta ariza topshiring. Doim qaysi bosqichda ekaningizni biling.",
+    subtitle: "Bepul nomzod hisobini yarating, kompaniya havolasi orqali ariza topshiring va har bir arizani o'z portalingizda kuzating.",
+    points: [
+      {
+        title: "Vakansiyalarga ariza topshiring",
+        text: "Ma'lumotlaringiz va rezyumengizni kompaniya formasi orqali yuboring — hisobga kirgan holda, ariza portalingizga tushadi.",
+      },
+      {
+        title: "Holat va jarayonni kuzating",
+        text: "Arizaning har bir bosqichi — yuborishdan yakuniy qarorgacha — haqiqiy sanalar bilan.",
+      },
+      {
+        title: "Rezyume mosligini tushuning",
+        text: "Vakansiyadagi qaysi ko'nikmalar rezyumengizda ko'rinadi va qaysilarini kuchaytirish kerak.",
+      },
+      {
+        title: "Suhbatlaringizni ko'ring",
+        text: "Suhbat belgilanishi bilan sana, vaqt, davomiylik va havola.",
+      },
+    ],
+    primary: "Nomzod hisobini yaratish",
+    secondary: "Nomzod portaliga kirish",
+    sample: {
+      label: "Nomzod portalidagi ariza jarayoni, namunaviy ma'lumotlar bilan.",
+      role: "Python Backend dasturchi",
+      company: "Namuna kompaniya",
+      status: "HR ko'rib chiqmoqda",
+      steps: [
+        {
+          title: "Ariza yuborildi",
+          meta: "28-sen",
+        },
+        {
+          title: "Rezyume tahlil qilindi",
+          meta: "28-sen",
+        },
+        {
+          title: "HR ko'rib chiqishi",
+          meta: "Jarayonda",
+        },
+        {
+          title: "Suhbat",
+          meta: "Belgilanmagan",
+        },
+        {
+          title: "Yakuniy qaror",
+          meta: "Kutilmoqda",
+        },
+      ],
+      matchLabel: "Rezyume mosligi",
+      match: "78%",
+    },
+  },
+  transparency: {
+    eyebrow: "Shaffof ishga olish",
+    title: "Arizangizga nima bo'lganini endi taxmin qilishingiz shart emas",
+    subtitle: "HR o'z maydonida olib boradigan jarayon nomzod portalida oddiy tilda aks etadi.",
+    items: [
+      {
+        title: "Arizangizni kuzating",
+        text: "Hisobdan yuborilgan barcha arizalar bitta ro'yxatda.",
+      },
+      {
+        title: "Qaysi bosqichda ekaningizni biling",
+        text: "Sukunat o'rniga tushunarli holatlar va ariza jarayoni.",
+      },
+      {
+        title: "Foydali fikr oling",
+        text: "Rezyumengizni vakansiya talablari bilan betaraf solishtirish.",
+      },
+      {
+        title: "Suhbat belgilanganini biling",
+        text: "HR suhbat belgilashi bilan tafsilotlar paydo bo'ladi.",
+      },
+    ],
+    note: "AI ishga olish jamoasiga yordam beradi, lekin qaror qabul qilmaydi. Nomzodlar o'z jarayoni va rezyume mosligini ko'radi — rekruterlarning ichki qaydlarini va har bir qarorning kafolatlangan izohini emas.",
   },
   how: {
     eyebrow: "Qanday ishlaydi",
@@ -215,7 +296,7 @@ export const uz: Dictionary = {
     items: [
       {
         q: "Resume Analyzer nima?",
-        a: "Resume Analyzer — HR jamoalari uchun ishga qabul platformasi. U vakansiyalarni e'lon qilish, arizalarni yig'ish, rezyumelarni vakansiya talablari bo'yicha tahlil qilish hamda nomzodlar, suhbatlar va qarorlarni bir joyda boshqarishga yordam beradi.",
+        a: "Resume Analyzer — ikki tomonlama ishga olish platformasi. Kompaniyalar vakansiya e'lon qiladi, arizalarni yig'adi, rezyumelarni tahlil qiladi va nomzodlar hamda suhbatlarni boshqaradi. Nomzodlar arizalarini kuzatish uchun shaxsiy portal oladi.",
       },
       {
         q: "Resume Analyzer kimlar uchun?",
@@ -257,6 +338,14 @@ export const uz: Dictionary = {
         q: "Jamoa bilan qanday bog'lanish mumkin?",
         a: "Ushbu sahifa pastidagi aloqa bo'limidan foydalaning.",
       },
+      {
+        q: "Men nomzodman. Arizamni qanday kuzataman?",
+        a: "Bepul nomzod hisobini yarating (yoki kiring), so'ng kompaniya formasini yuboring. Hisobdan yuborilgan arizalar nomzod portalida holati, jarayoni, suhbatlari va rezyume mosligi bilan ko'rinadi. Mehmon sifatida yuborilgan arizalarni keyin hisobga qo'shib bo'lmaydi.",
+      },
+      {
+        q: "Kimni ishga olishni AI hal qiladimi?",
+        a: "Yo'q. AI ishga olish jamoasiga yordam berish uchun rezyumelarni vakansiya talablari bilan solishtiradi va nomzodga rezyume mosligi haqida betaraf ma'lumot beradi. Barcha qarorlarni ishga olish jamoasidagi odamlar qabul qiladi.",
+      },
     ],
   },
   contact: {
@@ -291,13 +380,14 @@ export const uz: Dictionary = {
     signedInLink: "Ish maydoningizni oching",
   },
   cta: {
-    title: "Ishga qabul jarayonini soddalashtirishga tayyormisiz?",
-    subtitle: "Hisob yarating va birinchi vakansiyangizni bugunoq e'lon qiling.",
-    primary: "Boshlash",
+    title: "Ishga olishning ikki tomoni uchun bitta platforma",
+    subtitle: "Kompaniyalar vakansiya e'lon qiladi va qaror qabul qiladi. Nomzodlar ariza topshiradi va doim qaysi bosqichda ekanini biladi.",
+    primary: "Xodim yollashni boshlash",
     secondary: "Kirish",
+    candidate: "Nomzod portalini ochish",
   },
   footer: {
-    tagline: "Zamonaviy HR jamoalari uchun aqlli ishga qabul jarayonlari.",
+    tagline: "Kompaniyalar uchun aqlli ishga olish, nomzodlar uchun tushunarli jarayon.",
     product: "Mahsulot",
     company: "Kompaniya",
     legal: "Hujjatlar",

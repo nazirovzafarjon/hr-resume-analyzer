@@ -13,7 +13,15 @@ Purpose claim                      Accepted by
 ``refresh``                        ``POST /api/auth/refresh`` only
 ``password_reset``                 the reset / skip-reset endpoints only
 ``role_selection``                 ``POST /api/auth/select-role`` only
+``candidate_access``               the Candidate Portal guard only
+``candidate_refresh``              ``POST /api/candidate/auth/refresh`` only
+``candidate_password_reset``       ``POST /api/candidate/auth/reset-password`` only
 =================================  =========================================
+
+Candidate tokens identify a ``candidate_accounts`` row, not a ``users`` row.
+Their distinct purposes are the HR/candidate boundary: the HR guard accepts
+only ``access`` and the candidate guard only ``candidate_access``, so neither
+token type can ever be used on the other side.
 
 Access and refresh tokens also carry a ``role`` claim: the session's active
 workspace (see :mod:`app.core.roles`). It is written only here, when the
@@ -51,6 +59,11 @@ TOKEN_PURPOSE_RESET = "password_reset"
 TOKEN_PURPOSE_ROLE_SELECTION = "role_selection"
 #: Lifetime of a role-selection token: long enough to click a button.
 ROLE_SELECTION_TOKEN_EXPIRE_MINUTES = 5
+
+#: Candidate Portal credentials (see the table in the module docstring).
+TOKEN_PURPOSE_CANDIDATE_ACCESS = "candidate_access"
+TOKEN_PURPOSE_CANDIDATE_REFRESH = "candidate_refresh"
+TOKEN_PURPOSE_CANDIDATE_RESET = "candidate_password_reset"
 
 
 def _password_bytes(password: str) -> bytes:
@@ -157,6 +170,23 @@ def create_refresh_token(
         # Carried so a refresh keeps the session's workspace (never upgrades it).
         extra_claims=_role_claims(role),
     )
+
+
+def create_candidate_token(
+    candidate_id: int, purpose: str, issued_at: datetime | None = None
+) -> str:
+    """Create a Candidate Portal token (access, refresh or password reset).
+
+    Lifetimes match the HR equivalents so both sides behave the same.
+    """
+    lifetimes = {
+        TOKEN_PURPOSE_CANDIDATE_ACCESS: timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
+        TOKEN_PURPOSE_CANDIDATE_REFRESH: timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS),
+        TOKEN_PURPOSE_CANDIDATE_RESET: timedelta(
+            minutes=settings.PASSWORD_RESET_TOKEN_EXPIRE_MINUTES
+        ),
+    }
+    return _create_token(candidate_id, lifetimes[purpose], purpose, issued_at=issued_at)
 
 
 def create_password_reset_token(

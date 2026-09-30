@@ -3,6 +3,9 @@ import { lazy, Suspense, type ReactNode } from "react";
 import { landingPath, useAuth } from "../context/AuthContext";
 import RequireAuth from "../components/routing/RequireAuth";
 import RequireAdmin from "../components/routing/RequireAdmin";
+import RequireCandidate from "../components/routing/RequireCandidate";
+import CandidateLayout from "../components/candidate/CandidateLayout";
+import { useCandidateAuth } from "../context/CandidateAuthContext";
 import AppLayout from "../components/layout/AppLayout";
 import GoogleAuthCallback from "../components/auth/GoogleAuthCallback";
 import Spinner from "../components/ui/Spinner";
@@ -39,6 +42,16 @@ const AdminAuditLogsPage = lazy(() => import("../pages/admin/AdminAuditLogsPage"
 const AdminSystemErrorsPage = lazy(() => import("../pages/admin/AdminSystemErrorsPage"));
 const AdminSettingsPage = lazy(() => import("../pages/admin/AdminSettingsPage"));
 const AdminSystemHealthPage = lazy(() => import("../pages/admin/AdminSystemHealthPage"));
+// Candidate Portal (its own chunks and shell; see components/candidate).
+const CandidateLoginPage = lazy(() => import("../pages/candidate/auth/CandidateLoginPage"));
+const CandidateRegisterPage = lazy(() => import("../pages/candidate/auth/CandidateRegisterPage"));
+const CandidateForgotPasswordPage = lazy(() => import("../pages/candidate/auth/CandidateForgotPasswordPage"));
+const CandidateResetPasswordPage = lazy(() => import("../pages/candidate/auth/CandidateResetPasswordPage"));
+const CandidateDashboardPage = lazy(() => import("../pages/candidate/CandidateDashboardPage"));
+const CandidateApplicationsPage = lazy(() => import("../pages/candidate/CandidateApplicationsPage"));
+const CandidateApplicationDetailPage = lazy(() => import("../pages/candidate/CandidateApplicationDetailPage"));
+const CandidateInterviewsPage = lazy(() => import("../pages/candidate/CandidateInterviewsPage"));
+const CandidateProfilePage = lazy(() => import("../pages/candidate/CandidateProfilePage"));
 
 /**
  * Pages are code-split per route (charts, the form builder and the analysis
@@ -78,22 +91,41 @@ function adminPage(element: ReactNode) {
   );
 }
 
+/**
+ * Wraps a Candidate Portal page in the candidate shell + guard. Candidate
+ * sessions are separate from HR sessions (different tokens), so neither
+ * guard lets the other identity in.
+ */
+function candidatePage(element: ReactNode) {
+  return (
+    <RequireCandidate>
+      <CandidateLayout>
+        <Suspense fallback={<PageFallback />}>{element}</Suspense>
+      </CandidateLayout>
+    </RequireCandidate>
+  );
+}
+
 /** Public lazily loaded page (no shell). */
 function publicPage(element: ReactNode) {
   return <Suspense fallback={<PageFallback />}>{element}</Suspense>;
 }
 
 /**
- * Root/unknown path: a session goes to its workspace's home, a pending
- * workspace choice back to the choice, everyone else to login.
+ * Root/unknown path: an HR session goes to its workspace's home, a pending
+ * workspace choice back to the choice, a candidate session to the Candidate
+ * Portal, everyone else to login.
  */
 function RootRedirect() {
   const { isAuthenticated, activeRole, pendingSelection } = useAuth();
+  const candidate = useCandidateAuth();
   const target = isAuthenticated
     ? landingPath(activeRole)
     : pendingSelection
       ? "/select-role"
-      : "/login";
+      : candidate.isAuthenticated
+        ? "/candidate"
+        : "/login";
   return <Navigate to={target} replace />;
 }
 
@@ -123,6 +155,16 @@ export const routes: RouteObject[] = [
   { path: "/interviews/:id", element: protectedPage(<InterviewDetailsPage />) },
   { path: "/analytics", element: protectedPage(<AnalyticsPage />) },
   { path: "/settings", element: protectedPage(<SettingsPage />) },
+  { path: "/candidate/login", element: publicPage(<CandidateLoginPage />) },
+  { path: "/candidate/register", element: publicPage(<CandidateRegisterPage />) },
+  { path: "/candidate/forgot-password", element: publicPage(<CandidateForgotPasswordPage />) },
+  { path: "/candidate/reset-password", element: publicPage(<CandidateResetPasswordPage />) },
+  { path: "/candidate", element: candidatePage(<CandidateDashboardPage />) },
+  { path: "/candidate/applications", element: candidatePage(<CandidateApplicationsPage />) },
+  { path: "/candidate/applications/:id", element: candidatePage(<CandidateApplicationDetailPage />) },
+  { path: "/candidate/interviews", element: candidatePage(<CandidateInterviewsPage />) },
+  { path: "/candidate/profile", element: candidatePage(<CandidateProfilePage />) },
+  { path: "/candidate/*", element: <Navigate to="/candidate" replace /> },
   { path: "/admin", element: <Navigate to="/admin/dashboard" replace /> },
   { path: "/admin/dashboard", element: adminPage(<AdminDashboardPage />) },
   { path: "/admin/users", element: adminPage(<AdminUsersPage />) },

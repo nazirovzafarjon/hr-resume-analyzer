@@ -7,9 +7,8 @@
  */
 export const en = {
   meta: {
-    title: "Resume Analyzer — Smarter Hiring for HR Teams",
-    description:
-      "Resume Analyzer helps HR teams publish vacancies, collect applications, analyze resumes against job requirements and manage candidates, interviews and hiring decisions in one place.",
+    title: "Resume Analyzer — AI-assisted hiring for companies and candidates",
+    description: "A hiring platform for both sides: companies publish vacancies, analyze resumes and manage interviews; candidates apply, track their progress and understand how their resume fits the role.",
   },
   common: {
     appName: "Resume Analyzer",
@@ -34,18 +33,21 @@ export const en = {
     themeDark: "Dark",
     themeSystem: "System",
     home: "Resume Analyzer home",
+    forCompanies: "For companies",
+    forCandidates: "For candidates",
+    candidatePortal: "Candidate portal",
   },
   hero: {
-    eyebrow: "Recruitment workspace for HR teams",
-    titleLead: "Hire smarter.",
-    titleTail: "Find the right talent faster.",
-    subtitle:
-      "A simpler way to publish vacancies, collect applications, analyze resumes and keep every candidate, interview and hiring decision organized in one place.",
-    primaryCta: "Get started",
-    secondaryCta: "Explore features",
-    note: "Your HR workspace is ready as soon as you create an account.",
+    eyebrow: "AI-powered hiring platform for companies and candidates",
+    titleLead: "Smarter hiring.",
+    titleTail: "A clearer candidate experience.",
+    subtitle: "AI-assisted hiring for companies — and a transparent application experience for candidates. Publish vacancies and manage every candidate in one place, while applicants can see where their application stands.",
+    primaryCta: "I'm hiring",
+    secondaryCta: "I'm looking for a job",
+    note: "Companies get a hiring workspace; candidates get a personal portal.",
     mockupLabel:
       "Illustrative preview of the Resume Analyzer dashboard showing jobs, applications, candidates and interviews with sample data.",
+    trackApplication: "Already applied? Track your application",
   },
   mockup: {
     nav: ["Dashboard", "Jobs", "Applications", "Candidates", "Interviews", "Analytics"],
@@ -72,7 +74,7 @@ export const en = {
     ],
   },
   features: {
-    eyebrow: "Features",
+    eyebrow: "For companies",
     title: "Everything your hiring workflow needs, in one place",
     subtitle:
       "From the first vacancy to the final decision, Resume Analyzer keeps the work structured so your team can focus on people, not paperwork.",
@@ -102,6 +104,85 @@ export const en = {
         text: "Follow recruitment activity through dashboards for jobs, candidates, applications and interviews.",
       },
     ],
+  },
+  candidates: {
+    eyebrow: "For candidates",
+    title: "Apply once. Always know where you stand.",
+    subtitle: "Create a free candidate account, apply through a company's application link and follow every application from your own portal.",
+    points: [
+      {
+        title: "Apply to opportunities",
+        text: "Submit your details and resume through the company's application form — signed in, so it lands in your portal.",
+      },
+      {
+        title: "Track status and progress",
+        text: "See each step of your application, from submission to the final decision, with real dates.",
+      },
+      {
+        title: "Understand your resume fit",
+        text: "See which skills from the job your resume already shows and which ones to strengthen.",
+      },
+      {
+        title: "View your interviews",
+        text: "Date, time, duration and the meeting link, as soon as an interview is scheduled.",
+      },
+    ],
+    primary: "Create candidate account",
+    secondary: "Sign in to candidate portal",
+    sample: {
+      label: "Illustration of an application timeline in the Candidate Portal with sample data.",
+      role: "Python Backend Developer",
+      company: "Sample Company",
+      status: "Under HR review",
+      steps: [
+        {
+          title: "Application submitted",
+          meta: "Sep 28",
+        },
+        {
+          title: "Resume reviewed",
+          meta: "Sep 28",
+        },
+        {
+          title: "HR review",
+          meta: "In progress",
+        },
+        {
+          title: "Interview",
+          meta: "Not scheduled",
+        },
+        {
+          title: "Final decision",
+          meta: "Pending",
+        },
+      ],
+      matchLabel: "Resume compatibility",
+      match: "78%",
+    },
+  },
+  transparency: {
+    eyebrow: "Transparent hiring",
+    title: "No more wondering what happened to your application",
+    subtitle: "The same process HR runs in its workspace is reflected, in plain language, in the candidate's portal.",
+    items: [
+      {
+        title: "Track your application",
+        text: "Every application you submit while signed in appears in one list.",
+      },
+      {
+        title: "Know where you are",
+        text: "Friendly statuses and a timeline instead of silence.",
+      },
+      {
+        title: "See relevant feedback",
+        text: "A neutral comparison of your resume with the job's requirements.",
+      },
+      {
+        title: "Know when an interview is scheduled",
+        text: "Interview details appear the moment HR schedules one.",
+      },
+    ],
+    note: "AI assists the hiring team; it does not make hiring decisions. Candidates see their progress and resume fit — not internal recruiter notes, and not a guaranteed explanation of every decision.",
   },
   how: {
     eyebrow: "How it works",
@@ -220,7 +301,7 @@ export const en = {
     items: [
       {
         q: "What is Resume Analyzer?",
-        a: "Resume Analyzer is a recruitment workspace for HR teams. It helps you publish vacancies, collect applications, analyze resumes against job requirements and manage candidates, interviews and hiring decisions in one place.",
+        a: "Resume Analyzer is a hiring platform with two sides. Companies publish vacancies, collect applications, analyze resumes against job requirements and manage candidates and interviews. Candidates get a personal portal to follow their applications.",
       },
       {
         q: "Who is Resume Analyzer for?",
@@ -262,6 +343,14 @@ export const en = {
         q: "How can I contact the team?",
         a: "Use the contact section at the bottom of this page.",
       },
+      {
+        q: "I'm a candidate. How do I track my application?",
+        a: "Create a free candidate account (or sign in) and then submit the company's application form. Applications sent while signed in appear in your Candidate Portal with their status, timeline, interviews and resume fit. Applications sent as a guest can't be added to an account later.",
+      },
+      {
+        q: "Does AI decide who gets hired?",
+        a: "No. AI compares resumes with the job requirements to help the hiring team, and gives candidates a neutral view of their resume fit. Every hiring decision is made by people on the hiring team.",
+      },
     ],
   },
   contact: {
@@ -296,13 +385,14 @@ export const en = {
     signedInLink: "Open your workspace",
   },
   cta: {
-    title: "Ready to simplify your hiring workflow?",
-    subtitle: "Create your account and publish your first vacancy today.",
-    primary: "Get started",
+    title: "One platform for both sides of hiring",
+    subtitle: "Companies publish vacancies and decide. Candidates apply and always know where they stand.",
+    primary: "Start hiring",
     secondary: "Log in",
+    candidate: "Open candidate portal",
   },
   footer: {
-    tagline: "Smarter hiring workflows for modern HR teams.",
+    tagline: "Smarter hiring for companies, a clearer experience for candidates.",
     product: "Product",
     company: "Company",
     legal: "Legal",

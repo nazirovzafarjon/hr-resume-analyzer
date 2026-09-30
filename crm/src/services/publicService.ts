@@ -38,5 +38,9 @@ export function submitPublicApplication(
     method: "POST",
     body: buildSubmissionFormData(fields, values, files),
     formData: true,
+    // A signed-in candidate's application is linked to their portal account;
+    // guests submit without a token exactly as before.
+    session: "candidate",
+    optionalAuth: true,
   });
 }

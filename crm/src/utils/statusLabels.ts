@@ -21,6 +21,7 @@ export const APPLICATION_STATUS_TONES: Record<ApplicationStatus, StatusTone> = {
   reviewing: "warning",
   shortlisted: "primary",
   interview: "success",
+  hired: "success",
   rejected: "danger",
   withdrawn: "neutral",
 };
@@ -30,6 +31,7 @@ export const APPLICATION_STATUS_LABELS: Record<ApplicationStatus, string> = {
   reviewing: "Reviewing",
   shortlisted: "Shortlisted",
   interview: "Interview",
+  hired: "Hired",
   rejected: "Rejected",
   withdrawn: "Withdrawn",
 };

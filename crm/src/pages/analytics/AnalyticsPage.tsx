@@ -15,7 +15,7 @@ import { useChartPalette } from "../../components/charts/chartTheme";
 import { APPLICATION_STATUS_LABELS, translateOr } from "../../utils/statusLabels";
 import type { ApplicationStatus } from "../../types/candidate";
 
-const STATUS_ORDER: ApplicationStatus[] = ["new", "reviewing", "shortlisted", "interview", "rejected", "withdrawn"];
+const STATUS_ORDER: ApplicationStatus[] = ["new", "reviewing", "shortlisted", "interview", "hired", "rejected", "withdrawn"];
 const TERMINAL: ApplicationStatus[] = ["rejected", "withdrawn"];
 
 /** /analytics — hiring funnel, score distribution and weekly volume. */

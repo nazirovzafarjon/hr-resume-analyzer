@@ -27,6 +27,7 @@ const STATUS_FILTERS: ApplicationStatus[] = [
   "reviewing",
   "shortlisted",
   "interview",
+  "hired",
   "rejected",
   "withdrawn",
 ];
