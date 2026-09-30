@@ -1,7 +1,7 @@
 """CRUD operations for users' AI provider configurations.
 
 Contains only database access, always scoped to one ``user_id``.
-Encryption and provider logic live in ``app.services.ai_provider``.
+Encryption and provider logic live in ``app.services.ai.provider``.
 """
 
 from sqlalchemy import select

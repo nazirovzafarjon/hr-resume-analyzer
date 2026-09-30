@@ -1,6 +1,6 @@
 """Unit tests for business-logic services.
 
-* ``app.services.resume_analyzer`` - keyword-based resume analysis heuristics.
+* ``app.services.ai.heuristic`` - keyword-based resume analysis heuristics.
 * ``app.services.job`` - lead counting and analytics aggregation.
 """
 
@@ -8,7 +8,7 @@ import pytest
 
 from app.models.worker import HiringStatus
 from app.services.job import increment_leads_count, job_analytics
-from app.services.resume_analyzer import (
+from app.services.ai.heuristic import (
     _extract_skills,
     analyze_resume,
     score_candidate,
@@ -207,7 +207,7 @@ class TestAnalyzeAndUpdateWorker:
         return job, worker
 
     def test_persists_score_details_and_recommendation(self, db_session):
-        from app.services.resume_analyzer import analyze_and_update_worker
+        from app.services.ai.heuristic import analyze_and_update_worker
 
         job, worker = self._seed(db_session)
         updated = analyze_and_update_worker(
@@ -236,7 +236,7 @@ class TestAnalyzeAndUpdateWorker:
         assert worker.hiring_status == HiringStatus.STRONG_HIRE
 
     def test_overwrites_previous_analysis(self, db_session):
-        from app.services.resume_analyzer import analyze_and_update_worker
+        from app.services.ai.heuristic import analyze_and_update_worker
 
         job, worker = self._seed(db_session)
         analyze_and_update_worker(

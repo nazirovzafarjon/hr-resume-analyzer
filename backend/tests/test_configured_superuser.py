@@ -4,7 +4,7 @@ from app.core.security import verify_password
 from app.crud import user as user_crud
 from app.models.audit_log import AuditLog
 from app.schemas.user import UserCreate
-from app.services.user_admin import ensure_configured_superuser
+from app.services.admin.users import ensure_configured_superuser
 
 
 def _actions(db, user_id):

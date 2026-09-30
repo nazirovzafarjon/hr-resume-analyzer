@@ -32,9 +32,12 @@ from app.models.interview import InterviewStatus as InterviewSessionStatus
 from app.models.user import User
 from app.models.worker import ApplicationStatus, HiringStatus, InterviewStatus
 from app.schemas import admin as schemas
-from app.services import admin_directory, admin_stats, ai_monitoring, error_monitor
+from app.services.admin import directory as admin_directory
+from app.services.admin import stats as admin_stats
+from app.services.ai import monitoring as ai_monitoring
+from app.services.admin import errors as error_monitor
 from app.services import platform_settings as platform_settings_service
-from app.services import system_health
+from app.services.admin import health as system_health
 from app.services.audit import AuditAction, AuditContext, AuditResource
 
 router = APIRouter(dependencies=[Depends(get_current_superuser)])

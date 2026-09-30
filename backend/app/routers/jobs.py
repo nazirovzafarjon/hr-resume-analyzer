@@ -25,8 +25,8 @@ from app.schemas.job import (
     JobResponse,
     JobUpdate,
 )
-from app.services import ai_monitoring
-from app.services import ai_provider as ai_provider_service
+from app.services.ai import monitoring as ai_monitoring
+from app.services.ai import provider as ai_provider_service
 from app.services import application_form as application_form_service
 from app.services import audit
 from app.services.audit import AuditAction, AuditContext, AuditResource

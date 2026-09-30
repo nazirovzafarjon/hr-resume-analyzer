@@ -13,7 +13,7 @@ import pytest
 
 from app.models.worker import AnalysisBatch, AnalysisStatus, ApplicationStatus, Worker
 from app.schemas.application_analysis import ApplicationAnalysis
-from app.services import auto_analyze as service
+from app.services.ai import batch as service
 from app.services.ai.job_analyzer import AIProviderUnavailableError
 from tests.payloads import JOB_PAYLOAD, WORKER_PAYLOAD
 

@@ -28,8 +28,8 @@ from app.models.job import Job
 from app.models.worker import AnalysisStatus, Worker
 from app.schemas.application_analysis import ApplicationAnalysis
 from app.services.ai.application_analyzer import analyze_application
-from app.services import ai_monitoring
-from app.services import ai_provider as ai_provider_service
+from app.services.ai import monitoring as ai_monitoring
+from app.services.ai import provider as ai_provider_service
 from app.services import audit
 from app.services.ai.job_analyzer import AIServiceError
 from app.services.resume_text import extract_resume_text

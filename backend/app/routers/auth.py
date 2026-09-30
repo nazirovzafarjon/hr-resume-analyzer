@@ -40,10 +40,10 @@ from app.schemas.ai_provider import (
     AIProviderTestRequest,
     AIProviderTestResult,
 )
-from app.services import ai_provider as ai_provider_service
+from app.services.ai import provider as ai_provider_service
 from app.services import auth as auth_service
 from app.services import audit
-from app.services import settings as settings_service
+from app.services import profile as profile_service
 from app.services.audit import AuditAction, AuditContext, AuditResource
 from app.services.google_auth import GoogleAuthError
 
@@ -348,7 +348,7 @@ def update_my_profile(
     * 422 — empty name, invalid email
     """
     try:
-        return settings_service.update_profile(db, current_user, payload)
+        return profile_service.update_profile(db, current_user, payload)
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
@@ -405,7 +405,7 @@ async def upload_my_profile_image(
     """
     content = await file.read()
     try:
-        return settings_service.save_profile_image(
+        return profile_service.save_profile_image(
             db,
             current_user,
             content,
@@ -426,7 +426,7 @@ def remove_my_profile_image(
 
     When no image is set the request still succeeds (nothing to remove).
     """
-    return settings_service.remove_profile_image(db, current_user)
+    return profile_service.remove_profile_image(db, current_user)
 
 
 # ---------------------------------------------------------------------------

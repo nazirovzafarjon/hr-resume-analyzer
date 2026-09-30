@@ -12,7 +12,7 @@ import pytest
 from app.core.config import settings
 from app.models import User
 from app.schemas.application_analysis import ApplicationAnalysis
-from app.services import system_health
+from app.services.admin import health as system_health
 from tests.payloads import INTERVIEW_PAYLOAD, JOB_PAYLOAD, WORKER_PAYLOAD
 
 ADMIN_GET_ENDPOINTS = [
@@ -249,7 +249,7 @@ class TestUserMutationsAreAudited:
         """Service-level safeguard: the only active admin cannot be removed."""
         from app.crud import user as user_crud
         from app.schemas.user import UserCreate
-        from app.services import user_admin
+        from app.services.admin import users as user_admin
 
         other_admin = user_crud.create_user(
             db_session, UserCreate(email="second@example.com", full_name="Second", password="Pass12345"),

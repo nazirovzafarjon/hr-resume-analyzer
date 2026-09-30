@@ -208,7 +208,7 @@ async def analyze_application(
         job_requirements: Text built from the job's stored fields.
         form_answers: Applicant answers rendered as ``Label: value`` lines.
         resume_text: Text extracted from the uploaded resume (may be empty).
-        cfg: Provider config from ``app.services.ai_provider.resolve_for_user``;
+        cfg: Provider config from ``app.services.ai.provider.resolve_for_user``;
             defaults to the platform provider.
 
     Returns:

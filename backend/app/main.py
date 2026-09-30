@@ -21,7 +21,7 @@ from app.core.config import settings
 from app.core.database import Base, SessionLocal, engine
 from app.core.request_context import REQUEST_ID_HEADER, RequestContextMiddleware, request_id_from_scope
 from app.routers import admin, auth, dashboard, interviews, jobs, public, users, workers
-from app.services import error_monitor
+from app.services.admin import errors as error_monitor
 from app.services.ai.job_analyzer import close_ai_client
 
 logger = logging.getLogger(__name__)
@@ -157,7 +157,7 @@ def _ensure_database() -> None:
 def _create_tables_and_seed_superuser() -> None:
     """Create missing tables and make sure the configured superuser exists.
 
-    See ``user_admin.ensure_configured_superuser`` for exactly what the
+    See ``app.services.admin.users.ensure_configured_superuser`` for exactly what the
     ``SUPERUSER_*`` settings do.
     """
     Base.metadata.create_all(bind=engine)
@@ -165,7 +165,7 @@ def _create_tables_and_seed_superuser() -> None:
     if not settings.SUPERUSER_EMAIL:
         return
 
-    from app.services.user_admin import ensure_configured_superuser
+    from app.services.admin.users import ensure_configured_superuser
 
     db = SessionLocal()
     try:

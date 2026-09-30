@@ -150,8 +150,22 @@ backend/
 │   │   └── worker.py
 │   ├── services/            # Business logic
 │   │   ├── auth.py          # register, authenticate, tokens, password reset
+│   │   ├── profile.py       # own-account settings (name/email, profile image)
 │   │   ├── job.py           # lead counting, analytics aggregation
-│   │   └── resume_analyzer.py  # keyword resume scoring heuristics
+│   │   ├── application_analysis.py  # analyze one application, convert to candidate
+│   │   ├── ai/              # AI integration
+│   │   │   ├── provider.py      # which provider/key/model a user's AI calls use
+│   │   │   ├── job_analyzer.py  # AI job-vacancy analysis
+│   │   │   ├── application_analyzer.py  # AI application analysis
+│   │   │   ├── batch.py         # auto-analyze batches
+│   │   │   ├── monitoring.py    # records AI runs for the admin console
+│   │   │   └── heuristic.py     # keyword resume scoring heuristics
+│   │   └── admin/           # Admin console
+│   │       ├── users.py         # user management rules (self/last-admin guards)
+│   │       ├── directory.py     # platform-wide read views
+│   │       ├── stats.py         # dashboard + analytics
+│   │       ├── health.py        # system health checks
+│   │       └── errors.py        # persists 5xx errors
 │   ├── routers/             # API endpoints
 │   │   ├── auth.py          # /api/auth/*
 │   │   ├── users.py         # /api/users/* (superuser only)
@@ -1222,7 +1236,7 @@ from one client within 10 minutes; in-process limit), `503` (database unavailabl
   candidates,, leads,and a grouped breakdown by `company`, `position`, or
   `required_experience`;; raises `ValueError` for unsupported categories.,
 
-### Resume analysis (`app/services/resume_analyzer.py`)
+### Resume analysis (`app/services/ai/heuristic.py`)
 * `analyze_resume(resume_text,, job_requirements,) -> AnalysisResult` — case-insensitive,,
   substring matching of required skills against the resume;; returns `score` ((0–100,
   percent of required skills found), matched/missing skills,, per-skill matches,, and a summary..
@@ -1366,7 +1380,7 @@ Both docs let you try every endpoint directly from the browser.,
 
 ## Resume analysis (current heuristics)
 
-`app/services/resume_analyzer.py` implements deterministic, keyword-based logic:
+`app/services/ai/heuristic.py` implements deterministic, keyword-based logic:
 
 * required skills are split on commas/semicolons/newlines,
 * matching is case-insensitiveand substring based (`"SQL"` matches `"PostgreSQL"`),

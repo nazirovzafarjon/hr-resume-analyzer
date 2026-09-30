@@ -9,7 +9,8 @@ from fastapi.testclient import TestClient
 from app.core.config import settings
 from app.main import create_app
 from app.schemas.application_analysis import ApplicationAnalysis
-from app.services import audit, error_monitor
+from app.services import audit
+from app.services.admin import errors as error_monitor
 from app.services.ai.job_analyzer import AIProviderUnavailableError, AIRateLimitError
 from tests.conftest import TEST_USER_PASSWORD
 

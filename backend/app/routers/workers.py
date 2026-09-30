@@ -46,7 +46,7 @@ from app.schemas.worker import (
 from app.services import application_analysis as analysis_service
 from app.services import audit
 from app.services.audit import AuditAction, AuditContext, AuditResource
-from app.services import auto_analyze as auto_analyze_service
+from app.services.ai import batch as auto_analyze_service
 from app.services import resume_file as resume_file_service
 
 logger = logging.getLogger(__name__)

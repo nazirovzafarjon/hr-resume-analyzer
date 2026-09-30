@@ -9,7 +9,7 @@ from app.core.config import settings
 from app.core.encryption import decrypt_secret
 from app.models.ai_provider_config import UserAIProviderConfig
 from app.schemas.application_analysis import ApplicationAnalysis
-from app.services import ai_provider as service
+from app.services.ai import provider as service
 from app.services.ai.job_analyzer import AIProviderAuthError, AIServiceError
 from tests.test_auto_analyze_filters import ANALYSIS
 
@@ -318,7 +318,7 @@ class TestAnalysesUseTheOwnersProvider:
 
     def test_batch_analysis_uses_the_owners_custom_key(self, client, db_session, sample_worker, user):
         from app.models.user import User
-        from app.services import auto_analyze
+        from app.services.ai import batch as auto_analyze
 
         _save(client, sample_worker["headers"])
         batch = auto_analyze.create_auto_analyze_batch(

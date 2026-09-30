@@ -7,7 +7,7 @@ otherwise a normal HR user receives 403 and an anonymous request 401.
 These are the mutation endpoints the admin panel uses for activate /
 deactivate / promote / demote / delete; the richer, paginated read views live
 under ``/api/admin/users``. Safeguards and auditing are in
-``app.services.user_admin``.
+``app.services.admin.users``.
 """
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
@@ -18,7 +18,7 @@ from app.dependencies.audit import get_audit_context
 from app.dependencies.auth import get_current_superuser
 from app.models.user import User
 from app.schemas.user import AdminUserUpdate, UserResponse
-from app.services import user_admin as user_admin_service
+from app.services.admin import users as user_admin_service
 from app.services.audit import AuditContext
 
 router = APIRouter()
