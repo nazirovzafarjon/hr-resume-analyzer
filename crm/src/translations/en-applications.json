@@ -57,7 +57,7 @@
       "orderOldest": "Oldest first",
       "orderNewest": "Newest first",
       "loadCountFailed": "Failed to load available count",
-      "newApplicationsAvailable": "New applications available",
+      "newApplicationsAvailable": "new applications match these filters",
       "processingOrder": "Processing order",
       "numberOfResumes": "Number of resumes",
       "onlyAvailable": "Only {available} new applications are available. We'll analyze all {available}.",
@@ -83,7 +83,26 @@
       "partialSuccessMessage": "{successful} resumes analyzed successfully. {failed} resumes could not be analyzed.",
       "processed": "Processed",
       "countHint": "Between 1 and {max}.",
-      "nothingToAnalyze": "Every application has already been analyzed — there is nothing waiting."
+      "nothingToAnalyze": "Every application has already been analyzed — there is nothing waiting.",
+      "eligibleHint": "Only new applications that haven't been analyzed yet are included. Each resume is compared with its own job's requirements.",
+      "filtersTitle": "Filters (optional)",
+      "company": "Company",
+      "position": "Position",
+      "all": "All",
+      "integerError": "Enter a whole number from 1 to 1,000.",
+      "noMatch": "No new, unanalyzed applications match these filters.",
+      "analyzingProgress": "Analyzing {processed} / {total}",
+      "skipped": "skipped",
+      "summary": "{successful} resumes analyzed successfully. {failed} failed.",
+      "summaryAllGood": "{successful} resumes analyzed successfully.",
+      "summarySkipped": "{skipped} skipped because they were already analyzed or removed.",
+      "remainingAfter": "{remaining} more matching applications are waiting for a later run.",
+      "cancelledTitle": "Auto Analyze stopped",
+      "cancelledMessage": "Stopped after {processed} of {total}. Unprocessed applications stay new.",
+      "stop": "Stop",
+      "continuesInBackground": "You can close this window. The analysis keeps running in the background.",
+      "refreshApplications": "Refresh applications",
+      "filterSummaryAll": "All companies and positions"
     },
     "allRequirementsMet": "All core requirements are met.",
     "allSkillsMatched": "All required skills matched.",
@@ -101,6 +120,15 @@
       "hire": "Meets the core requirements for this position.",
       "weak_hire": "Partial alignment — check missing skills or experience gaps before deciding.",
       "do_not_hire": "Does not meet the critical requirements for this role."
+    },
+    "cv": {
+      "view": "View CV",
+      "download": "Download CV",
+      "short": "CV",
+      "viewFor": "View CV of {name}",
+      "downloadFor": "Download CV of {name}",
+      "unavailableTitle": "CV unavailable",
+      "loadFailed": "We couldn't open this CV. Please try again."
     }
   },
   "appStats": {

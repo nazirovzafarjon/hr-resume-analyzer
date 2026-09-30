@@ -25,7 +25,7 @@ type FormErrors = {
 export default function RegisterPage() {
   const { t } = useLanguage();
   const navigate = useNavigate();
-  const { signIn } = useAuth();
+  const { completeSignIn } = useAuth();
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -71,8 +71,8 @@ export default function RegisterPage() {
         email: email.trim(),
         password,
       });
-      signIn(response);
-      navigate("/dashboard");
+      // Straight into the workspace, or to the workspace choice.
+      navigate(completeSignIn(response));
     } catch (error) {
       setServerError(getErrorMessage(error));
     } finally {

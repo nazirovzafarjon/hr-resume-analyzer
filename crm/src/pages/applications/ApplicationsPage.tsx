@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
+import ResumeActions from "../../components/applications/ResumeActions";
 import { Sparkles } from "lucide-react";
 import { fetchApplications } from "../../services/workersService";
 import { fetchJobs } from "../../services/jobsService";
@@ -221,6 +222,7 @@ export default function ApplicationsPage() {
       <AutoAnalyzeModal
         open={autoAnalyzeOpen}
         onClose={() => setAutoAnalyzeOpen(false)}
+        onFinished={() => setReloadKey((key) => key + 1)}
         jobId={selectedJobId}
       />
     </div>
@@ -286,9 +288,17 @@ function buildColumns(t: (key: string) => string): TableColumn<Candidate>[] {
       headerClassName: "table-actions-cell",
       className: "table-actions-cell",
       render: (app) => (
-        <Link className="row-action" to={`/applications/${app.id}`}>
-          {t("applications.view")}
-        </Link>
+        <span className="row-actions">
+          <ResumeActions
+            workerId={app.id}
+            candidateName={app.name}
+            resumePath={app.resume_path}
+            variant="row"
+          />
+          <Link className="row-action" to={`/applications/${app.id}`}>
+            {t("applications.view")}
+          </Link>
+        </span>
       ),
     },
   ];

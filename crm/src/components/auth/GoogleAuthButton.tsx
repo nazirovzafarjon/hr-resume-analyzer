@@ -54,7 +54,7 @@ export default function GoogleAuthButton({ disabled = false }: GoogleAuthButtonP
  */
 function GoogleSignInButton({ disabled }: { disabled: boolean }) {
   const navigate = useNavigate();
-  const { signIn } = useAuth();
+  const { completeSignIn } = useAuth();
   const { t } = useLanguage();
   const [error, setError] = useState<string | null>(null);
 
@@ -71,8 +71,8 @@ function GoogleSignInButton({ disabled }: { disabled: boolean }) {
           response.code,
           POPUP_FLOW_REDIRECT_URI,
         );
-        signIn(tokens);
-        navigate("/dashboard");
+        // Straight into the workspace, or to the workspace choice.
+        navigate(completeSignIn(tokens));
       } catch (err) {
         setError(getErrorMessage(err));
       }

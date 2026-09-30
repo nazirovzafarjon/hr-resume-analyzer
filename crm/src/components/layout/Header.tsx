@@ -1,6 +1,14 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { LogOut, Menu, Search, Settings as SettingsIcon, UserRound } from "lucide-react";
+import {
+  ArrowLeftRight,
+  LogOut,
+  Menu,
+  Search,
+  Settings as SettingsIcon,
+  ShieldCheck,
+  UserRound,
+} from "lucide-react";
 import Dropdown, { DropdownItem, DropdownLabel, DropdownSeparator } from "../ui/Dropdown";
 import ThemeToggle from "../ui/ThemeToggle";
 import LanguageSelector from "../ui/LanguageSelector";
@@ -9,6 +17,10 @@ import { useLanguage } from "../../contexts/LanguageContext";
 import { logout } from "../../services/authService";
 import { getCurrentUser, profileImageUrl } from "../../services/settingsService";
 import { useNotify } from "../../contexts/ToastContext";
+import type { ShellVariant } from "./Sidebar";
+import { getRefreshToken } from "../../auth/tokenStorage";
+import { useWorkspaceSwitch } from "../../hooks/useWorkspaceSwitch";
+import { SESSION_ROLES, type SessionRole } from "../../types/auth";
 
 type HeaderProps = {
   onMenuClick: () => void;
@@ -17,6 +29,7 @@ type HeaderProps = {
   onOpenPalette: () => void;
   /** Title shown for the active section (already translated). */
   title: string;
+  variant?: ShellVariant;
 };
 
 function initialsOf(fullName: string): string {
@@ -33,8 +46,15 @@ function initialsOf(fullName: string): string {
  * the account area (theme, language, profile). The control set is deliberately
  * small — only what an HR user reaches for during a session.
  */
-export default function Header({ onMenuClick, onOpenPalette, title, menuOpen = false }: HeaderProps) {
-  const { signOut } = useAuth();
+export default function Header({
+  onMenuClick,
+  onOpenPalette,
+  title,
+  menuOpen = false,
+  variant = "hr",
+}: HeaderProps) {
+  const { signOut, activeRole } = useAuth();
+  const { switchTo, switching } = useWorkspaceSwitch();
   const { t } = useLanguage();
   const notify = useNotify();
   const navigate = useNavigate();
@@ -43,6 +63,7 @@ export default function Header({ onMenuClick, onOpenPalette, title, menuOpen = f
     name: string;
     email: string;
     image: string | null;
+    availableRoles: SessionRole[];
   } | null>(null);
 
   // Load the profile once so the menu can greet the signed-in user. Failures
@@ -56,6 +77,7 @@ export default function Header({ onMenuClick, onOpenPalette, title, menuOpen = f
           name: user.full_name || "",
           email: user.email || "",
           image: profileImageUrl(user.profile_image),
+          availableRoles: user.available_roles ?? [SESSION_ROLES.USER],
         });
       })
       .catch(() => {
@@ -69,9 +91,20 @@ export default function Header({ onMenuClick, onOpenPalette, title, menuOpen = f
   const displayName = profile?.name || t("shell.fallbackName");
   const email = profile?.email || "";
 
+  // Offered only to accounts that really have another workspace (from
+  // /auth/me); the server re-checks when the switch is requested.
+  const otherRole: SessionRole | null =
+    profile && profile.availableRoles.length > 1
+      ? activeRole === SESSION_ROLES.ADMIN
+        ? SESSION_ROLES.USER
+        : SESSION_ROLES.ADMIN
+      : null;
+  const currentWorkspace = activeRole === SESSION_ROLES.ADMIN ? "admin" : "hr";
+
   async function handleLogout() {
     try {
-      await logout();
+      // Sends the refresh token so the server revokes the whole session.
+      await logout(getRefreshToken());
     } catch {
       // Even if the backend logout fails, sign out locally so the token is
       // never left behind.
@@ -94,6 +127,7 @@ export default function Header({ onMenuClick, onOpenPalette, title, menuOpen = f
       </button>
 
       <div className="header-title-block">
+        {variant === "admin" && <span className="header-admin-badge">{t("admin.badge")}</span>}
         <p className="header-title">{title}</p>
       </div>
 
@@ -129,13 +163,30 @@ export default function Header({ onMenuClick, onOpenPalette, title, menuOpen = f
             </button>
           )}
         >
-          <DropdownLabel>{t("shell.accountMenu")}</DropdownLabel>
+          <DropdownLabel>
+            {t("workspace.current", { name: t(`workspace.${currentWorkspace}.title`) })}
+          </DropdownLabel>
           <DropdownItem icon={<UserRound size={16} />} onClick={() => navigate("/settings")}>
             {t("shell.profile")}
           </DropdownItem>
           <DropdownItem icon={<SettingsIcon size={16} />} onClick={() => navigate("/settings")}>
             {t("nav.settings")}
           </DropdownItem>
+          {/* In an admin session the console is one click away from any page. */}
+          {variant !== "admin" && activeRole === SESSION_ROLES.ADMIN && (
+            <DropdownItem icon={<ShieldCheck size={16} />} onClick={() => navigate("/admin")}>
+              {t("admin.nav.openAdmin")}
+            </DropdownItem>
+          )}
+          {otherRole && (
+            <DropdownItem
+              icon={<ArrowLeftRight size={16} />}
+              onClick={() => switchTo(otherRole)}
+              disabled={switching}
+            >
+              {t(otherRole === SESSION_ROLES.ADMIN ? "workspace.switchToAdmin" : "workspace.switchToHr")}
+            </DropdownItem>
+          )}
           <DropdownSeparator />
           <DropdownItem icon={<LogOut size={16} />} danger onClick={handleLogout}>
             {t("auth.logout")}

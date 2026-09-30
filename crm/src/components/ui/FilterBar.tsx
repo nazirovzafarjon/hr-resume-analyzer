@@ -3,7 +3,8 @@ import { Search, X } from "lucide-react";
 import { useLanguage } from "../../contexts/LanguageContext";
 
 type FilterBarProps = {
-  search: {
+  /** Omit for lists that only have dropdown filters. */
+  search?: {
     value: string;
     onChange: (value: string) => void;
     /** Page-specific hint, e.g. "Search by name, email or job…". */
@@ -25,21 +26,23 @@ export default function FilterBar({ search, children, active = false, onClear }:
   const { t } = useLanguage();
   return (
     <div className="filter-bar" role="search">
-      <label className="toolbar-label toolbar-label--grow">
-        {t("common.search")}
-        <span className="search-field">
-          <span className="search-field-icon" aria-hidden="true">
-            <Search size={15} />
+      {search && (
+        <label className="toolbar-label toolbar-label--grow">
+          {t("common.search")}
+          <span className="search-field">
+            <span className="search-field-icon" aria-hidden="true">
+              <Search size={15} />
+            </span>
+            <input
+              className="field-input"
+              type="search"
+              value={search.value}
+              onChange={(event) => search.onChange(event.target.value)}
+              placeholder={search.placeholder}
+            />
           </span>
-          <input
-            className="field-input"
-            type="search"
-            value={search.value}
-            onChange={(event) => search.onChange(event.target.value)}
-            placeholder={search.placeholder}
-          />
-        </span>
-      </label>
+        </label>
+      )}
       {children}
       {active && onClear && (
         <button type="button" className="btn btn--ghost filter-bar-clear" onClick={onClear}>

@@ -15,6 +15,8 @@ type RequestOptions = {
   auth?: boolean;
   /** Send `body` as multipart/form-data instead of JSON (used for file uploads). */
   formData?: boolean;
+  /** Return the successful response body as a Blob (file downloads). */
+  responseType?: "json" | "blob";
 };
 
 /**
@@ -123,6 +125,10 @@ export async function apiRequest<T>(
 
   if (response.status === 204) {
     return undefined as T; // No Content, e.g. logout.
+  }
+
+  if (options.responseType === "blob" && response.ok) {
+    return (await response.blob()) as T;
   }
 
   let data: unknown = null;

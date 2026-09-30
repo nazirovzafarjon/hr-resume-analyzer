@@ -97,6 +97,7 @@ async function loadAllTranslations(): Promise<TranslationModules> {
       "-analytics",
       "-settings",
       "-common",
+      "-admin", // admin console
     ];
 
     const loadLangModule = async (lang: Language) => {

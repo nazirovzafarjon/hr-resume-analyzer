@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import ResumeActions from "../../components/applications/ResumeActions";
 import { fetchCandidates } from "../../services/workersService";
 import PageHeader from "../../components/ui/PageHeader";
 import PageMeta from "../../components/seo/PageMeta";
@@ -131,9 +132,17 @@ export default function CandidatesPage() {
       headerClassName: "table-actions-cell",
       className: "table-actions-cell",
       render: (candidate) => (
-        <Link className="row-action" to={`/candidates/${candidate.id}`}>
-          {t("candidates.view")}
-        </Link>
+        <span className="row-actions">
+          <ResumeActions
+            workerId={candidate.id}
+            candidateName={candidate.name}
+            resumePath={candidate.resume_path}
+            variant="row"
+          />
+          <Link className="row-action" to={`/candidates/${candidate.id}`}>
+            {t("candidates.view")}
+          </Link>
+        </span>
       ),
     },
   ], [t]);

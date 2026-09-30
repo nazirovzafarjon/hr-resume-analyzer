@@ -1,6 +1,6 @@
 import { useEffect, useState, type CSSProperties } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, FileText, CheckCircle2, AlertCircle, Trash2 } from "lucide-react";
+import { ArrowLeft, CheckCircle2, AlertCircle, Trash2 } from "lucide-react";
 import {
   getWorker,
   updateWorker,
@@ -16,6 +16,7 @@ import StatusBadge from "../../components/ui/StatusBadge";
 import ApplicationStatusBadge from "../../components/ui/ApplicationStatusBadge";
 import Select from "../../components/forms/Select";
 import ApplicationAnswers from "../../components/applications/ApplicationAnswers";
+import ResumeActions from "../../components/applications/ResumeActions";
 import ConfirmDialog from "../../components/ui/ConfirmDialog";
 import { Skeleton, SkeletonText } from "../../components/ui/Skeleton";
 import { useLanguage } from "../../contexts/LanguageContext";
@@ -257,7 +258,17 @@ export default function CandidateDetailsPage() {
       {/* Submitted Dynamic Form Responses */}
       {candidate.responses && candidate.responses.length > 0 && (
         <Card title={t("applications.submittedAnswers") || "Submitted Application Answers"} subtitle={t("applications.submittedAnswersSubtitle")}>
-          <ApplicationAnswers answers={candidate.responses} fileUrl={candidate.resume_url} />
+          <ApplicationAnswers
+            answers={candidate.responses}
+            fileAction={
+              <ResumeActions
+                workerId={candidate.id}
+                candidateName={candidate.name}
+                resumePath={candidate.resume_path}
+                variant="row"
+              />
+            }
+          />
         </Card>
       )}
 
@@ -381,16 +392,12 @@ export default function CandidateDetailsPage() {
         title={t("candidates.resume") || "Resume"}
         subtitle={candidate.resume_path ? t("applications.resumeFileType", { type: (candidate.resume_path.split(".").pop() || "").toUpperCase() }) : t("applications.noResume")}
         action={
-          candidate.resume_url ? (
-            <a
-              href={candidate.resume_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="btn btn--secondary"
-            >
-              <FileText size={15} style={{ marginRight: "4px" }} />
-              {t("candidates.viewResume") || "View / Download Resume"}
-            </a>
+          candidate.resume_path ? (
+            <ResumeActions
+              workerId={candidate.id}
+              candidateName={candidate.name}
+              resumePath={candidate.resume_path}
+            />
           ) : undefined
         }
       >

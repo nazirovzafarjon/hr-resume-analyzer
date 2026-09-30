@@ -9,8 +9,10 @@ export type TableColumn<T> = {
   className?: string;
   /** Applied to the header cell (e.g. for right alignment or a fixed width). */
   headerClassName?: string;
-  /** Provide a comparator to make this column sortable. */
+  /** Provide a comparator to make this column sortable (client-side). */
   sort?: (a: T, b: T) => number;
+  /** Server-side sort key; used instead of `sort` when `onSortChange` is set. */
+  sortKey?: string;
   /** Hide on narrow screens to protect readability. */
   hideOnMobile?: boolean;
 };
@@ -34,6 +36,13 @@ type TableProps<T> = {
    * list, not just the visible page). Omit to render every row.
    */
   pageSize?: number;
+  /**
+   * Server-side sorting: the table only renders what the API returned and
+   * reports header clicks, so a sort always applies to the whole dataset,
+   * not just the loaded page.
+   */
+  serverSort?: { key: string; order: "asc" | "desc" };
+  onSortChange?: (key: string) => void;
 };
 
 /**
@@ -54,18 +63,20 @@ export default function Table<T>({
   compact = false,
   caption,
   pageSize,
+  serverSort,
+  onSortChange,
 }: TableProps<T>) {
   const [sortIndex, setSortIndex] = useState<number | null>(null);
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
 
   const sortedRows = useMemo(() => {
-    if (sortIndex === null) return rows;
+    if (onSortChange || sortIndex === null) return rows;
     const comparator = columns[sortIndex]?.sort;
     if (!comparator) return rows;
     const copy = [...rows];
     copy.sort((a, b) => (sortDirection === "asc" ? comparator(a, b) : comparator(b, a)));
     return copy;
-  }, [rows, columns, sortIndex, sortDirection]);
+  }, [rows, columns, sortIndex, sortDirection, onSortChange]);
 
   // New rows (a filter or search changed) start again from the first page.
   const [page, setPage] = useState(1);
@@ -106,8 +117,12 @@ export default function Table<T>({
         <thead>
           <tr>
             {columns.map((column, index) => {
-              const isSorted = sortIndex === index;
-              const sortable = Boolean(column.sort);
+              const serverSorted = Boolean(onSortChange && column.sortKey);
+              const isSorted = serverSorted
+                ? serverSort?.key === column.sortKey
+                : sortIndex === index;
+              const direction = serverSorted ? serverSort?.order : sortDirection;
+              const sortable = onSortChange ? serverSorted : Boolean(column.sort);
               return (
                 <th
                   key={column.header}
@@ -116,19 +131,21 @@ export default function Table<T>({
                     .filter(Boolean)
                     .join(" ") || undefined}
                   aria-sort={
-                    isSorted ? (sortDirection === "asc" ? "ascending" : "descending") : undefined
+                    isSorted ? (direction === "asc" ? "ascending" : "descending") : undefined
                   }
                 >
                   {sortable ? (
                     <button
                       type="button"
                       className="table-sort-button"
-                      onClick={() => toggleSort(index)}
+                      onClick={() =>
+                        serverSorted ? onSortChange?.(column.sortKey as string) : toggleSort(index)
+                      }
                     >
                       {column.header}
                       <span aria-hidden="true">
                         {isSorted ? (
-                          sortDirection === "asc" ? (
+                          direction === "asc" ? (
                             <ArrowUp size={12} />
                           ) : (
                             <ArrowDown size={12} />

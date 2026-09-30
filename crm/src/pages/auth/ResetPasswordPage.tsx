@@ -16,7 +16,7 @@ import {
 } from "../../services/authService";
 import { ApiError, getErrorMessage } from "../../utils/apiError";
 import { useAuth } from "../../context/AuthContext";
-import type { AuthResponse, ResetTokenInfo } from "../../types/auth";
+import type { ResetTokenInfo, SignInResult } from "../../types/auth";
 
 type FormErrors = {
   newPassword?: string;
@@ -52,7 +52,7 @@ export default function ResetPasswordPage() {
   const [searchParams] = useSearchParams();
   const token = searchParams.get("token");
   const navigate = useNavigate();
-  const { signIn } = useAuth();
+  const { completeSignIn } = useAuth();
 
   const [linkState, setLinkState] = useState<LinkState>(
     token ? "checking" : "invalid",
@@ -91,13 +91,13 @@ export default function ResetPasswordPage() {
     };
   }, [token]);
 
-  /** Store the issued pair and enter the app — shared by both options. */
+  /** Enter the app (or the workspace choice) — shared by both options. */
   const complete = useCallback(
-    (tokens: AuthResponse) => {
-      signIn(tokens);
-      navigate("/dashboard", { replace: true });
+    (tokens: SignInResult) => {
+      // Straight into the workspace, or to the workspace choice.
+      navigate(completeSignIn(tokens), { replace: true });
     },
-    [navigate, signIn],
+    [navigate, completeSignIn],
   );
 
   /** Map a rejected reset token to one consistent, actionable message. */

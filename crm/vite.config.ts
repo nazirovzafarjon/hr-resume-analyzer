@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
@@ -6,4 +7,12 @@ import react from "@vitejs/plugin-react";
 // The backend API base URL is read from VITE_API_BASE_URL (see .env.example).
 export default defineConfig({
   plugins: [react()],
+  // Unit/component tests (`npm test`): Vitest reuses this config, so tests
+  // compile exactly like the app. jsdom provides the browser APIs.
+  test: {
+    environment: "jsdom",
+    setupFiles: ["./src/test/setup.ts"],
+    include: ["src/**/*.test.{ts,tsx}"],
+    restoreMocks: true,
+  },
 });

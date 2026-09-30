@@ -23,7 +23,7 @@ type FormErrors = {
 export default function LoginPage() {
   const { t } = useLanguage();
   const navigate = useNavigate();
-  const { signIn } = useAuth();
+  const { completeSignIn } = useAuth();
   const [searchParams] = useSearchParams();
   const sessionExpired = searchParams.get("expired") === "1";
 
@@ -57,8 +57,8 @@ export default function LoginPage() {
     setServerError(null);
     try {
       const response = await login({ email: email.trim(), password });
-      signIn(response);
-      navigate("/dashboard");
+      // Straight into the workspace, or to the workspace choice.
+      navigate(completeSignIn(response));
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) {
         setServerError(t("auth.invalidCredentials") || "Invalid email or password.");

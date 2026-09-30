@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { useLocation } from "react-router-dom";
 import "../../styles/app.css";
+import "../../styles/admin.css";
 import Header from "./Header";
-import Sidebar from "./Sidebar";
+import Sidebar, { type ShellVariant } from "./Sidebar";
+import { adminTitleKey } from "./adminNavigation";
 import CommandPalette from "../ui/CommandPalette";
 import { useLanguage } from "../../contexts/LanguageContext";
 
@@ -15,9 +17,11 @@ function prefersCollapsed(): boolean {
 }
 
 /** Resolve the header title for the active route. */
-function useHeaderTitle(): string {
+function useHeaderTitle(variant: ShellVariant): string {
   const { pathname } = useLocation();
   const { t } = useLanguage();
+
+  if (variant === "admin") return t(adminTitleKey(pathname));
 
   return pathname.startsWith("/jobs/create")
     ? t("pages.createJob")
@@ -52,15 +56,24 @@ function useHeaderTitle(): string {
  *
  * The rail collapses on desktop (preference persisted) and becomes an
  * off-canvas drawer below 900px, closed automatically after navigation.
+ *
+ * `variant="admin"` renders the same shell with the admin console navigation,
+ * so the admin panel shares the product's layout, theming and behaviour.
  */
-export default function AppLayout({ children }: { children: ReactNode }) {
+export default function AppLayout({
+  children,
+  variant = "hr",
+}: {
+  children: ReactNode;
+  variant?: ShellVariant;
+}) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [collapsed, setCollapsed] = useState<boolean>(() =>
     typeof window === "undefined" ? false : window.innerWidth > 900 ? prefersCollapsed() : false,
   );
   const [paletteOpen, setPaletteOpen] = useState(false);
   const location = useLocation();
-  const title = useHeaderTitle();
+  const title = useHeaderTitle(variant);
   const { t } = useLanguage();
 
   // Close the mobile drawer automatically after navigating.
@@ -107,7 +120,11 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <div className={`app-shell${collapsed ? " app-shell--collapsed" : ""}`}>
+    <div
+      className={`app-shell${collapsed ? " app-shell--collapsed" : ""}${
+        variant === "admin" ? " app-shell--admin" : ""
+      }`}
+    >
       <a className="skip-link" href="#app-content">
         {t("shell.skipToContent")}
       </a>
@@ -117,6 +134,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         collapsed={collapsed}
         onClose={() => setSidebarOpen(false)}
         onToggleCollapse={toggleCollapse}
+        variant={variant}
       />
 
       <div className="app-body">
@@ -125,6 +143,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
           menuOpen={sidebarOpen}
           onOpenPalette={() => setPaletteOpen(true)}
           title={title}
+          variant={variant}
         />
         <main id="app-content" className="app-content">
           {children}

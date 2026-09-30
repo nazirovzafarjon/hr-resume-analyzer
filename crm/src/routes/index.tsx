@@ -1,7 +1,8 @@
 import { Navigate, type RouteObject } from "react-router-dom";
 import { lazy, Suspense, type ReactNode } from "react";
-import { useAuth } from "../context/AuthContext";
+import { landingPath, useAuth } from "../context/AuthContext";
 import RequireAuth from "../components/routing/RequireAuth";
+import RequireAdmin from "../components/routing/RequireAdmin";
 import AppLayout from "../components/layout/AppLayout";
 import GoogleAuthCallback from "../components/auth/GoogleAuthCallback";
 import Spinner from "../components/ui/Spinner";
@@ -9,6 +10,7 @@ import LoginPage from "../pages/auth/LoginPage";
 import RegisterPage from "../pages/auth/RegisterPage";
 const ForgotPasswordPage = lazy(() => import("../pages/auth/ForgotPasswordPage"));
 const ResetPasswordPage = lazy(() => import("../pages/auth/ResetPasswordPage"));
+const RoleSelectPage = lazy(() => import("../pages/auth/RoleSelectPage"));
 const DashboardPage = lazy(() => import("../pages/dashboard/DashboardPage"));
 const JobListPage = lazy(() => import("../pages/jobs/JobListPage"));
 const JobCreatePage = lazy(() => import("../pages/jobs/JobCreatePage"));
@@ -23,6 +25,20 @@ const InterviewsPage = lazy(() => import("../pages/interviews/InterviewsPage"));
 const InterviewDetailsPage = lazy(() => import("../pages/interviews/InterviewDetailsPage"));
 const AnalyticsPage = lazy(() => import("../pages/analytics/AnalyticsPage"));
 const SettingsPage = lazy(() => import("../pages/settings/SettingsPage"));
+// Admin console (separate chunks: regular HR users never download them).
+const AdminDashboardPage = lazy(() => import("../pages/admin/AdminDashboardPage"));
+const AdminUsersPage = lazy(() => import("../pages/admin/AdminUsersPage"));
+const AdminUserDetailPage = lazy(() => import("../pages/admin/AdminUserDetailPage"));
+const AdminJobsPage = lazy(() => import("../pages/admin/AdminJobsPage"));
+const AdminApplicationsPage = lazy(() => import("../pages/admin/AdminApplicationsPage"));
+const AdminApplicationDetailPage = lazy(() => import("../pages/admin/AdminApplicationDetailPage"));
+const AdminInterviewsPage = lazy(() => import("../pages/admin/AdminInterviewsPage"));
+const AdminAIAnalysisPage = lazy(() => import("../pages/admin/AdminAIAnalysisPage"));
+const AdminAnalyticsPage = lazy(() => import("../pages/admin/AdminAnalyticsPage"));
+const AdminAuditLogsPage = lazy(() => import("../pages/admin/AdminAuditLogsPage"));
+const AdminSystemErrorsPage = lazy(() => import("../pages/admin/AdminSystemErrorsPage"));
+const AdminSettingsPage = lazy(() => import("../pages/admin/AdminSettingsPage"));
+const AdminSystemHealthPage = lazy(() => import("../pages/admin/AdminSystemHealthPage"));
 
 /**
  * Pages are code-split per route (charts, the form builder and the analysis
@@ -48,15 +64,37 @@ function protectedPage(element: ReactNode) {
   );
 }
 
+/**
+ * Wraps an admin page in the admin shell + admin guard. The guard only
+ * improves UX; every /api/admin endpoint enforces the role server-side.
+ */
+function adminPage(element: ReactNode) {
+  return (
+    <RequireAdmin>
+      <AppLayout variant="admin">
+        <Suspense fallback={<PageFallback />}>{element}</Suspense>
+      </AppLayout>
+    </RequireAdmin>
+  );
+}
+
 /** Public lazily loaded page (no shell). */
 function publicPage(element: ReactNode) {
   return <Suspense fallback={<PageFallback />}>{element}</Suspense>;
 }
 
-/** Root/unknown path: send signed-in users to the dashboard, others to login. */
+/**
+ * Root/unknown path: a session goes to its workspace's home, a pending
+ * workspace choice back to the choice, everyone else to login.
+ */
 function RootRedirect() {
-  const { isAuthenticated } = useAuth();
-  return <Navigate to={isAuthenticated ? "/dashboard" : "/login"} replace />;
+  const { isAuthenticated, activeRole, pendingSelection } = useAuth();
+  const target = isAuthenticated
+    ? landingPath(activeRole)
+    : pendingSelection
+      ? "/select-role"
+      : "/login";
+  return <Navigate to={target} replace />;
 }
 
 /**
@@ -69,6 +107,7 @@ export const routes: RouteObject[] = [
   { path: "/register", element: <RegisterPage /> },
   { path: "/forgot-password", element: publicPage(<ForgotPasswordPage />) },
   { path: "/reset-password", element: publicPage(<ResetPasswordPage />) },
+  { path: "/select-role", element: publicPage(<RoleSelectPage />) },
   { path: "/oauth/callback", element: <GoogleAuthCallback /> },
   { path: "/apply/:token", element: publicPage(<ApplyPage />) },
   { path: "/dashboard", element: protectedPage(<DashboardPage />) },
@@ -84,6 +123,23 @@ export const routes: RouteObject[] = [
   { path: "/interviews/:id", element: protectedPage(<InterviewDetailsPage />) },
   { path: "/analytics", element: protectedPage(<AnalyticsPage />) },
   { path: "/settings", element: protectedPage(<SettingsPage />) },
+  { path: "/admin", element: <Navigate to="/admin/dashboard" replace /> },
+  { path: "/admin/dashboard", element: adminPage(<AdminDashboardPage />) },
+  { path: "/admin/users", element: adminPage(<AdminUsersPage />) },
+  { path: "/admin/users/:id", element: adminPage(<AdminUserDetailPage />) },
+  { path: "/admin/jobs", element: adminPage(<AdminJobsPage />) },
+  { path: "/admin/applications", element: adminPage(<AdminApplicationsPage mode="applications" />) },
+  { path: "/admin/applications/:id", element: adminPage(<AdminApplicationDetailPage />) },
+  { path: "/admin/candidates", element: adminPage(<AdminApplicationsPage mode="candidates" />) },
+  { path: "/admin/candidates/:id", element: adminPage(<AdminApplicationDetailPage />) },
+  { path: "/admin/interviews", element: adminPage(<AdminInterviewsPage />) },
+  { path: "/admin/ai-analysis", element: adminPage(<AdminAIAnalysisPage />) },
+  { path: "/admin/analytics", element: adminPage(<AdminAnalyticsPage />) },
+  { path: "/admin/audit-logs", element: adminPage(<AdminAuditLogsPage />) },
+  { path: "/admin/system-errors", element: adminPage(<AdminSystemErrorsPage />) },
+  { path: "/admin/settings", element: adminPage(<AdminSettingsPage />) },
+  { path: "/admin/system-health", element: adminPage(<AdminSystemHealthPage />) },
+  { path: "/admin/*", element: <Navigate to="/admin/dashboard" replace /> },
   { path: "*", element: <RootRedirect /> },
 ];
 

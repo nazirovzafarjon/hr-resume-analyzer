@@ -1,5 +1,5 @@
 import { useEffect, useState, type ChangeEvent } from "react";
-import { User, Palette, Globe, Shield, Sun, Moon, Monitor, Check, Upload, Trash2 } from "lucide-react";
+import { User, Palette, Globe, Shield, Sun, Moon, Monitor, Check, Upload, Trash2, Bot } from "lucide-react";
 import PageHeader from "../../components/ui/PageHeader";
 import PageMeta from "../../components/seo/PageMeta";
 import Card from "../../components/ui/Card";
@@ -8,6 +8,7 @@ import TextInput from "../../components/forms/TextInput";
 import PasswordInput from "../../components/auth/PasswordInput";
 import PasswordRequirements from "../../components/auth/PasswordRequirements";
 import AuthMessage from "../../components/auth/AuthMessage";
+import AIProviderSettings from "../../components/settings/AIProviderSettings";
 import ErrorState from "../../components/ui/ErrorState";
 import { Skeleton, SkeletonText } from "../../components/ui/Skeleton";
 import Tabs from "../../components/ui/Tabs";
@@ -45,7 +46,7 @@ function initialsOf(fullName: string): string {
     .join("");
 }
 
-type TabKey = "profile" | "appearance" | "language" | "security";
+type TabKey = "profile" | "appearance" | "language" | "security" | "ai";
 
 /** /settings — the signed-in HR user's account, appearance, language and security. */
 export default function SettingsPage() {
@@ -270,6 +271,7 @@ export default function SettingsPage() {
     { key: "appearance", label: t("settings.appearance") || "Appearance", icon: <Palette size={16} /> },
     { key: "language", label: t("settings.language") || "Language", icon: <Globe size={16} /> },
     { key: "security", label: t("settings.password") || "Security", icon: <Shield size={16} /> },
+    { key: "ai", label: t("settings.aiProvider.tab"), icon: <Bot size={16} /> },
   ];
 
   const themes: { key: Theme; label: string; icon: typeof Sun; desc: string }[] = [
@@ -525,6 +527,8 @@ export default function SettingsPage() {
           </form>
         </Card>
       )}
+
+      {activeTab === "ai" && <AIProviderSettings />}
     </div>
   );
 }

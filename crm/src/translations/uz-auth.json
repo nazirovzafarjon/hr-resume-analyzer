@@ -59,5 +59,35 @@
     "nameRequired": "To'liq ismni kiriting.",
     "currentPasswordRequired": "Joriy parolni kiriting.",
     "footerNote": "Barcha huquqlar himoyalangan."
+  },
+  "workspace": {
+    "chooseTitle": "Ish maydonini tanlang",
+    "welcome": "Xush kelibsiz",
+    "welcomeName": "Xush kelibsiz, {name}",
+    "chooseSubtitle": "Akkauntingiz bir nechta ish maydoniga kira oladi. Bu seans uchun qayerda ishlashni tanlang.",
+    "hint": "Keyinroq akkaunt menyusidan ish maydonini almashtirishingiz mumkin.",
+    "hr": {
+      "title": "HR kabineti",
+      "description": "Ishlar, arizalar, nomzodlar va suhbatlarni boshqaring.",
+      "continue": "HR sifatida davom etish"
+    },
+    "admin": {
+      "title": "Admin paneli",
+      "description": "Foydalanuvchilar, monitoring, audit jurnali va platforma sozlamalari.",
+      "continue": "Admin sifatida davom etish"
+    },
+    "current": "Hozir: {name}",
+    "switchToAdmin": "Admin paneliga o'tish",
+    "switchToHr": "HR kabinetiga o'tish",
+    "switched": {
+      "admin": "Siz admin panelidasiz.",
+      "user": "Siz HR kabinetidasiz."
+    },
+    "switchFailed": "Ish maydonini almashtirib bo'lmadi",
+    "selectFailed": "Ish maydonini tanlab bo'lmadi. Qayta urinib ko'ring.",
+    "notAvailable": "Bu ish maydoni akkauntingiz uchun mavjud emas.",
+    "expired": "Seans muddati tugadi. Qayta kiring.",
+    "signInAgain": "Qayta kirish",
+    "useAnotherAccount": "Boshqa akkaunt bilan kirish"
   }
 }

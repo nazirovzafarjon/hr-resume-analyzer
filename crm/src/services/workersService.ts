@@ -104,22 +104,52 @@ export async function deleteWorker(id: number): Promise<void> {
   });
 }
 
+/**
+ * GET /api/workers/{id}/resume — the stored CV (owner only).
+ *
+ * Fetched with the bearer token like every protected call, so the file is
+ * never reachable through a public URL.
+ */
+export function fetchResume(id: number, download = false): Promise<Blob> {
+  return apiRequest<Blob>(`/workers/${id}/resume${download ? "?download=true" : ""}`, {
+    auth: true,
+    responseType: "blob",
+  });
+}
+
 // Auto-analyze batch APIs
 
-export type AutoAnalyzeAvailableResponse = {
+/** A company/position pair that has applications waiting for analysis. */
+export type AutoAnalyzeFilterOption = {
+  company_name: string;
+  position: string;
   count: number;
 };
 
-export type AutoAnalyzeStartRequest = {
+export type AutoAnalyzeAvailableResponse = {
+  /** Eligible applications matching the requested filters. */
+  count: number;
+  options: AutoAnalyzeFilterOption[];
+};
+
+export type AutoAnalyzeFilters = {
+  job_id?: number;
+  /** Omitted or "" = all companies / positions. */
+  company?: string;
+  position?: string;
+};
+
+export type AutoAnalyzeStartRequest = AutoAnalyzeFilters & {
   count: number;
   order: "oldest" | "newest";
-  job_id?: number;
 };
 
 export type AutoAnalyzeStartResponse = {
   batch_id: number;
   requested_count: number;
   selected_count: number;
+  available_count: number;
+  remaining_count: number;
   status: string;
 };
 
@@ -130,19 +160,24 @@ export type AutoAnalyzeProgressResponse = {
   processed: number;
   successful: number;
   failed: number;
+  skipped: number;
   remaining: number;
   current_application_id: number | null;
   created_at: string | null;
   finished_at: string | null;
 };
 
-/** Get the count of NEW applications available for auto-analysis. */
+/** Count applications Auto Analyze would pick, plus the filter choices. */
 export async function getAutoAnalyzeAvailable(
-  job_id?: number,
+  filters: AutoAnalyzeFilters = {},
 ): Promise<AutoAnalyzeAvailableResponse> {
-  const params = job_id ? `?job_id=${job_id}` : "";
+  const params = new URLSearchParams();
+  if (filters.job_id) params.set("job_id", String(filters.job_id));
+  if (filters.company) params.set("company", filters.company);
+  if (filters.position) params.set("position", filters.position);
+  const query = params.toString();
   return apiRequest<AutoAnalyzeAvailableResponse>(
-    `/workers/auto-analyze/available${params}`,
+    `/workers/auto-analyze/available${query ? `?${query}` : ""}`,
     { auth: true },
   );
 }

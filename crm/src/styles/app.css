@@ -2799,6 +2799,35 @@
   color: var(--color-text-muted);
 }
 
+.auto-analyze-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--space-md);
+}
+
+.auto-analyze-filters {
+  margin: 0;
+  padding: var(--space-md) var(--space-lg) var(--space-lg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  min-width: 0;
+}
+
+.auto-analyze-filters legend {
+  padding: 0 var(--space-xs);
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold);
+  color: var(--color-text-secondary);
+}
+
+.auto-analyze-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+}
+
+.auto-analyze-chips .chip { max-width: 100%; overflow-wrap: anywhere; }
+
 .auto-analyze-field {
   display: flex;
   flex-direction: column;
@@ -3253,6 +3282,7 @@
 }
 
 .row-action:disabled { opacity: 0.45; cursor: default; }
+.row-action svg { flex-shrink: 0; }
 
 .row-action--danger { color: var(--color-error-text); }
 .row-action--danger:hover:not(:disabled) { background-color: var(--color-error-bg); }
@@ -3295,3 +3325,27 @@
 }
 
 .segmented-button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ---------------------------------------------------------------------------
+   Settings: AI provider
+   ------------------------------------------------------------------------ */
+.ai-provider-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+  max-width: 540px;
+}
+
+.ai-provider-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.ai-provider-actions-spacer { flex: 1; }
+
+@media (max-width: 480px) {
+  .ai-provider-actions .btn { flex: 1 1 100%; }
+  .ai-provider-actions-spacer { display: none; }
+}

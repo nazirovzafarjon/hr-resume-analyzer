@@ -11,7 +11,32 @@ export type AuthResponse = {
   access_token: string;
   token_type: string;
   refresh_token?: string | null;
+  /** Workspace this session was signed for (the token's signed claim is authoritative). */
+  active_role?: SessionRole;
+  requires_role_selection?: false;
 };
+
+/**
+ * Session workspaces. Every account has "user" (HR); only administrators also
+ * have "admin". The active one is chosen at sign-in and signed into the token
+ * by the server — the frontend only reads it to decide what to show.
+ */
+export const SESSION_ROLES = { USER: "user", ADMIN: "admin" } as const;
+export type SessionRole = (typeof SESSION_ROLES)[keyof typeof SESSION_ROLES];
+
+/** Returned by sign-in endpoints when the account has several workspaces. */
+export type RoleSelectionRequired = {
+  requires_role_selection: true;
+  /** Short-lived, single-use; only accepted by POST /api/auth/select-role. */
+  selection_token: string;
+  available_roles: SessionRole[];
+  full_name: string;
+  /** Seconds until the selection token expires. */
+  expires_in: number;
+};
+
+/** What login, Google sign-in, registration and password reset return. */
+export type SignInResult = AuthResponse | RoleSelectionRequired;
 
 export type RegisterInput = {
   email: string;

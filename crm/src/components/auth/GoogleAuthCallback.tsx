@@ -20,7 +20,7 @@ import { GOOGLE_REDIRECT_URI } from "../../auth/googleConfig";
  */
 export default function GoogleAuthCallback() {
   const navigate = useNavigate();
-  const { signIn } = useAuth();
+  const { completeSignIn } = useAuth();
   const [serverError, setServerError] = useState<string | null>(null);
   // StrictMode double-invokes effects in development; run the exchange exactly
   // once per mount because an authorization code is single-use.
@@ -66,8 +66,8 @@ export default function GoogleAuthCallback() {
         // The redirect flow binds the code to the configured callback URL —
         // send it so the backend's token exchange matches exactly.
         const response = await loginWithGoogle(authorizationCode, GOOGLE_REDIRECT_URI);
-        signIn(response);
-        navigate("/dashboard", { replace: true });
+        // Straight into the workspace, or to the workspace choice.
+        navigate(completeSignIn(response), { replace: true });
       } catch (err) {
         setServerError(getErrorMessage(err));
       }

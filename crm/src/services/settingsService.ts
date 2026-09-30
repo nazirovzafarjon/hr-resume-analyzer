@@ -1,6 +1,9 @@
 import { API_BASE_URL, apiRequest } from "./apiClient";
 import type { AuthResponse } from "../types/auth";
 import type {
+  AIProviderInput,
+  AIProviderSettings,
+  AIProviderTestResult,
   ChangePasswordInput,
   ProfileUpdateInput,
   UserProfile,
@@ -75,6 +78,43 @@ export function uploadProfileImage(file: File): Promise<UserProfile> {
 export function removeProfileImage(): Promise<UserProfile> {
   return apiRequest<UserProfile>("/auth/me/profile-image", {
     method: "DELETE",
+    auth: true,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Settings -> "Connect your provider and API key"
+// The key only travels in the PUT/test request bodies; responses never
+// include it, and it is never written to any browser storage.
+// ---------------------------------------------------------------------------
+
+/** GET /api/auth/me/ai-provider — the user's provider status (no secrets). */
+export function getAIProvider(): Promise<AIProviderSettings> {
+  return apiRequest<AIProviderSettings>("/auth/me/ai-provider", { auth: true });
+}
+
+/** PUT /api/auth/me/ai-provider — save provider, model and (encrypted) key. */
+export function saveAIProvider(input: AIProviderInput): Promise<AIProviderSettings> {
+  return apiRequest<AIProviderSettings>("/auth/me/ai-provider", {
+    method: "PUT",
+    body: input,
+    auth: true,
+  });
+}
+
+/** DELETE /api/auth/me/ai-provider — go back to the default provider. */
+export function removeAIProvider(): Promise<AIProviderSettings> {
+  return apiRequest<AIProviderSettings>("/auth/me/ai-provider", {
+    method: "DELETE",
+    auth: true,
+  });
+}
+
+/** POST /api/auth/me/ai-provider/test — check credentials without saving. */
+export function testAIProvider(input: AIProviderInput): Promise<AIProviderTestResult> {
+  return apiRequest<AIProviderTestResult>("/auth/me/ai-provider/test", {
+    method: "POST",
+    body: input,
     auth: true,
   });
 }

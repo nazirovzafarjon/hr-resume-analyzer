@@ -59,5 +59,35 @@
     "nameRequired": "Full name is required.",
     "currentPasswordRequired": "Current password is required.",
     "footerNote": "All rights reserved."
+  },
+  "workspace": {
+    "chooseTitle": "Choose workspace",
+    "welcome": "Welcome back",
+    "welcomeName": "Welcome back, {name}",
+    "chooseSubtitle": "Your account has access to more than one workspace. Choose where you want to work in this session.",
+    "hint": "You can switch workspace later from the account menu.",
+    "hr": {
+      "title": "HR workspace",
+      "description": "Manage your jobs, applications, candidates and interviews.",
+      "continue": "Continue as HR"
+    },
+    "admin": {
+      "title": "Admin workspace",
+      "description": "Manage users, monitoring, audit logs and platform settings.",
+      "continue": "Continue as Admin"
+    },
+    "current": "Current: {name}",
+    "switchToAdmin": "Switch to Admin workspace",
+    "switchToHr": "Switch to HR workspace",
+    "switched": {
+      "admin": "You are now in the Admin workspace.",
+      "user": "You are now in the HR workspace."
+    },
+    "switchFailed": "Unable to switch workspace",
+    "selectFailed": "Unable to select workspace. Please try again.",
+    "notAvailable": "This workspace is not available for your account.",
+    "expired": "Your session has expired. Please sign in again.",
+    "signInAgain": "Sign in again",
+    "useAnotherAccount": "Sign in with a different account"
   }
 }

@@ -57,7 +57,7 @@
       "orderOldest": "Avval eskilari",
       "orderNewest": "Avval yangilari",
       "loadCountFailed": "Mavjud arizalar sonini yuklab bo'lmadi",
-      "newApplicationsAvailable": "Yangi arizalar mavjud",
+      "newApplicationsAvailable": "ta yangi ariza ushbu filtrlarga mos",
       "processingOrder": "Qayta ishlash tartibi",
       "numberOfResumes": "Rezyumelar soni",
       "onlyAvailable": "Faqat {available} ta yangi ariza mavjud. Barcha {available} tasi tahlil qilinadi.",
@@ -83,7 +83,26 @@
       "partialSuccessMessage": "{successful} ta rezyume muvaffaqiyatli tahlil qilindi. {failed} ta rezyumeni tahlil qilib bo'lmadi.",
       "processed": "Qayta ishlangan",
       "countHint": "1 dan {max} gacha.",
-      "nothingToAnalyze": "Barcha arizalar allaqachon tahlil qilingan — kutayotgan ariza yo'q."
+      "nothingToAnalyze": "Barcha arizalar allaqachon tahlil qilingan — kutayotgan ariza yo'q.",
+      "eligibleHint": "Faqat hali tahlil qilinmagan yangi arizalar olinadi. Har bir rezyume o'z vakansiyasi talablari bilan solishtiriladi.",
+      "filtersTitle": "Filtrlar (ixtiyoriy)",
+      "company": "Kompaniya",
+      "position": "Lavozim",
+      "all": "Hammasi",
+      "integerError": "1 dan 1000 gacha butun son kiriting.",
+      "noMatch": "Ushbu filtrlarga mos tahlil qilinmagan yangi arizalar yo'q.",
+      "analyzingProgress": "Tahlil {processed} / {total}",
+      "skipped": "o'tkazib yuborildi",
+      "summary": "{successful} ta rezyume muvaffaqiyatli tahlil qilindi. {failed} tasida xatolik.",
+      "summaryAllGood": "{successful} ta rezyume muvaffaqiyatli tahlil qilindi.",
+      "summarySkipped": "{skipped} tasi o'tkazib yuborildi (allaqachon tahlil qilingan yoki o'chirilgan).",
+      "remainingAfter": "Yana {remaining} ta mos ariza keyingi ishga tushirishni kutmoqda.",
+      "cancelledTitle": "Avtotahlil to'xtatildi",
+      "cancelledMessage": "{total} tadan {processed} tasidan so'ng to'xtatildi. Qayta ishlanmagan arizalar yangi holicha qoladi.",
+      "stop": "To'xtatish",
+      "continuesInBackground": "Bu oynani yopishingiz mumkin — tahlil fonda davom etadi.",
+      "refreshApplications": "Arizalarni yangilash",
+      "filterSummaryAll": "Barcha kompaniya va lavozimlar"
     },
     "allRequirementsMet": "Barcha asosiy talablar bajarilgan.",
     "allSkillsMatched": "Barcha talab qilingan ko'nikmalar mos keldi.",
@@ -101,6 +120,15 @@
       "hire": "Lavozimning asosiy talablariga javob beradi.",
       "weak_hire": "Qisman mos — qaror qilishdan oldin yetishmayotgan ko'nikmalar va tajribani tekshiring.",
       "do_not_hire": "Lavozimning muhim talablariga javob bermaydi."
+    },
+    "cv": {
+      "view": "Rezyumeni ko'rish",
+      "download": "Rezyumeni yuklab olish",
+      "short": "Rezyume",
+      "viewFor": "Rezyumeni ko'rish: {name}",
+      "downloadFor": "Rezyumeni yuklab olish: {name}",
+      "unavailableTitle": "Rezyume mavjud emas",
+      "loadFailed": "Rezyumeni ochib bo'lmadi. Qayta urinib ko'ring."
     }
   },
   "appStats": {
