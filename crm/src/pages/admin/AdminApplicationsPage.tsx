@@ -28,7 +28,7 @@ import { formatDate } from "../../utils/date";
 import { translateOr } from "../../utils/statusLabels";
 import type { AdminWorkerRow } from "../../types/admin";
 
-const APPLICATION_STATUSES = ["new", "reviewing", "shortlisted", "interview", "rejected", "withdrawn"];
+const APPLICATION_STATUSES = ["new", "reviewing", "shortlisted", "interview", "hired", "rejected", "withdrawn"];
 const HIRING_STATUSES = ["strong_hire", "hire", "weak_hire", "do_not_hire"];
 const INTERVIEW_STATUSES = ["in_process", "completed", "not_completed"];
 const ANALYSIS_FILTERS = ["analyzed", "not_analyzed", "analyzing", "failed"];

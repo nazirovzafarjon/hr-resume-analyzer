@@ -1,19 +1,25 @@
 """CRUD operations for interviews.
 
 Contains only database access, scoped to the owning HR user (``hr_id``).
-Business logic belongs in the router layer.
+``hr_id=None`` is an admin session's organisation-wide scope. Business logic
+belongs in the router layer.
+
+Invariant: ``interview.hr_id`` is always the owner of the candidate's job, even
+when an admin scheduled the interview (the audit log records who acted), so
+the owning HR user always sees every interview of their candidates.
 """
 
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, contains_eager
 
+from app.crud.query_utils import owner_filter
 from app.models.interview import Interview, InterviewStatus
 from app.models.job import Job
 from app.models.application import Application
 from app.schemas.interview import InterviewCreate, InterviewUpdate
 
 
-def _owned_query(db: Session, hr_id: int):
+def _owned_query(db: Session, hr_id: int | None):
     """Base query over an HR user's interviews with candidate/job eager-loaded.
 
     Ownership is enforced twice (belt and braces): the ``hr_id`` column on the
@@ -24,14 +30,14 @@ def _owned_query(db: Session, hr_id: int):
         db.query(Interview)
         .join(Interview.candidate)
         .join(Application.job)
-        .filter(Interview.hr_id == hr_id, Job.owner_id == hr_id)
+        .filter(owner_filter(Interview.hr_id, hr_id), owner_filter(Job.owner_id, hr_id))
         .options(contains_eager(Interview.candidate).contains_eager(Application.job))
     )
 
 
 def get_interviews(
     db: Session,
-    hr_id: int,
+    hr_id: int | None,
     *,
     status: InterviewStatus | None = None,
     search: str | None = None,
@@ -62,9 +68,9 @@ def get_interviews(
     )
 
 
-def get_interview_stats(db: Session, hr_id: int) -> dict[str, int]:
-    """Return total/upcoming/completed/cancelled counts for the HR user."""
-    base = db.query(func.count(Interview.id)).filter(Interview.hr_id == hr_id)
+def get_interview_stats(db: Session, hr_id: int | None) -> dict[str, int]:
+    """Return total/upcoming/completed/cancelled counts for the HR user (``None`` = all)."""
+    base = db.query(func.count(Interview.id)).filter(owner_filter(Interview.hr_id, hr_id))
 
     def count_by_status(value: InterviewStatus) -> int:
         return base.filter(Interview.status == value).scalar() or 0
@@ -77,11 +83,11 @@ def get_interview_stats(db: Session, hr_id: int) -> dict[str, int]:
     }
 
 
-def get_interview_by_id(db: Session, interview_id: int, hr_id: int) -> Interview | None:
-    """Return an interview if it belongs to ``hr_id``, else ``None``."""
+def get_interview_by_id(db: Session, interview_id: int, hr_id: int | None) -> Interview | None:
+    """Return an interview if it belongs to ``hr_id`` (``None`` = any), else ``None``."""
     return (
         db.query(Interview)
-        .filter(Interview.id == interview_id, Interview.hr_id == hr_id)
+        .filter(Interview.id == interview_id, owner_filter(Interview.hr_id, hr_id))
         .first()
     )
 
@@ -95,10 +101,18 @@ def create_interview(db: Session, obj_in: InterviewCreate, hr_id: int) -> Interv
     return interview
 
 
-def update_interview(db: Session, db_obj: Interview, obj_in: InterviewUpdate) -> Interview:
-    """Apply the submitted updates to an interview and return the refreshed row."""
+def update_interview(
+    db: Session, db_obj: Interview, obj_in: InterviewUpdate, *, hr_id: int | None = None
+) -> Interview:
+    """Apply the submitted updates to an interview and return the refreshed row.
+
+    ``hr_id`` re-assigns the interview when it moves to a candidate of another
+    HR user (only possible from an admin session).
+    """
     for field, value in obj_in.model_dump(exclude_unset=True).items():
         setattr(db_obj, field, value)
+    if hr_id is not None:
+        db_obj.hr_id = hr_id
     db.commit()
     db.refresh(db_obj)
     return db_obj
@@ -108,3 +122,34 @@ def delete_interview(db: Session, db_obj: Interview) -> None:
     """Delete the given interview."""
     db.delete(db_obj)
     db.commit()
+
+# ---------------------------------------------------------------------------
+# Candidate Portal (always scoped to one candidate account)
+# ---------------------------------------------------------------------------
+
+
+def _candidate_query(db: Session, candidate_account_id: int):
+    """Interviews on applications submitted by one candidate account."""
+    return (
+        db.query(Interview)
+        .join(Interview.candidate)
+        .join(Application.job)
+        .filter(Application.candidate_account_id == candidate_account_id)
+        .options(contains_eager(Interview.candidate).contains_eager(Application.job))
+    )
+
+
+def list_candidate_interviews(db: Session, candidate_account_id: int) -> list[Interview]:
+    """All of the candidate's interviews, soonest first."""
+    return (
+        _candidate_query(db, candidate_account_id)
+        .order_by(Interview.scheduled_at.asc(), Interview.id.asc())
+        .all()
+    )
+
+
+def get_candidate_interview(
+    db: Session, candidate_account_id: int, interview_id: int
+) -> Interview | None:
+    """The interview if it is on one of the candidate's applications, else ``None``."""
+    return _candidate_query(db, candidate_account_id).filter(Interview.id == interview_id).first()

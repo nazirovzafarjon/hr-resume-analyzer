@@ -1,6 +1,8 @@
 import Hero from "../components/sections/Hero";
 import TrustBar from "../components/sections/TrustBar";
 import Features from "../components/sections/Features";
+import ForCandidates from "../components/sections/ForCandidates";
+import Transparency from "../components/sections/Transparency";
 import HowItWorks from "../components/sections/HowItWorks";
 import Workflow from "../components/sections/Workflow";
 import ResumeAnalysis from "../components/sections/ResumeAnalysis";
@@ -25,6 +27,8 @@ export default function LandingPage() {
       <Hero />
       <TrustBar />
       <Features />
+      <ForCandidates />
+      <Transparency />
       <HowItWorks />
       <Workflow />
       <ResumeAnalysis />

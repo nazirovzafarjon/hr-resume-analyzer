@@ -4,6 +4,7 @@ The dashboard is user-scoped: it only aggregates the *current* HR user's jobs
 and candidates. Aggregation numbers are verified exactly.
 """
 
+from app.models.application import ApplicationStatus
 from tests.payloads import JOB_PAYLOAD, APPLICATION_PAYLOAD
 
 
@@ -184,9 +185,9 @@ class TestAnalytics:
         assert body["avg_ai_score"] == 0.0
         assert body["top_jobs"] == []
         assert body["previous_period"] == {"applications": 0, "interviews": 0}
-        # Real ApplicationStatus values only — no fabricated "hired" stage.
+        # Exactly the real ApplicationStatus values — no fabricated stages.
         assert {row["status"] for row in body["status_distribution"]} == {
-            "new", "reviewing", "shortlisted", "interview", "rejected", "withdrawn",
+            status.value for status in ApplicationStatus
         }
         assert all(row["count"] == 0 for row in body["status_distribution"])
         assert body["analysis_status_counts"] == {
@@ -337,7 +338,7 @@ class TestAnalytics:
         assert status_map["withdrawn"] == 1
         assert status_map["new"] == 0
         # No fabricated status outside the real ApplicationStatus enum.
-        assert set(status_map) == {"new", "reviewing", "shortlisted", "interview", "rejected", "withdrawn"}
+        assert set(status_map) == {status.value for status in ApplicationStatus}
 
     def test_analytics_requires_auth(self, client):
         assert client.get("/api/dashboard/analytics").status_code == 401

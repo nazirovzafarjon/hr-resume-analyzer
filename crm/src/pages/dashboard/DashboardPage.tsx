@@ -52,7 +52,7 @@ const RANGE_OPTIONS: { value: AnalyticsRange; label: string }[] = [
   { value: "90d", label: "90D" },
 ];
 
-const STATUS_FLOW: ApplicationStatus[] = ["new", "reviewing", "shortlisted", "interview"];
+const STATUS_FLOW: ApplicationStatus[] = ["new", "reviewing", "shortlisted", "interview", "hired"];
 const STATUS_TERMINAL: ApplicationStatus[] = ["rejected", "withdrawn"];
 
 const LOCALE_MAP: Record<string, string> = {

@@ -1,5 +1,6 @@
 import { useCallback, useMemo } from "react";
 import { Link } from "react-router-dom";
+import { Pencil } from "lucide-react";
 import PageHeader from "../../components/ui/PageHeader";
 import PageMeta from "../../components/seo/PageMeta";
 import Card from "../../components/ui/Card";
@@ -96,6 +97,25 @@ export default function AdminInterviewsPage() {
         sortKey: "created_at",
         hideOnMobile: true,
         render: (row) => <span className="table-muted admin-nowrap">{formatDate(row.created_at)}</span>,
+      },
+      {
+        header: t("labels.actions"),
+        headerClassName: "table-actions-cell",
+        className: "table-actions-cell",
+        // Admins have every HR permission: reschedule, change the status or
+        // edit notes on the regular interview screen.
+        render: (row) => (
+          <span className="row-actions">
+            <Link
+              className="row-action row-action--icon"
+              title={t("admin.common.manage")}
+              aria-label={`${t("admin.common.manage")}: ${row.candidate_name}`}
+              to={`/interviews/${row.id}`}
+            >
+              <Pencil size={15} aria-hidden="true" />
+            </Link>
+          </span>
+        ),
       },
     ],
     [t],

@@ -52,6 +52,8 @@ export default function ApplicationDetailsPage() {
     { value: "reviewing", label: t("statusMeta.application.reviewing") || "Reviewing" },
     { value: "shortlisted", label: t("statusMeta.application.shortlisted") || "Shortlisted" },
     { value: "interview", label: t("statusMeta.application.interview") || "Interview" },
+    // Final positive decision; the candidate sees "Application accepted".
+    { value: "hired", label: t("statusMeta.application.hired") || "Hired" },
     { value: "rejected", label: t("statusMeta.application.rejected") || "Rejected" },
     { value: "withdrawn", label: t("statusMeta.application.withdrawn") || "Withdrawn" },
   ];

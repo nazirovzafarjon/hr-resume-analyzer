@@ -6,6 +6,7 @@ Contains only database access. Business logic belongs in services.
 import uuid
 from sqlalchemy.orm import Session, selectinload
 
+from app.crud.query_utils import owner_filter
 from app.models.job import Job
 from app.schemas.job import JobCreate, JobUpdate
 
@@ -33,8 +34,10 @@ def get_job_by_public_id(db: Session, public_id: uuid.UUID) -> Job | None:
     return db.query(Job).filter(Job.public_id == public_id).first()
 
 
-def get_jobs_for_user(db: Session, owner_id: int) -> list[Job]:
+def get_jobs_for_user(db: Session, owner_id: int | None) -> list[Job]:
     """Return all jobs created by a given HR user, newest first.
+
+    ``owner_id=None`` (an admin session) returns every HR user's jobs.
 
     Eager-loads each job's application form so responses can embed the
     public link configuration without N+1 queries.
@@ -42,18 +45,18 @@ def get_jobs_for_user(db: Session, owner_id: int) -> list[Job]:
     return (
         db.query(Job)
         .options(selectinload(Job.application_form))
-        .filter(Job.owner_id == owner_id)
+        .filter(owner_filter(Job.owner_id, owner_id))
         .order_by(Job.created_at.desc())
         .all()
     )
 
 
-def get_recent_jobs(db: Session, owner_id: int, limit: int = 5) -> list[Job]:
-    """Return the most recently created jobs for a given HR user."""
+def get_recent_jobs(db: Session, owner_id: int | None, limit: int = 5) -> list[Job]:
+    """Return the most recently created jobs for a given HR user (``None`` = all)."""
     return (
         db.query(Job)
         .options(selectinload(Job.application_form))
-        .filter(Job.owner_id == owner_id)
+        .filter(owner_filter(Job.owner_id, owner_id))
         .order_by(Job.created_at.desc())
         .limit(limit)
         .all()

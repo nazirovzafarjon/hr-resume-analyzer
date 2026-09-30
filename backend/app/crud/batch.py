@@ -6,6 +6,7 @@ Contains only database access. Business logic belongs in services.
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.crud.query_utils import owner_filter
 from app.models.analysis_batch import AnalysisBatch, AnalysisBatchStatus
 def create_batch(
     db: Session,
@@ -24,12 +25,12 @@ def create_batch(
     return batch
 
 
-def get_batch(db: Session, batch_id: int, owner_id: int) -> AnalysisBatch | None:
-    """Return the batch if it belongs to the owner, else None."""
+def get_batch(db: Session, batch_id: int, owner_id: int | None) -> AnalysisBatch | None:
+    """Return the batch if it belongs to the owner (``None`` = any owner), else None."""
     return (
         db.execute(
             select(AnalysisBatch)
-            .filter(AnalysisBatch.id == batch_id, AnalysisBatch.owner_id == owner_id)
+            .filter(AnalysisBatch.id == batch_id, owner_filter(AnalysisBatch.owner_id, owner_id))
         )
         .scalar_one_or_none()
     )

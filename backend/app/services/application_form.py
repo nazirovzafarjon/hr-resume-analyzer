@@ -550,12 +550,16 @@ def submit_public_application(
     form: ApplicationForm,
     raw_values: Any,
     files: dict[str, tuple[str, str, bytes]],
+    candidate_account_id: int | None = None,
 ) -> int:
     """Validate and persist a public application submission.
 
     Returns the created application/candidate id. Reuses the existing Application
     pipeline (name/email/resume_path/hiring status) and stores the structured
     answers next to it, so the HR candidate flow keeps working unchanged.
+
+    ``candidate_account_id`` links the application to the Candidate Portal
+    account that submitted it while signed in (``None`` for a guest).
     """
     fields = form.fields or []
     if not fields:
@@ -591,7 +595,10 @@ def submit_public_application(
                 resume_path = path
 
         application = application_crud.create_application(
-            db, job.id, ApplicationCreate(name=name, email=email, resume_path=resume_path)
+            db,
+            job.id,
+            ApplicationCreate(name=name, email=email, resume_path=resume_path),
+            candidate_account_id=candidate_account_id,
         )
     except Exception:
         _delete_stored_files(stored_files.values())

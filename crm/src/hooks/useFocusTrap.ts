@@ -1,4 +1,4 @@
-import { useEffect, type RefObject } from "react";
+import { useEffect, useRef, type RefObject } from "react";
 
 type UseFocusTrapOptions = {
   /** Called on Escape — typically the dialog's close handler. */
@@ -15,19 +15,32 @@ const FOCUSABLE_SELECTOR =
  * restores focus to whatever was focused before activation once it ends.
  * Shared by Modal and CommandPalette so every dialog-like overlay in the app
  * behaves identically for keyboard users.
+ *
+ * The trap is set up once per activation. `onEscape`/`disabled` are read
+ * through refs, so callers can pass an inline `onClose` without the trap
+ * restarting on every render: a restart would run the cleanup, which moves
+ * focus back to the opener and pulls it out of the input being typed in.
  */
 export function useFocusTrap(
   containerRef: RefObject<HTMLElement | null>,
   active: boolean,
   { onEscape, disabled }: UseFocusTrapOptions = {},
 ) {
+  const onEscapeRef = useRef(onEscape);
+  const disabledRef = useRef(disabled);
+  useEffect(() => {
+    onEscapeRef.current = onEscape;
+    disabledRef.current = disabled;
+  });
+
   useEffect(() => {
     if (!active) return;
 
     const previouslyFocused = document.activeElement as HTMLElement | null;
 
     function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape" && onEscape && !disabled) {
+      const onEscape = onEscapeRef.current;
+      if (event.key === "Escape" && onEscape && !disabledRef.current) {
         onEscape();
         return;
       }
@@ -56,5 +69,5 @@ export function useFocusTrap(
       document.removeEventListener("keydown", handleKeyDown);
       previouslyFocused?.focus?.();
     };
-  }, [active, containerRef, onEscape, disabled]);
+  }, [active, containerRef]);
 }

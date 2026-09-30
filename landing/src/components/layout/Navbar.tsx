@@ -15,7 +15,9 @@ const DESKTOP_QUERY = "(min-width: 1024px)";
  * and CTAs move into a disclosure panel behind the menu button.
  *
  * Visitors with a CRM session see "Open workspace" instead of the log in /
- * sign up pair; the CRM itself re-validates the session on arrival.
+ * sign up pair; the CRM itself re-validates the session on arrival. The
+ * "Candidate portal" entry is always there: candidates often arrive through a
+ * company's application link and need an obvious way back to their portal.
  */
 export default function Navbar() {
   const { t } = useI18n();
@@ -25,10 +27,11 @@ export default function Navbar() {
   const toggleRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
 
+  // Both audiences are visible from the first glance.
   const links = [
-    { href: "/#features", label: t.nav.features },
+    { href: "/#features", label: t.nav.forCompanies },
+    { href: "/#for-candidates", label: t.nav.forCandidates },
     { href: "/#how-it-works", label: t.nav.howItWorks },
-    { href: "/#solutions", label: t.nav.solutions },
     { href: "/#faq", label: t.nav.faq },
     { href: "/#contact", label: t.nav.contact },
   ];
@@ -78,6 +81,9 @@ export default function Navbar() {
         <div className="navbar-actions">
           <LanguageMenu />
           <ThemeMenu />
+          <a className="btn btn--ghost" href={appLinks.candidateLogin}>
+            {t.nav.candidatePortal}
+          </a>
           {signedIn ? (
             <a className="btn" href={appLinks.workspace}>
               {t.nav.openWorkspace}
@@ -126,6 +132,9 @@ export default function Navbar() {
             <ThemeMenu align="start" />
           </div>
           <div className="mobile-menu-cta">
+            <a className="btn btn--secondary btn--lg" href={appLinks.candidateLogin}>
+              {t.nav.candidatePortal}
+            </a>
             {signedIn ? (
               <a className="btn btn--lg" href={appLinks.workspace}>
                 {t.nav.openWorkspace}

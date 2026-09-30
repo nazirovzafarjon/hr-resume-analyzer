@@ -34,14 +34,14 @@ from pydantic import ValidationError
 from app.core.config import settings
 from app.schemas.application_analysis import ApplicationAnalysis
 from app.services.ai.job_analyzer import (
+    AIEmptyResponseError,
     AIInvalidResponseError,
     AIServiceError,
     _build_endpoint_url,
     _build_headers,
     _build_payload,
     _get_client,
-    _make_request_with_retry,
-    _parse_response,
+    _request_and_parse,
     _strip_json_markdown,
 )
 
@@ -161,7 +161,7 @@ def build_prompt(
     )
 
 
-def _parse_analysis_response(text: str) -> ApplicationAnalysis:
+def _parse_analysis_response(text: str, model: str | None = None) -> ApplicationAnalysis:
     """Parse and validate the model's response into an ApplicationAnalysis.
 
     Raises AIInvalidResponseError on any failure — nothing corrupted is ever
@@ -180,6 +180,9 @@ def _parse_analysis_response(text: str) -> ApplicationAnalysis:
             "AI service returned a response that is not valid JSON."
         )
 
+    if parsed == {}:
+        raise AIEmptyResponseError(model)
+
     if not isinstance(parsed, dict):
         logger.error("AI application analysis is not a JSON object")
         raise AIInvalidResponseError(
@@ -189,7 +192,7 @@ def _parse_analysis_response(text: str) -> ApplicationAnalysis:
     try:
         return ApplicationAnalysis.model_validate(parsed)
     except ValidationError as exc:
-        logger.error("AI application analysis failed validation: %s", exc)
+        logger.error("AI application analysis failed validation: model=%s %s", model, exc)
         raise AIInvalidResponseError(
             "AI service returned data that does not match the expected format."
         )
@@ -261,10 +264,9 @@ async def analyze_application(
     url = _build_endpoint_url(cfg)
     client = _get_client()
 
-    response = await _make_request_with_retry(
-        client, "POST", url, json=payload, headers=headers, cfg=cfg
+    analysis = await _request_and_parse(
+        client, url, payload=payload, headers=headers, cfg=cfg, parse=_parse_analysis_response
     )
-    analysis = _parse_analysis_response(_parse_response(response, cfg))
 
     logger.info(
         "AI application analysis succeeded: provider=%s model=%s match=%s",

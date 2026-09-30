@@ -19,17 +19,25 @@ export default function Hero() {
           </h1>
           <p className="hero-subtitle">{t.hero.subtitle}</p>
           <div className="hero-actions">
+            {/* Two audiences, two doors: companies go to the HR workspace,
+                job seekers to the candidate side of the platform. */}
             <a className="btn btn--lg" href={appLinks.register}>
               {t.hero.primaryCta}
               <ArrowRight size={18} aria-hidden="true" />
             </a>
-            <a className="btn btn--secondary btn--lg" href="#features">
+            <a className="btn btn--secondary btn--lg" href="#for-candidates">
               {t.hero.secondaryCta}
             </a>
           </div>
           <p className="hero-note">
             <CircleCheck size={16} aria-hidden="true" />
             {t.hero.note}
+          </p>
+          <p>
+            <a className="hero-track" href={appLinks.candidateLogin}>
+              {t.hero.trackApplication}
+              <ArrowRight size={14} aria-hidden="true" />
+            </a>
           </p>
         </div>
 

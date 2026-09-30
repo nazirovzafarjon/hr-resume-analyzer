@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { Eye, Trash2 } from "lucide-react";
+import { Eye, Pencil, Plus, Trash2 } from "lucide-react";
 import PageHeader from "../../components/ui/PageHeader";
 import PageMeta from "../../components/seo/PageMeta";
 import Button from "../../components/ui/Button";
@@ -151,6 +151,15 @@ export default function AdminJobsPage() {
             >
               <Eye size={15} aria-hidden="true" />
             </button>
+            {/* Admins have every HR permission: edit in the hiring workspace. */}
+            <Link
+              className="row-action row-action--icon"
+              title={t("admin.common.manage")}
+              aria-label={`${t("admin.common.manage")}: ${row.position}`}
+              to={`/jobs/${row.id}`}
+            >
+              <Pencil size={15} aria-hidden="true" />
+            </Link>
             <button
               type="button"
               className="row-action row-action--icon row-action--danger"
@@ -170,7 +179,15 @@ export default function AdminJobsPage() {
   return (
     <div className="page">
       <PageMeta title={t("admin.nav.jobs")} noindex />
-      <PageHeader title={t("admin.jobs.title")} description={t("admin.jobs.description")} />
+      <PageHeader
+        title={t("admin.jobs.title")}
+        description={t("admin.jobs.description")}
+        action={
+          <Button icon={<Plus size={15} />} to="/jobs/create">
+            {t("admin.jobs.create")}
+          </Button>
+        }
+      />
 
       <Card flush>
         <FilterBar
@@ -254,6 +271,9 @@ function JobDetailModal({
             </Button>
             <Button variant="secondary" to={`/admin/applications?job_id=${job.id}`}>
               {t("admin.jobs.viewApplications")}
+            </Button>
+            <Button icon={<Pencil size={15} />} to={`/jobs/${job.id}`}>
+              {t("admin.common.manage")}
             </Button>
           </>
         )

@@ -1,0 +1,222 @@
+{
+  "portal": {
+    "tagline": "Nomzod portali",
+    "skipToContent": "Asosiy qismga o'tish",
+    "signOut": "Chiqish",
+    "loading": "Yuklanmoqda…",
+    "nav": {
+      "label": "Nomzod portali",
+      "dashboard": "Bosh sahifa",
+      "applications": "Arizalar",
+      "interviews": "Suhbatlar",
+      "profile": "Profil"
+    },
+    "status": {
+      "submitted": "Ariza yuborildi",
+      "ai_review": "Rezyume tahlil qilinmoqda",
+      "hr_review": "HR ko'rib chiqmoqda",
+      "interview_invited": "Suhbatga taklif",
+      "interview_scheduled": "Suhbat belgilandi",
+      "decision_pending": "Qaror kutilmoqda",
+      "accepted": "Ariza qabul qilindi",
+      "rejected": "Ariza yopildi",
+      "withdrawn": "Ariza qaytarib olindi"
+    },
+    "next": {
+      "submitted": "Ishga olish jamoasi arizangizni ko'rib chiqadi. Barcha yangiliklar shu yerda ko'rinadi.",
+      "ai_review": "Rezyumengiz vakansiya talablari bilan solishtirilmoqda. Odatda bu uzoq davom etmaydi.",
+      "hr_review": "Ishga olish jamoasi arizangizni ko'rib chiqmoqda. Suhbatga taklif qilishsa, u shu yerda paydo bo'ladi.",
+      "interview_invited": "Ishga olish jamoasi siz bilan suhbatlashmoqchi. Sana va vaqt belgilangach shu yerda ko'rinadi.",
+      "interview_scheduled": "Suhbatingiz belgilandi. Sana, vaqt va havola quyida.",
+      "decision_pending": "Suhbat bo'lib o'tdi. Ishga olish jamoasi qaror qabul qilmoqda.",
+      "accepted": "Tabriklaymiz! Arizangiz qabul qilindi — jamoa keyingi qadamlar bo'yicha siz bilan bog'lanadi.",
+      "rejected": "Ishga olish jamoasi bu arizani yopdi. Qiziqishingiz uchun rahmat — izlanishlaringizda omad tilaymiz.",
+      "withdrawn": "Bu ariza qaytarib olingan. Keyingi qadamlar rejalashtirilmagan."
+    },
+    "interviewState": {
+      "not_scheduled": "Belgilanmagan",
+      "scheduled": "Belgilangan",
+      "completed": "Bo'lib o'tgan"
+    },
+    "analysisState": {
+      "not_analyzed": "Hozircha mavjud emas",
+      "analyzing": "Tahlil qilinmoqda…",
+      "analyzed": "Mavjud",
+      "failed": "Vaqtincha mavjud emas"
+    },
+    "card": {
+      "applied": "Yuborilgan",
+      "status": "Holat",
+      "interview": "Suhbat",
+      "resumeMatch": "Rezyume mosligi",
+      "view": "Arizani ochish"
+    },
+    "dashboard": {
+      "welcome": "Xush kelibsiz, {name} 👋",
+      "welcomeAnonymous": "Xush kelibsiz 👋",
+      "subtitle": "Arizalaringiz haqida umumiy ma'lumot.",
+      "what": "bosh sahifani",
+      "total": "Jami arizalar",
+      "active": "Faol",
+      "interviews": "Kutilayotgan suhbatlar",
+      "completed": "Yakunlangan",
+      "nextInterview": "Navbatdagi suhbatingiz",
+      "recent": "So'nggi arizalar",
+      "viewAll": "Barchasi"
+    },
+    "applications": {
+      "title": "Mening arizalarim",
+      "subtitle": "Ariza topshirgan barcha vakansiyalar va har bir arizaning holati.",
+      "what": "arizalaringizni",
+      "emptyTitle": "Sizda hali arizalar yo'q.",
+      "emptyMessage": "Hisobingizga kirgan holda vakansiya havolasini oching va birinchi arizangizni yuboring — u shu yerda paydo bo'ladi."
+    },
+    "interviews": {
+      "title": "Mening suhbatlarim",
+      "subtitle": "Suhbatlaringiz sanasi, vaqti va havolalari.",
+      "what": "suhbatlaringizni",
+      "upcoming": "Kutilayotgan",
+      "past": "O'tgan suhbatlar",
+      "emptyTitle": "Hali suhbatlar belgilanmagan.",
+      "emptyMessage": "Suhbat belgilanganda uning tafsilotlari shu yerda ko'rinadi.",
+      "minutes": "{count} daq",
+      "online": "Onlayn suhbat",
+      "detailsFromTeam": "Joyni ishga olish jamoasi aytadi",
+      "join": "Suhbatga qo'shilish",
+      "viewApplication": "Arizani ochish",
+      "status": {
+        "upcoming": "Kutilmoqda",
+        "completed": "Bo'lib o'tdi",
+        "cancelled": "Bekor qilindi"
+      }
+    },
+    "timeline": {
+      "submitted": "Ariza yuborildi",
+      "resume_review": "Rezyume tahlili",
+      "hr_review": "HR ko'rib chiqishi",
+      "interview": "Suhbat",
+      "decision": "Yakuniy qaror",
+      "decision_accepted": "Ariza qabul qilindi",
+      "decision_rejected": "Ariza yopildi",
+      "decision_withdrawn": "Ariza qaytarib olindi",
+      "scheduledFor": "{date} ga belgilangan",
+      "state": {
+        "done": "Yakunlandi",
+        "current": "Jarayonda",
+        "upcoming": "Kutilmoqda",
+        "skipped": "Talab qilinmaydi",
+        "unavailable": "Mavjud emas",
+        "doneResume": "Yakunlandi",
+        "currentResume": "Rezyumengiz tahlil qilinmoqda…",
+        "upcomingResume": "Ko'rib chiqish kutilmoqda",
+        "skippedResume": "Ishga olish jamoasi bevosita ko'rib chiqdi",
+        "unavailableResume": "Hozir mavjud emas — bu arizangizga ta'sir qilmaydi"
+      },
+      "stateLabel": {
+        "done": "yakunlangan",
+        "current": "joriy qadam",
+        "upcoming": "boshlanmagan",
+        "skipped": "o'tkazib yuborilgan",
+        "unavailable": "mavjud emas"
+      }
+    },
+    "ai": {
+      "title": "Rezyume mosligi",
+      "not_analyzed": {
+        "title": "Rezyume tahlili hozircha mavjud emas.",
+        "message": "Arizangiz muvaffaqiyatli qabul qilindi."
+      },
+      "analyzing": {
+        "title": "Rezyumengiz tahlil qilinmoqda…",
+        "message": "Odatda bu uzoq davom etmaydi."
+      },
+      "failed": {
+        "title": "Rezyume tahlilini hozircha yakunlab bo'lmadi.",
+        "message": "Arizangiz baribir muvaffaqiyatli yuborilgan. Keyinroq qayta tekshiring."
+      },
+      "matchAria": "Vakansiya talablariga moslik: {value}%",
+      "summaryStrong": "Rezyumengiz ushbu vakansiya talablariga yaxshi mos keladi.",
+      "summaryPartial": "Rezyumengiz vakansiya talablarining bir qismiga mos keladi.",
+      "summaryLow": "Hozircha rezyumengiz vakansiya talablari bilan kam mos keladi.",
+      "strongMatches": "Kuchli mosliklar",
+      "requirementsMet": "Bajarilgan talablar",
+      "toStrengthen": "Kuchaytirish kerak bo'lgan ko'nikmalar",
+      "suggestion": "Rezyumengizda {items} bo'yicha tajribangizni ko'rsatish yoki rivojlantirishni o'ylab ko'ring.",
+      "noDetails": "Bu vakansiya uchun ko'nikmalar ajratib olinmadi.",
+      "disclaimer": "Bu sizga yordam berish uchun rezyumengizni vakansiya tavsifi bilan avtomatik solishtirish. Bu ishga olish qarori emas — qaror doimo ishga olish jamoasiga tegishli."
+    },
+    "detail": {
+      "back": "Barcha arizalar",
+      "what": "bu arizani",
+      "whatNext": "Keyin nima bo'ladi?",
+      "progress": "Ariza jarayoni",
+      "job": "Vakansiya haqida",
+      "skills": "Talab qilinadigan ko'nikmalar",
+      "experience": "Tajriba",
+      "interviews": "Suhbat",
+      "submitted": "Sizning arizangiz",
+      "fileAttached": "Fayl biriktirilgan",
+      "noAnswers": "Bu ariza uchun forma javoblari saqlanmagan.",
+      "downloadResume": "Rezyumemni yuklab olish",
+      "downloadFailed": "Rezyumeni yuklab bo'lmadi"
+    },
+    "errors": {
+      "notFoundTitle": "Ariza topilmadi",
+      "notFoundMessage": "U o'chirilgan yoki boshqa hisobga tegishli bo'lishi mumkin.",
+      "loadTitle": "{what} yuklab bo'lmadi",
+      "loadMessage": "Ulanishni tekshirib, qayta urinib ko'ring."
+    },
+    "profile": {
+      "title": "Profil",
+      "subtitle": "Aloqa ma'lumotlari va kirish sozlamalari.",
+      "photo": "Profil rasmi",
+      "uploadPhoto": "Rasm yuklash",
+      "removePhoto": "O'chirish",
+      "photoHint": "JPG, PNG yoki WEBP.",
+      "details": "Shaxsiy ma'lumotlar",
+      "fullName": "To'liq ism",
+      "phone": "Telefon",
+      "save": "Saqlash",
+      "saved": "Profil yangilandi",
+      "saveFailed": "Profilni saqlab bo'lmadi",
+      "imageFailed": "Rasmni yangilab bo'lmadi",
+      "nameRequired": "To'liq ismingizni kiriting.",
+      "password": "Parol",
+      "passwordHint": "Parol almashtirilsa, boshqa qurilmalardan chiqib ketasiz.",
+      "currentPassword": "Joriy parol",
+      "newPassword": "Yangi parol",
+      "changePassword": "Parolni almashtirish",
+      "passwordChanged": "Parol almashtirildi"
+    },
+    "auth": {
+      "loginTitle": "Nomzodlar uchun kirish",
+      "loginSubtitle": "Arizalar va suhbatlaringizni kuzating.",
+      "noAccount": "Birinchi marta keldingizmi?",
+      "createAccount": "Nomzod hisobini yaratish",
+      "hrSignIn": "Xodim yollaysizmi? HR ish maydoniga kiring",
+      "signIn": "Kirish",
+      "registerTitle": "Nomzod hisobingizni yarating",
+      "registerSubtitle": "Vakansiyalarga ariza topshiring va har bir arizani bir joyda kuzating.",
+      "haveAccount": "Hisobingiz bormi?",
+      "passwordRule": "{min}–{max} ta belgi.",
+      "forgotTitle": "Parolni tiklash",
+      "forgotSubtitle": "Yangi parol o'rnatish uchun havola yuboramiz.",
+      "backToSignIn": "Kirishga qaytish",
+      "forgotSent": "Bu manzil bilan hisob mavjud bo'lsa, havola yuborildi.",
+      "sendLink": "Havola yuborish",
+      "resetTitle": "Yangi parol",
+      "requestNewLink": "Yangi havola so'rash",
+      "resetMissingToken": "Havola to'liq emas. Yangisini so'rang.",
+      "setPassword": "Parolni saqlash"
+    },
+    "apply": {
+      "signedIn": "Siz {name} sifatida ariza topshiryapsiz. Ariza nomzod portalingizda paydo bo'ladi.",
+      "openPortal": "Portalimni ochish",
+      "guestTitle": "Arizangizni kuzating.",
+      "guestMessage": "Holat, suhbatlar va rezyume bo'yicha fikrni ko'rish uchun ariza topshirishdan oldin bepul nomzod hisobini yarating (yoki kiring). Mehmon sifatida ham topshirish mumkin.",
+      "trackMessage": "Ariza jarayoni, suhbatlar va rezyume bo'yicha fikrni nomzod portalingizda kuzating.",
+      "guestAfter": "Keyingi arizangizni kuzatmoqchimisiz? Bepul nomzod hisobini yarating va unga kirgan holda ariza topshiring.",
+      "track": "Arizamni kuzatish"
+    }
+  }
+}

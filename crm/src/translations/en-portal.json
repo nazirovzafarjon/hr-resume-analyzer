@@ -1,0 +1,222 @@
+{
+  "portal": {
+    "tagline": "Candidate Portal",
+    "skipToContent": "Skip to content",
+    "signOut": "Sign out",
+    "loading": "Loading…",
+    "nav": {
+      "label": "Candidate Portal",
+      "dashboard": "Dashboard",
+      "applications": "Applications",
+      "interviews": "Interviews",
+      "profile": "Profile"
+    },
+    "status": {
+      "submitted": "Application submitted",
+      "ai_review": "Resume being reviewed",
+      "hr_review": "Under HR review",
+      "interview_invited": "Interview invitation",
+      "interview_scheduled": "Interview scheduled",
+      "decision_pending": "Decision pending",
+      "accepted": "Application accepted",
+      "rejected": "Application closed",
+      "withdrawn": "Application withdrawn"
+    },
+    "next": {
+      "submitted": "The hiring team will review your application. You'll see every update here.",
+      "ai_review": "Your resume is being compared with the job requirements. This usually takes a short moment.",
+      "hr_review": "The hiring team is reviewing your application. If they'd like to meet you, an interview will appear here.",
+      "interview_invited": "The hiring team would like to interview you. The date and time will appear here once scheduled.",
+      "interview_scheduled": "Your interview is scheduled. Check the date, time and link below.",
+      "decision_pending": "Your interview is done. The hiring team is making a decision.",
+      "accepted": "Congratulations! The hiring team has accepted your application and will contact you about next steps.",
+      "rejected": "The hiring team has closed this application. Thank you for your interest — we wish you the best in your search.",
+      "withdrawn": "This application was withdrawn. No further steps are planned."
+    },
+    "interviewState": {
+      "not_scheduled": "Not scheduled",
+      "scheduled": "Scheduled",
+      "completed": "Completed"
+    },
+    "analysisState": {
+      "not_analyzed": "Not available yet",
+      "analyzing": "Being analyzed…",
+      "analyzed": "Available",
+      "failed": "Temporarily unavailable"
+    },
+    "card": {
+      "applied": "Applied",
+      "status": "Status",
+      "interview": "Interview",
+      "resumeMatch": "Resume match",
+      "view": "View application"
+    },
+    "dashboard": {
+      "welcome": "Welcome back, {name} 👋",
+      "welcomeAnonymous": "Welcome back 👋",
+      "subtitle": "Here's an overview of your applications.",
+      "what": "your dashboard",
+      "total": "Total applications",
+      "active": "Active",
+      "interviews": "Upcoming interviews",
+      "completed": "Completed",
+      "nextInterview": "Your next interview",
+      "recent": "Recent applications",
+      "viewAll": "View all"
+    },
+    "applications": {
+      "title": "My applications",
+      "subtitle": "Every job you applied to and where each application stands.",
+      "what": "your applications",
+      "emptyTitle": "You don't have any applications yet.",
+      "emptyMessage": "Open a job's application link while signed in and submit your first application — it will appear here."
+    },
+    "interviews": {
+      "title": "My interviews",
+      "subtitle": "Dates, times and links for your interviews.",
+      "what": "your interviews",
+      "upcoming": "Upcoming",
+      "past": "Past interviews",
+      "emptyTitle": "No interviews scheduled yet.",
+      "emptyMessage": "We'll show your interview details here when one is scheduled.",
+      "minutes": "{count} min",
+      "online": "Online interview",
+      "detailsFromTeam": "Location shared by the hiring team",
+      "join": "Join interview",
+      "viewApplication": "View application",
+      "status": {
+        "upcoming": "Upcoming",
+        "completed": "Completed",
+        "cancelled": "Cancelled"
+      }
+    },
+    "timeline": {
+      "submitted": "Application submitted",
+      "resume_review": "Resume review",
+      "hr_review": "HR review",
+      "interview": "Interview",
+      "decision": "Final decision",
+      "decision_accepted": "Application accepted",
+      "decision_rejected": "Application closed",
+      "decision_withdrawn": "Application withdrawn",
+      "scheduledFor": "Scheduled for {date}",
+      "state": {
+        "done": "Completed",
+        "current": "In progress",
+        "upcoming": "Pending",
+        "skipped": "Not needed",
+        "unavailable": "Not available",
+        "doneResume": "Completed",
+        "currentResume": "Your resume is being analyzed…",
+        "upcomingResume": "Waiting for review",
+        "skippedResume": "Reviewed directly by the hiring team",
+        "unavailableResume": "Not available right now — your application is not affected"
+      },
+      "stateLabel": {
+        "done": "completed",
+        "current": "current step",
+        "upcoming": "not started",
+        "skipped": "skipped",
+        "unavailable": "not available"
+      }
+    },
+    "ai": {
+      "title": "Resume compatibility",
+      "not_analyzed": {
+        "title": "Your resume analysis isn't available yet.",
+        "message": "Your application has been received successfully."
+      },
+      "analyzing": {
+        "title": "Your resume is being analyzed…",
+        "message": "This usually takes a short moment."
+      },
+      "failed": {
+        "title": "We couldn't complete the resume analysis yet.",
+        "message": "Your application was still submitted successfully. Please check again later."
+      },
+      "matchAria": "{value}% match with the job requirements",
+      "summaryStrong": "Your resume shows strong alignment with this job's requirements.",
+      "summaryPartial": "Your resume matches part of this job's requirements.",
+      "summaryLow": "Your resume shows limited overlap with this job's requirements so far.",
+      "strongMatches": "Strong matches",
+      "requirementsMet": "Requirements you meet",
+      "toStrengthen": "Skills to strengthen",
+      "suggestion": "Consider highlighting or building experience with {items} in your resume.",
+      "noDetails": "No skill details were extracted for this job.",
+      "disclaimer": "This is an automated comparison of your resume with the job description, meant to help you. It is not a hiring decision — that always belongs to the hiring team."
+    },
+    "detail": {
+      "back": "All applications",
+      "what": "this application",
+      "whatNext": "What happens next?",
+      "progress": "Application progress",
+      "job": "About the job",
+      "skills": "Required skills",
+      "experience": "Experience",
+      "interviews": "Interview",
+      "submitted": "Your application",
+      "fileAttached": "File attached",
+      "noAnswers": "No form answers were stored for this application.",
+      "downloadResume": "Download my resume",
+      "downloadFailed": "Couldn't download your resume"
+    },
+    "errors": {
+      "notFoundTitle": "Application not found",
+      "notFoundMessage": "It may have been removed, or it belongs to a different account.",
+      "loadTitle": "We couldn't load {what}",
+      "loadMessage": "Please check your connection and try again."
+    },
+    "profile": {
+      "title": "Profile",
+      "subtitle": "Your contact details and sign-in settings.",
+      "photo": "Profile photo",
+      "uploadPhoto": "Upload photo",
+      "removePhoto": "Remove",
+      "photoHint": "JPG, PNG or WEBP.",
+      "details": "Personal details",
+      "fullName": "Full name",
+      "phone": "Phone",
+      "save": "Save changes",
+      "saved": "Profile updated",
+      "saveFailed": "Couldn't save your profile",
+      "imageFailed": "Couldn't update your photo",
+      "nameRequired": "Please enter your full name.",
+      "password": "Password",
+      "passwordHint": "Changing it signs you out on other devices.",
+      "currentPassword": "Current password",
+      "newPassword": "New password",
+      "changePassword": "Change password",
+      "passwordChanged": "Password changed"
+    },
+    "auth": {
+      "loginTitle": "Candidate sign in",
+      "loginSubtitle": "Track your applications and interviews.",
+      "noAccount": "New here?",
+      "createAccount": "Create candidate account",
+      "hrSignIn": "Hiring? Sign in to the HR workspace",
+      "signIn": "Sign in",
+      "registerTitle": "Create your candidate account",
+      "registerSubtitle": "Apply to jobs and follow every application from one place.",
+      "haveAccount": "Already have an account?",
+      "passwordRule": "Use {min}–{max} characters.",
+      "forgotTitle": "Reset your password",
+      "forgotSubtitle": "We'll email you a link to set a new password.",
+      "backToSignIn": "Back to sign in",
+      "forgotSent": "If an account exists for this email, a reset link is on its way.",
+      "sendLink": "Send reset link",
+      "resetTitle": "Set a new password",
+      "requestNewLink": "Request a new link",
+      "resetMissingToken": "This reset link is incomplete. Please request a new one.",
+      "setPassword": "Set password"
+    },
+    "apply": {
+      "signedIn": "Applying as {name}. This application will appear in your Candidate Portal.",
+      "openPortal": "Open my portal",
+      "guestTitle": "Track your application.",
+      "guestMessage": "Create a free candidate account (or sign in) before applying to follow its status, interviews and resume feedback. You can also apply as a guest.",
+      "trackMessage": "Follow its progress, interviews and resume feedback in your Candidate Portal.",
+      "guestAfter": "Want to track your next application? Create a free candidate account and apply while signed in.",
+      "track": "Track my application"
+    }
+  }
+}

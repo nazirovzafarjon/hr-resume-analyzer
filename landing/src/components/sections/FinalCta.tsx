@@ -20,6 +20,9 @@ export default function FinalCta() {
             <a className="btn btn--secondary btn--lg" href={signedIn ? appLinks.workspace : appLinks.login}>
               {signedIn ? t.nav.openWorkspace : t.cta.secondary}
             </a>
+            <a className="btn btn--secondary btn--lg" href={appLinks.candidateLogin}>
+              {t.cta.candidate}
+            </a>
           </div>
         </div>
       </div>
