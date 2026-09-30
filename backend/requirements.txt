@@ -18,6 +18,8 @@ email-validator
 
 # Authentication & security
 python-jose[cryptography]
+# Fernet encryption of HR users' own AI provider keys (app.core.encryption)
+cryptography
 bcrypt
 python-multipart
 

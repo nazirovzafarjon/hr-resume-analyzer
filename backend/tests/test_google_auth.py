@@ -435,7 +435,7 @@ class TestLoginWithGoogle:
 
 class TestGoogleLoginEndpoint:
     def test_returns_access_token(self, client, monkeypatch):
-        async def fake_login(db, code, redirect_uri=None):  # noqa: ARG001
+        async def fake_login(db, code, redirect_uri=None, context=None):  # noqa: ARG001
             return Token(access_token="signed-jwt-for-google-user")
 
         monkeypatch.setattr(auth_service, "login_with_google", fake_login)
@@ -448,7 +448,7 @@ class TestGoogleLoginEndpoint:
     def test_redirect_uri_is_forwarded_to_service(self, client, monkeypatch):
         received: dict = {}
 
-        async def fake_login(db, code, redirect_uri=None):  # noqa: ARG001
+        async def fake_login(db, code, redirect_uri=None, context=None):  # noqa: ARG001
             received["code"] = code
             received["redirect_uri"] = redirect_uri
             return Token(access_token="jwt-for-popup-code")
@@ -463,7 +463,7 @@ class TestGoogleLoginEndpoint:
         assert received["redirect_uri"] == "postmessage"
 
     def test_invalid_code_returns_400_with_detail(self, client, monkeypatch):
-        async def fail(db, code, redirect_uri=None):  # noqa: ARG001
+        async def fail(db, code, redirect_uri=None, context=None):  # noqa: ARG001
             raise GoogleAuthError("Google rejected the sign-in code.")
 
         monkeypatch.setattr(auth_service, "login_with_google", fail)
@@ -472,7 +472,7 @@ class TestGoogleLoginEndpoint:
         assert "rejected" in response.json()["detail"]
 
     def test_unlinked_account_conflict_returns_400(self, client, monkeypatch):
-        async def conflict(db, code, redirect_uri=None):  # noqa: ARG001
+        async def conflict(db, code, redirect_uri=None, context=None):  # noqa: ARG001
             raise ValueError("This Google email is already registered with another account.")
 
         monkeypatch.setattr(auth_service, "login_with_google", conflict)
@@ -480,7 +480,7 @@ class TestGoogleLoginEndpoint:
         assert response.status_code == 400
 
     def test_unexpected_failure_returns_500(self, client, monkeypatch):
-        async def explode(db, code, redirect_uri=None):  # noqa: ARG001
+        async def explode(db, code, redirect_uri=None, context=None):  # noqa: ARG001
             raise RuntimeError("boom")
 
         monkeypatch.setattr(auth_service, "login_with_google", explode)

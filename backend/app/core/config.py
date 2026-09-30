@@ -10,6 +10,15 @@ from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+#: Default API base URL of every supported AI provider. Also the list of
+#: providers an HR user may pick for their own key in Settings.
+AI_PROVIDER_BASE_URLS: dict[str, str] = {
+    "openrouter": "https://openrouter.ai/api/v1",
+    "groq": "https://api.groq.com/openai/v1",
+    "gemini": "https://generativelanguage.googleapis.com/v1beta/models",
+}
+
+
 class Settings(BaseSettings):
     """Application settings."""
 
@@ -81,6 +90,13 @@ class Settings(BaseSettings):
     # context window instead of failing the whole analysis.
     APPLICATION_RESUME_MAX_CHARS: int = 20000
 
+    # Key that encrypts the AI provider API keys HR users save in Settings
+    # ("Connect your provider and API key"). A Fernet key: generate one with
+    #   python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+    # When empty, saving a custom provider is refused (the platform provider
+    # keeps working). Changing it makes already-saved keys unreadable.
+    AI_CREDENTIAL_ENCRYPTION_KEY: str = ""
+
     # AI provider configuration (general, provider-agnostic).
     # These take precedence over provider-specific legacy variables.
     # Supported providers: openrouter, groq, gemini
@@ -146,14 +162,7 @@ class Settings(BaseSettings):
             model = self.OPENROUTER_MODEL
 
         # Resolve base URL: AI_BASE_URL takes precedence, then provider default
-        base_url = self.AI_BASE_URL or ""
-        if not base_url:
-            if provider == "openrouter":
-                base_url = "https://openrouter.ai/api/v1"
-            elif provider == "groq":
-                base_url = "https://api.groq.com/openai/v1"
-            elif provider == "gemini":
-                base_url = "https://generativelanguage.googleapis.com/v1beta/models"
+        base_url = self.AI_BASE_URL or AI_PROVIDER_BASE_URLS.get(provider, "")
 
         # Resolve referer and title
         http_referer = self.AI_HTTP_REFERER or self.OPENROUTER_REFERER

@@ -18,6 +18,7 @@ from app.schemas.contact_message import ContactMessageCreate, ContactMessageResu
 from app.schemas.job import PublicJobSummary
 from app.schemas.worker import WorkerResponse
 from app.services import application_form as application_form_service
+from app.services import audit
 from app.services import contact_message as contact_message_service
 from app.services import job as job_service
 
@@ -136,8 +137,24 @@ async def public_apply(
 
     # Increment job leads count
     job_service.increment_leads_count(db, job.id)
+    _audit_received(db, worker.id, job)
 
     return worker
+
+
+def _audit_received(db: Session, worker_id: int, job: Job) -> None:
+    """Audit an incoming public application.
+
+    There is no actor (the applicant has no account) and deliberately no IP /
+    user agent: the applicant is a private person, not a platform user.
+    """
+    audit.record(
+        db,
+        audit.AuditAction.APPLICATION_RECEIVED,
+        resource_type=audit.AuditResource.APPLICATION,
+        resource_id=worker_id,
+        details={"job_id": job.id, "owner_id": job.owner_id},
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -226,7 +243,9 @@ async def public_submit_application(
         files[key] = (part.filename or "", part.content_type or "", content)
 
     try:
-        application_form_service.submit_public_application(db, job, form, values, files)
+        worker_id = application_form_service.submit_public_application(
+            db, job, form, values, files
+        )
     except application_form_service.SubmissionValidationError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=exc.message
@@ -236,6 +255,7 @@ async def public_submit_application(
             status_code=status.HTTP_409_CONFLICT, detail=exc.message
         ) from exc
 
+    _audit_received(db, worker_id, job)
     return PublicSubmissionResult()
 
 

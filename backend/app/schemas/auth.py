@@ -1,6 +1,10 @@
 """Pydantic schemas for authentication (login / register / token)."""
 
+from typing import Literal
+
 from pydantic import BaseModel, EmailStr, Field
+
+from app.core.roles import SessionRole
 
 
 class Token(BaseModel):
@@ -12,6 +16,46 @@ class Token(BaseModel):
 
     access_token: str
     token_type: str = "bearer"
+    refresh_token: str | None = None
+    #: The workspace this session was signed for. Informational for the UI;
+    #: the authoritative copy is the signed ``role`` claim inside the token.
+    active_role: SessionRole = SessionRole.USER
+    #: Always false here; lets clients tell a session from RoleSelectionRequired.
+    requires_role_selection: Literal[False] = False
+
+
+class RoleSelectionRequired(BaseModel):
+    """Returned instead of a session when the account has several workspaces.
+
+    ``selection_token`` is short-lived, single-use and accepted only by
+    ``POST /api/auth/select-role``; it cannot call any other endpoint.
+    """
+
+    requires_role_selection: Literal[True] = True
+    selection_token: str
+    available_roles: list[SessionRole]
+    full_name: str
+    expires_in: int  # seconds
+
+
+#: What every sign-in endpoint returns: a session, or a workspace choice.
+SignInResult = Token | RoleSelectionRequired
+
+
+class SelectRoleRequest(BaseModel):
+    """Choose the session's workspace.
+
+    * With ``selection_token``: finish a sign-in that required a choice.
+    * Without it: switch the workspace of the current (bearer) session.
+    """
+
+    role: SessionRole
+    selection_token: str | None = Field(default=None, min_length=1)
+
+
+class LogoutRequest(BaseModel):
+    """Optional logout body: the refresh token to revoke with the session."""
+
     refresh_token: str | None = None
 
 

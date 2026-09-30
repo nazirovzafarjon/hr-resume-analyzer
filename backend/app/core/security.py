@@ -12,7 +12,12 @@ Purpose claim                      Accepted by
 ``access`` (``TOKEN_PURPOSE_ACCESS``)  the ``get_current_user`` guard
 ``refresh``                        ``POST /api/auth/refresh`` only
 ``password_reset``                 the reset / skip-reset endpoints only
+``role_selection``                 ``POST /api/auth/select-role`` only
 =================================  =========================================
+
+Access and refresh tokens also carry a ``role`` claim: the session's active
+workspace (see :mod:`app.core.roles`). It is written only here, when the
+server signs the token, so a client can never choose or change it.
 
 This separation matters: a reset token travels inside an emailed URL, so it
 must never work as a session credential, and a long-lived refresh token must
@@ -41,6 +46,11 @@ TOKEN_PURPOSE_ACCESS = "access"
 TOKEN_PURPOSE_REFRESH = "refresh"
 #: Single-purpose credential embedded in the emailed password-reset link.
 TOKEN_PURPOSE_RESET = "password_reset"
+#: Short-lived proof that the user just authenticated and must now choose a
+#: workspace. Grants nothing else: no API access, no refresh.
+TOKEN_PURPOSE_ROLE_SELECTION = "role_selection"
+#: Lifetime of a role-selection token: long enough to click a button.
+ROLE_SELECTION_TOKEN_EXPIRE_MINUTES = 5
 
 
 def _password_bytes(password: str) -> bytes:
@@ -68,6 +78,7 @@ def _create_token(
     expires_delta: timedelta,
     purpose: str,
     issued_at: datetime | None = None,
+    extra_claims: dict[str, Any] | None = None,
 ) -> str:
     """Build the common payload for every signed token in the application.
 
@@ -86,14 +97,20 @@ def _create_token(
         "iat": now,
         "typ": purpose,
         "jti": uuid4().hex,
+        **(extra_claims or {}),
     }
     return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+
+
+def _role_claims(role: str | None) -> dict[str, Any] | None:
+    return {"role": role} if role else None
 
 
 def create_access_token(
     subject: str | int,
     expires_delta: timedelta | None = None,
     issued_at: datetime | None = None,
+    role: str | None = None,
 ) -> str:
     """Create a signed JWT whose ``sub`` claim identifies the user.
 
@@ -101,12 +118,23 @@ def create_access_token(
         subject: The user identifier to embed in the token.
         expires_delta: Optional custom lifetime; defaults to the configured value.
         issued_at: Optional ``iat`` override (see :func:`_create_token`).
+        role: The session's active workspace (``SessionRole`` value).
     """
     return _create_token(
         subject,
         expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
         TOKEN_PURPOSE_ACCESS,
         issued_at=issued_at,
+        extra_claims=_role_claims(role),
+    )
+
+
+def create_role_selection_token(subject: str | int) -> str:
+    """Create the short-lived token that only lets a user pick a workspace."""
+    return _create_token(
+        subject,
+        timedelta(minutes=ROLE_SELECTION_TOKEN_EXPIRE_MINUTES),
+        TOKEN_PURPOSE_ROLE_SELECTION,
     )
 
 
@@ -114,6 +142,7 @@ def create_refresh_token(
     subject: str | int,
     expires_delta: timedelta | None = None,
     issued_at: datetime | None = None,
+    role: str | None = None,
 ) -> str:
     """Create a long-lived refresh token for the given user.
 
@@ -125,6 +154,8 @@ def create_refresh_token(
         expires_delta or timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS),
         TOKEN_PURPOSE_REFRESH,
         issued_at=issued_at,
+        # Carried so a refresh keeps the session's workspace (never upgrades it).
+        extra_claims=_role_claims(role),
     )
 
 

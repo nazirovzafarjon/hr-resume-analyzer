@@ -50,6 +50,7 @@ def update_batch(
     current_index: int | None = None,
     successful_count: int | None = None,
     failed_count: int | None = None,
+    skipped_count: int | None = None,
     current_worker_id: int | None = None,
     finished_at: bool = False,
 ) -> AnalysisBatch:
@@ -63,6 +64,8 @@ def update_batch(
         update_data["successful_count"] = successful_count
     if failed_count is not None:
         update_data["failed_count"] = failed_count
+    if skipped_count is not None:
+        update_data["skipped_count"] = skipped_count
     if current_worker_id is not None:
         update_data["current_worker_id"] = current_worker_id
     if finished_at:

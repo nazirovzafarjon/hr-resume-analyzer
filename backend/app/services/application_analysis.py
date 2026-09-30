@@ -16,6 +16,7 @@ The AI never writes ``application_status``, ``hiring_status`` or
 """
 
 import logging
+import time
 from datetime import datetime, timedelta, timezone
 
 from pydantic import ValidationError
@@ -27,6 +28,9 @@ from app.models.job import Job
 from app.models.worker import AnalysisStatus, Worker
 from app.schemas.application_analysis import ApplicationAnalysis
 from app.services.ai.application_analyzer import analyze_application
+from app.services import ai_monitoring
+from app.services import ai_provider as ai_provider_service
+from app.services import audit
 from app.services.ai.job_analyzer import AIServiceError
 from app.services.resume_text import extract_resume_text
 
@@ -165,6 +169,44 @@ def _mark_failed(db: Session, worker: Worker, message: str | None) -> None:
     )
 
 
+def _record_outcome(
+    db: Session,
+    worker: Worker,
+    owner_id: int,
+    cfg: dict,
+    started: float,
+    *,
+    score: float | None = None,
+    error: BaseException | None = None,
+) -> None:
+    """Record the attempt for AI monitoring and the audit trail (best effort).
+
+    The run row carries the diagnostics (provider, model, duration, error
+    category); the audit row puts the outcome into the platform activity feed.
+    Neither contains prompts, resume text or credentials.
+    """
+    ai_monitoring.record_run(
+        db,
+        kind=ai_monitoring.KIND_APPLICATION,
+        cfg=cfg,
+        duration_ms=round((time.monotonic() - started) * 1000),
+        owner_id=owner_id,
+        job_id=worker.job_id,
+        worker_id=worker.id,
+        score=score,
+        error=error,
+    )
+    audit.record(
+        db,
+        audit.AuditAction.AI_ANALYSIS_FAILED if error else audit.AuditAction.AI_ANALYSIS_COMPLETED,
+        resource_type=audit.AuditResource.APPLICATION,
+        resource_id=worker.id,
+        details={"job_id": worker.job_id, "owner_id": owner_id, "score": score}
+        if error is None
+        else {"job_id": worker.job_id, "owner_id": owner_id, "category": ai_monitoring.categorize(error)},
+    )
+
+
 async def run_analysis(db: Session, worker: Worker, *, force: bool = False) -> Worker:
     """Analyse one application and store the structured result.
 
@@ -215,20 +257,31 @@ async def run_analysis(db: Session, worker: Worker, *, force: bool = False) -> W
         bool(resume_text.strip()),
     )
 
+    cfg: dict = {}
+    owner_id = worker.job.owner_id
+    started = time.monotonic()
     try:
+        # The job owner's own provider when configured, else the platform's.
+        cfg = ai_provider_service.resolve_for_user(db, owner_id)
         analysis = await analyze_application(
             job_requirements=job_requirements,
             form_answers=form_answers,
             resume_text=resume_text,
+            cfg=cfg,
         )
     except AIServiceError as exc:
-        _mark_failed(db, worker, exc.message)
-        raise
-    except Exception:
+        safe = ai_provider_service.safe_error_for(cfg, exc)
+        _mark_failed(db, worker, safe.message)
+        _record_outcome(db, worker, owner_id, cfg, started, error=exc)
+        if safe is exc:
+            raise
+        raise safe from None
+    except Exception as exc:
         logger.exception(
             "Unexpected error while analysing application: worker_id=%s", worker.id
         )
         _mark_failed(db, worker, UNEXPECTED_FAILURE_MESSAGE)
+        _record_outcome(db, worker, owner_id, cfg, started, error=exc)
         raise
 
     if resume_reason:
@@ -244,6 +297,7 @@ async def run_analysis(db: Session, worker: Worker, *, force: bool = False) -> W
     # interview_status: the AI assists HR, it never decides for them.
     db.commit()
     db.refresh(worker)
+    _record_outcome(db, worker, owner_id, cfg, started, score=worker.ai_score)
 
     logger.info(
         "Application analysis completed: worker_id=%s match=%s model=%s",

@@ -1,8 +1,8 @@
 """Business logic for the public Contact Us form.
 
 The endpoint needs no account, so the only abuse guard is a small in-process
-per-client limit. Like ``app.core.token_registry`` it lives in the worker's
-memory: a restart resets it and several uvicorn workers each keep their own
+per-client limit. It lives in the worker's memory (unlike token revocation,
+which is stored in the database): a restart resets it and several uvicorn workers each keep their own
 count. That is enough to stop a stuck button or a naive script without adding
 Redis for one form; back it with a shared store if the API is scaled out.
 """

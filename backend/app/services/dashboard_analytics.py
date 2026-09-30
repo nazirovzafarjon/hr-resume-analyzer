@@ -20,7 +20,8 @@ AnalyticsRange = Literal["7d", "30d", "90d"]
 
 _RANGE_DAYS: dict[AnalyticsRange, int] = {"7d": 7, "30d": 30, "90d": 90}
 
-_SCORE_BUCKETS = [
+#: AI score buckets (label, low, high), shared with the admin analytics.
+SCORE_BUCKETS = [
     ("0-49", 0, 49),
     ("50-59", 50, 59),
     ("60-69", 60, 69),
@@ -130,7 +131,7 @@ def get_analytics(db: Session, owner_id: int, range_: AnalyticsRange = "30d") ->
 
     # --- Score distribution, one query, analyzed applications only ---
     bucket_expr = case(
-        *[(Worker.ai_score.between(lo, hi), label) for label, lo, hi in _SCORE_BUCKETS],
+        *[(Worker.ai_score.between(lo, hi), label) for label, lo, hi in SCORE_BUCKETS],
         else_=None,
     )
     score_rows = (
@@ -141,7 +142,7 @@ def get_analytics(db: Session, owner_id: int, range_: AnalyticsRange = "30d") ->
         .all()
     )
     score_map = {row.bucket: row.count for row in score_rows if row.bucket is not None}
-    score_distribution = [{"bucket": label, "count": score_map.get(label, 0)} for label, _, _ in _SCORE_BUCKETS]
+    score_distribution = [{"bucket": label, "count": score_map.get(label, 0)} for label, _, _ in SCORE_BUCKETS]
 
     # --- Hiring status counts (unchanged, real GROUP BY) ---
     hiring_rows = (

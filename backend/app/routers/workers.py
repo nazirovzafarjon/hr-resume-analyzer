@@ -13,18 +13,21 @@ DELETE /api/workers/{id}          — delete worker
 POST   /api/workers/{id}/analyze  — run AI analysis (reads resume from disk)
 GET    /api/workers/{id}/analysis — read stored AI analysis (never calls AI)
 POST   /api/workers/{id}/convert-to-candidate — move to candidate pipeline
+GET    /api/workers/{id}/resume   — view (inline) or download the stored CV
 """
 
 import asyncio
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.crud import batch as batch_crud
 from app.crud import job as job_crud
 from app.crud import worker as worker_crud
+from app.dependencies.audit import get_audit_context
 from app.dependencies.auth import get_current_user
 from app.models.job import Job
 from app.models.user import User
@@ -41,7 +44,10 @@ from app.schemas.worker import (
     WorkerUpdate,
 )
 from app.services import application_analysis as analysis_service
+from app.services import audit
+from app.services.audit import AuditAction, AuditContext, AuditResource
 from app.services import auto_analyze as auto_analyze_service
+from app.services import resume_file as resume_file_service
 
 logger = logging.getLogger(__name__)
 
@@ -105,15 +111,9 @@ def _build_detail_response(worker: Worker, base_url: str = "") -> WorkerDetailRe
             )
         )
 
-    # Browser-usable URL for the stored resume file.
-    resume_url: str | None = None
-    if worker.resume_path:
-        if worker.resume_path.startswith("http"):
-            resume_url = worker.resume_path
-        else:
-            # Strip any leading slash from the stored path segment.
-            path_segment = worker.resume_path.lstrip("/")
-            resume_url = f"{base_url}/{path_segment}" if base_url else f"/{path_segment}"
+    # The CV is only served through the authenticated endpoint below; this is
+    # its API path (relative to the API base), never a filesystem location.
+    resume_url = f"/workers/{worker.id}/resume" if worker.resume_path else None
 
     # Interview summaries (lightweight, avoids loading all interview details).
     interviews: list[WorkerInterviewSummary] = [
@@ -218,6 +218,7 @@ def create_worker(
     payload: WorkerCreate = ...,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    audit_ctx: AuditContext = Depends(get_audit_context),
 ) -> Worker:
     """Record a new worker/candidate application and bump the job's lead count."""
     from app.services import job as job_service
@@ -225,6 +226,15 @@ def create_worker(
     job = _get_owned_job(db, job_id, current_user)
     worker = worker_crud.create_worker(db, job.id, payload)
     job_service.increment_leads_count(db, job.id)
+    audit.record(
+        db,
+        AuditAction.CREATE_APPLICATION,
+        resource_type=AuditResource.APPLICATION,
+        resource_id=worker.id,
+        actor=current_user,
+        details={"job_id": job.id},
+        context=audit_ctx,
+    )
     return worker
 
 
@@ -253,10 +263,29 @@ def update_worker(
     payload: WorkerUpdate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    audit_ctx: AuditContext = Depends(get_audit_context),
 ) -> WorkerDetailResponse:
     """Update HR-owned fields on an application/candidate."""
     worker = _get_owned_worker(db, worker_id, current_user)
     worker = worker_crud.update_worker(db, worker, payload)
+    # Statuses are enum values (safe to log); other fields only by name.
+    changes = payload.model_dump(exclude_unset=True)
+    audit.record(
+        db,
+        AuditAction.UPDATE_APPLICATION,
+        resource_type=AuditResource.APPLICATION,
+        resource_id=worker.id,
+        actor=current_user,
+        details={
+            "fields": sorted(changes),
+            **{
+                key: changes[key]
+                for key in ("application_status", "hiring_status", "interview_status")
+                if key in changes
+            },
+        },
+        context=audit_ctx,
+    )
     return _build_detail_response(worker)
 
 
@@ -265,10 +294,21 @@ def delete_worker(
     worker_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    audit_ctx: AuditContext = Depends(get_audit_context),
 ) -> None:
     """Delete a worker/candidate owned by the current user."""
     worker = _get_owned_worker(db, worker_id, current_user)
+    job_id = worker.job_id
     worker_crud.delete_worker(db, worker.id)
+    audit.record(
+        db,
+        AuditAction.DELETE_APPLICATION,
+        resource_type=AuditResource.APPLICATION,
+        resource_id=worker_id,
+        actor=current_user,
+        details={"job_id": job_id},
+        context=audit_ctx,
+    )
     return None
 
 
@@ -342,6 +382,42 @@ def get_worker_analysis(
 
 
 # ---------------------------------------------------------------------------
+# CV view / download
+# ---------------------------------------------------------------------------
+
+
+@router.get("/{worker_id}/resume", response_class=FileResponse)
+def get_worker_resume(
+    worker_id: int,
+    download: bool = Query(False, description="Send as an attachment instead of inline"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> FileResponse:
+    """Stream the application's CV to its owner.
+
+    Inline by default (PDFs open in the browser); ``?download=true`` sends it
+    as an attachment named after the candidate. Another user's application
+    returns the same 404 as a missing one.
+    """
+    worker = _get_owned_worker(db, worker_id, current_user)
+    try:
+        resume = resume_file_service.get_resume_file(worker)
+    except resume_file_service.ResumeUnavailableError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=exc.message) from exc
+
+    return FileResponse(
+        resume.path,
+        media_type=resume.media_type,
+        filename=resume.filename,
+        content_disposition_type="attachment" if download else "inline",
+        headers={
+            "Cache-Control": "private, no-store",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
+
+
+# ---------------------------------------------------------------------------
 # Convert to candidate
 # ---------------------------------------------------------------------------
 
@@ -355,6 +431,7 @@ def convert_to_candidate(
     worker_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    audit_ctx: AuditContext = Depends(get_audit_context),
 ) -> WorkerDetailResponse:
     """Move an application into the candidate (hiring/interview) pipeline.
 
@@ -367,7 +444,18 @@ def convert_to_candidate(
     to the candidate pipeline at any point.
     """
     worker = _get_owned_worker(db, worker_id, current_user)
+    already_candidate = worker.candidate_at is not None
     worker = analysis_service.convert_to_candidate(db, worker)
+    if not already_candidate:
+        audit.record(
+            db,
+            AuditAction.CONVERT_TO_CANDIDATE,
+            resource_type=AuditResource.APPLICATION,
+            resource_id=worker.id,
+            actor=current_user,
+            details={"job_id": worker.job_id},
+            context=audit_ctx,
+        )
     return _build_detail_response(worker)
 
 
@@ -383,20 +471,26 @@ def convert_to_candidate(
 )
 def get_auto_analyze_available(
     job_id: int | None = Query(default=None, description="Optional job filter"),
+    company: str | None = Query(default=None, max_length=255, description="Company filter"),
+    position: str | None = Query(default=None, max_length=255, description="Position filter"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> AutoAnalyzeAvailableResponse:
-    """Get the count of NEW applications available for auto-analysis.
+    """Count applications Auto Analyze would pick, plus the filter choices.
 
-    Returns the number of applications with analysis_status=NEW that belong
-    to the current user's jobs. Optionally filtered by job_id.
+    Eligible = owned by the caller, ``application_status=new`` and never
+    analysed. Empty/omitted filters mean "All". ``options`` lists every
+    company/position pair that has eligible applications.
     """
     count = auto_analyze_service.get_available_new_count(
         db,
         current_user.id,
         job_id=job_id,
+        company=(company or "").strip() or None,
+        position=(position or "").strip() or None,
     )
-    return AutoAnalyzeAvailableResponse(count=count)
+    options = auto_analyze_service.get_filter_options(db, current_user.id)
+    return AutoAnalyzeAvailableResponse(count=count, options=options)
 
 
 @router.post(
@@ -408,11 +502,13 @@ async def start_auto_analyze(
     request: AutoAnalyzeStartRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    audit_ctx: AuditContext = Depends(get_audit_context),
 ) -> AutoAnalyzeStartResponse:
     """Start a new auto-analyze batch.
 
-    Selects NEW applications according to the requested order and count,
-    creates a batch, and returns immediately. The analysis runs in the
+    Selects eligible applications (new, never analysed, matching the
+    optional company/position/job filters) in the requested order, up to
+    ``count``, creates a batch, and returns immediately. The analysis runs in the
     background - poll GET /workers/auto-analyze/{batch_id} for progress.
 
     Raises:
@@ -423,6 +519,13 @@ async def start_auto_analyze(
     if request.job_id is not None:
         _get_owned_job(db, request.job_id, current_user)
 
+    available = auto_analyze_service.get_available_new_count(
+        db,
+        current_user.id,
+        job_id=request.job_id,
+        company=request.company,
+        position=request.position,
+    )
     try:
         batch = auto_analyze_service.create_auto_analyze_batch(
             db,
@@ -430,6 +533,8 @@ async def start_auto_analyze(
             count=request.count,
             order=request.order,
             job_id=request.job_id,
+            company=request.company,
+            position=request.position,
         )
     except auto_analyze_service.InvalidBatchSizeError as exc:
         raise HTTPException(
@@ -447,13 +552,26 @@ async def start_auto_analyze(
             detail=exc.message,
         ) from exc
 
+    selected = len(batch.worker_ids)
+    audit.record(
+        db,
+        AuditAction.AI_BATCH_STARTED,
+        resource_type=AuditResource.AI_ANALYSIS,
+        resource_id=batch.id,
+        actor=current_user,
+        details={"selected": selected, "order": request.order},
+        context=audit_ctx,
+    )
+
     # Start the background analysis
     asyncio.create_task(auto_analyze_service.run_batch_analysis(batch.id))
 
     return AutoAnalyzeStartResponse(
         batch_id=batch.id,
         requested_count=request.count,
-        selected_count=len(batch.worker_ids),
+        selected_count=selected,
+        available_count=available,
+        remaining_count=max(available - selected, 0),
         status=batch.status.value,
     )
 
@@ -516,6 +634,7 @@ def cancel_auto_analyze(
         processed=batch.processed,
         successful=batch.successful_count,
         failed=batch.failed_count,
+        skipped=batch.skipped_count,
         remaining=batch.remaining,
         current_application_id=batch.current_worker_id,
         created_at=batch.created_at,

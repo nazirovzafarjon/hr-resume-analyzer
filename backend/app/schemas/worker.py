@@ -10,7 +10,7 @@ they are returned to clients but never accepted from them.
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.models.interview import InterviewStatus as InterviewSessionStatus
 from app.models.worker import (
@@ -66,18 +66,48 @@ class WorkerAnalyzeRequest(BaseModel):
 
 # Auto-analyze batch schemas
 
-class AutoAnalyzeAvailableResponse(BaseModel):
-    """Response for GET /workers/auto-analyze/available."""
+class AutoAnalyzeFilterOption(BaseModel):
+    """A company/position pair that has eligible applications."""
 
+    company_name: str
+    position: str
     count: int
 
 
+class AutoAnalyzeAvailableResponse(BaseModel):
+    """Response for GET /workers/auto-analyze/available."""
+
+    #: Eligible applications matching the requested filters.
+    count: int
+    #: Choices for the Company/Position filters (all eligible applications).
+    options: list[AutoAnalyzeFilterOption] = []
+
+
+def _blank_to_none(value: str | None) -> str | None:
+    """Treat "" (the UI's "All") like an absent filter."""
+    if value is None:
+        return None
+    value = value.strip()
+    return value or None
+
+
 class AutoAnalyzeStartRequest(BaseModel):
-    """Request body for POST /workers/auto-analyze."""
+    """Request body for POST /workers/auto-analyze.
+
+    ``count`` and ``order`` are required choices in the UI; ``company``,
+    ``position`` and ``job_id`` are optional filters (omitted/empty = all).
+    """
 
     count: int = Field(ge=1, le=1000)
     order: str = Field(default="oldest", pattern="^(oldest|newest)$")
     job_id: int | None = None
+    company: str | None = Field(default=None, max_length=255)
+    position: str | None = Field(default=None, max_length=255)
+
+    @field_validator("company", "position")
+    @classmethod
+    def _normalise_filter(cls, value: str | None) -> str | None:
+        return _blank_to_none(value)
 
 
 class AutoAnalyzeStartResponse(BaseModel):
@@ -86,6 +116,10 @@ class AutoAnalyzeStartResponse(BaseModel):
     batch_id: int
     requested_count: int
     selected_count: int
+    #: Eligible applications matching the filters when the batch was created.
+    available_count: int
+    #: Eligible applications left for a later run (available - selected).
+    remaining_count: int
     status: str
 
 
@@ -98,6 +132,7 @@ class AutoAnalyzeProgressResponse(BaseModel):
     processed: int
     successful: int
     failed: int
+    skipped: int = 0
     remaining: int
     current_application_id: int | None = None
     created_at: datetime | None = None

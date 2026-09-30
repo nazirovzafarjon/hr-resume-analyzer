@@ -649,7 +649,9 @@ async def _make_request_with_retry(
 # Public API
 # ---------------------------------------------------------------------------
 
-async def analyze_vacancy(vacancy_content: str) -> JobAIAnalysisResult:
+async def analyze_vacancy(
+    vacancy_content: str, cfg: dict[str, Any] | None = None
+) -> JobAIAnalysisResult:
     """Analyse a vacancy using the configured AI provider and return structured job information.
 
     Args:
@@ -667,7 +669,8 @@ async def analyze_vacancy(vacancy_content: str) -> JobAIAnalysisResult:
     if not vacancy_content or not vacancy_content.strip():
         raise AIServiceError("Vacancy content cannot be empty.", status_code=422)
 
-    cfg = settings.ai_provider_config()
+    if cfg is None:
+        cfg = settings.ai_provider_config()
     max_content_length = cfg["max_content_length"]
     if len(vacancy_content) > max_content_length:
         raise AIServiceError(
