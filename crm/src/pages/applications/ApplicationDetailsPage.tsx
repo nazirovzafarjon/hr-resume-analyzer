@@ -7,7 +7,7 @@ import {
   analyzeWorker,
   convertToCandidate,
   deleteWorker,
-} from "../../services/workersService";
+} from "../../services/applicationsService";
 import { formatDate } from "../../utils/date";
 import PageHeader from "../../components/ui/PageHeader";
 import PageMeta from "../../components/seo/PageMeta";
@@ -29,7 +29,7 @@ import type {
   AIRecommendationType,
   CandidateDetail,
   ApplicationStatus,
-} from "../../types/worker";
+} from "../../types/candidate";
 
 /** /applications/:id — single submitted application with AI analysis and candidate pipeline actions. */
 export default function ApplicationDetailsPage() {

@@ -1,4 +1,4 @@
-import type { AnalysisStatus, ApplicationStatus, HiringStatus, InterviewStatus } from "../types/worker";
+import type { AnalysisStatus, ApplicationStatus, HiringStatus, InterviewStatus } from "../types/candidate";
 import type { InterviewStatusFilter } from "../types/application";
 
 /** Tone accepted by <Badge />. */

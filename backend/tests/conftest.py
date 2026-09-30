@@ -43,7 +43,7 @@ from app.core.security import create_access_token, decode_access_token
 from app.core.token_registry import reset_registry
 from app.crud.user import create_user
 from app.main import _create_tables_and_seed_superuser, _ensure_database, create_app
-from app.models import Interview, Job, User, Worker  # noqa: F401  (register models)
+from app.models import Interview, Job, User, Application  # noqa: F401  (register models)
 from app.schemas.user import UserCreate
 
 # Deterministic test data shared across the suite.
@@ -52,7 +52,7 @@ TEST_USER_PASSWORD = "StrongPassword123"
 TEST_ADMIN_EMAIL = "admin@example.com"
 TEST_ADMIN_PASSWORD = "AdminPass123"
 
-from tests.payloads import JOB_PAYLOAD, WORKER_PAYLOAD  # noqa: E402 (shared data)
+from tests.payloads import JOB_PAYLOAD, APPLICATION_PAYLOAD  # noqa: E402 (shared data)
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -72,7 +72,7 @@ def _clean_tables(_prepare_database):
         conn.execute(
             text(
                 "TRUNCATE application_responses, application_forms, interviews, "
-                "workers, jobs, users, contact_messages, audit_logs, system_errors, "
+                "applications, jobs, users, contact_messages, audit_logs, system_errors, "
                 "ai_analysis_runs, platform_settings, revoked_tokens, session_cutoffs "
                 "RESTART IDENTITY CASCADE"
             )
@@ -182,7 +182,7 @@ def admin(db_session):
 
 
 # ---------------------------------------------------------------------------
-# Domain fixtures: jobs and workers
+# Domain fixtures: jobs and applications
 # ---------------------------------------------------------------------------
 
 
@@ -196,13 +196,13 @@ def sample_job(client, user):
 
 
 @pytest.fixture
-def worker_factory(client, user):
-    """Factory that creates a worker for a given job_id."""
+def application_factory(client, user):
+    """Factory that creates an application for a given job_id."""
 
     def _create(job_id, payload=None, headers=None):
         response = client.post(
-            f"/api/workers?job_id={job_id}",
-            json=payload or dict(WORKER_PAYLOAD),
+            f"/api/applications?job_id={job_id}",
+            json=payload or dict(APPLICATION_PAYLOAD),
             headers=headers or user["headers"],
         )
         return response
@@ -211,9 +211,9 @@ def worker_factory(client, user):
 
 
 @pytest.fixture
-def sample_worker(client, worker_factory, sample_job):
-    """Create a worker attached to ``sample_job`` and return it plus headers."""
-    response = worker_factory(sample_job["id"])
+def sample_application(client, application_factory, sample_job):
+    """Create an application attached to ``sample_job`` and return it plus headers."""
+    response = application_factory(sample_job["id"])
     assert response.status_code == 201, response.text
-    worker = response.json()
-    return {"id": worker["id"], "data": worker, "job_id": sample_job["id"], "headers": sample_job["headers"]}
+    application = response.json()
+    return {"id": application["id"], "data": application, "job_id": sample_job["id"], "headers": sample_job["headers"]}

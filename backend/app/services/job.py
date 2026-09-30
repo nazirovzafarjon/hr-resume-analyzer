@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.crud.job import get_job
 from app.models.job import Job
-from app.models.worker import Worker
+from app.models.application import Application
 
 # Mapping exposed analytics category names to groupable Job columns.
 # "experience" is accepted as an alias of "required_experience" because the
@@ -48,8 +48,8 @@ def job_analytics(db: Session, owner_id: int, category: str = "company") -> dict
         db.query(func.count(Job.id)).filter(Job.owner_id == owner_id).scalar() or 0
     )
     total_candidates = (
-        db.query(func.count(Worker.id))
-        .join(Job, Worker.job_id == Job.id)
+        db.query(func.count(Application.id))
+        .join(Job, Application.job_id == Job.id)
         .filter(Job.owner_id == owner_id)
         .scalar()
         or 0
@@ -65,9 +65,9 @@ def job_analytics(db: Session, owner_id: int, category: str = "company") -> dict
         db.query(
             group_column,
             func.count(distinct(Job.id)).label("jobs"),
-            func.count(Worker.id).label("candidates"),
+            func.count(Application.id).label("candidates"),
         )
-        .outerjoin(Worker, Worker.job_id == Job.id)
+        .outerjoin(Application, Application.job_id == Job.id)
         .filter(Job.owner_id == owner_id)
         .group_by(group_column)
         .order_by(group_column)

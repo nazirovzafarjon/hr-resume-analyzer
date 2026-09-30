@@ -1,8 +1,8 @@
 /**
- * Applications & Candidates (worker) API integration.
+ * Applications & Candidates API integration (`/api/applications`).
  *
- * A Worker *is* an Application in the backend. Once HR moves an application into
- * the candidate pipeline, `candidate_at` is timestamped and `is_candidate` is true.
+ * Every record is an application. Once HR moves one into the candidate
+ * pipeline, `candidate_at` is timestamped and `is_candidate` is true.
  */
 
 import { apiRequest } from "./apiClient";
@@ -10,7 +10,7 @@ import type {
   Candidate,
   CandidateDetail,
   CandidateStatusUpdate,
-} from "../types/worker";
+} from "../types/candidate";
 
 export type WorkerFilterParams = {
   job_id?: number;
@@ -40,12 +40,12 @@ function buildQuery(params?: WorkerFilterParams): string {
   return queryString ? `?${queryString}` : "";
 }
 
-/** Fetch workers (applications/candidates) with optional filtering. */
+/** Fetch applications (and candidates) with optional filtering. */
 export async function fetchWorkers(params?: WorkerFilterParams): Promise<Candidate[]> {
-  return apiRequest<Candidate[]>(`/workers${buildQuery(params)}`, { auth: true });
+  return apiRequest<Candidate[]>(`/applications${buildQuery(params)}`, { auth: true });
 }
 
-/** Fetch candidates (workers with candidate_at set). */
+/** Fetch candidates (applications with candidate_at set). */
 export async function fetchCandidates(params?: WorkerFilterParams): Promise<Candidate[]> {
   return fetchWorkers({ ...params, candidate_only: true });
 }
@@ -60,17 +60,17 @@ export async function fetchApplications(params?: WorkerFilterParams): Promise<Ca
   return fetchWorkers(params);
 }
 
-/** Fetch full detail for a single worker (includes form answers, AI analysis, interviews). */
+/** Fetch full detail for a single application (includes form answers, AI analysis, interviews). */
 export async function getWorker(id: number): Promise<CandidateDetail> {
-  return apiRequest<CandidateDetail>(`/workers/${id}`, { auth: true });
+  return apiRequest<CandidateDetail>(`/applications/${id}`, { auth: true });
 }
 
-/** Update HR-owned statuses on a worker. */
+/** Update HR-owned statuses on an application. */
 export async function updateWorker(
   id: number,
   patch: CandidateStatusUpdate,
 ): Promise<CandidateDetail> {
-  return apiRequest<CandidateDetail>(`/workers/${id}`, {
+  return apiRequest<CandidateDetail>(`/applications/${id}`, {
     method: "PATCH",
     body: patch,
     auth: true,
@@ -82,7 +82,7 @@ export async function analyzeWorker(
   id: number,
   force: boolean = false,
 ): Promise<CandidateDetail> {
-  return apiRequest<CandidateDetail>(`/workers/${id}/analyze?force=${force}`, {
+  return apiRequest<CandidateDetail>(`/applications/${id}/analyze?force=${force}`, {
     method: "POST",
     auth: true,
   });
@@ -90,28 +90,28 @@ export async function analyzeWorker(
 
 /** Move an application into the candidate pipeline. */
 export async function convertToCandidate(id: number): Promise<CandidateDetail> {
-  return apiRequest<CandidateDetail>(`/workers/${id}/convert-to-candidate`, {
+  return apiRequest<CandidateDetail>(`/applications/${id}/convert-to-candidate`, {
     method: "POST",
     auth: true,
   });
 }
 
-/** Delete a worker/candidate. */
+/** Delete an application/candidate. */
 export async function deleteWorker(id: number): Promise<void> {
-  return apiRequest<void>(`/workers/${id}`, {
+  return apiRequest<void>(`/applications/${id}`, {
     method: "DELETE",
     auth: true,
   });
 }
 
 /**
- * GET /api/workers/{id}/resume — the stored CV (owner only).
+ * GET /api/applications/{id}/resume — the stored CV (owner only).
  *
  * Fetched with the bearer token like every protected call, so the file is
  * never reachable through a public URL.
  */
 export function fetchResume(id: number, download = false): Promise<Blob> {
-  return apiRequest<Blob>(`/workers/${id}/resume${download ? "?download=true" : ""}`, {
+  return apiRequest<Blob>(`/applications/${id}/resume${download ? "?download=true" : ""}`, {
     auth: true,
     responseType: "blob",
   });
@@ -177,7 +177,7 @@ export async function getAutoAnalyzeAvailable(
   if (filters.position) params.set("position", filters.position);
   const query = params.toString();
   return apiRequest<AutoAnalyzeAvailableResponse>(
-    `/workers/auto-analyze/available${query ? `?${query}` : ""}`,
+    `/applications/auto-analyze/available${query ? `?${query}` : ""}`,
     { auth: true },
   );
 }
@@ -186,7 +186,7 @@ export async function getAutoAnalyzeAvailable(
 export async function startAutoAnalyze(
   request: AutoAnalyzeStartRequest,
 ): Promise<AutoAnalyzeStartResponse> {
-  return apiRequest<AutoAnalyzeStartResponse>("/workers/auto-analyze", {
+  return apiRequest<AutoAnalyzeStartResponse>("/applications/auto-analyze", {
     method: "POST",
     body: request,
     auth: true,
@@ -198,7 +198,7 @@ export async function getAutoAnalyzeProgress(
   batchId: number,
 ): Promise<AutoAnalyzeProgressResponse> {
   return apiRequest<AutoAnalyzeProgressResponse>(
-    `/workers/auto-analyze/${batchId}`,
+    `/applications/auto-analyze/${batchId}`,
     { auth: true },
   );
 }
@@ -208,7 +208,7 @@ export async function cancelAutoAnalyze(
   batchId: number,
 ): Promise<AutoAnalyzeProgressResponse> {
   return apiRequest<AutoAnalyzeProgressResponse>(
-    `/workers/auto-analyze/${batchId}/cancel`,
+    `/applications/auto-analyze/${batchId}/cancel`,
     { method: "POST", auth: true },
   );
 }

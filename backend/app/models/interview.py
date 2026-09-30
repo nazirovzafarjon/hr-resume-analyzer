@@ -1,6 +1,6 @@
 """SQLAlchemy model for HR-scheduled interviews.
 
-An ``Interview`` links a candidate (``Worker``) to the HR user who scheduled it.
+An ``Interview`` links a candidate (``Application``) to the HR user who scheduled it.
 The meeting link is a plain string that HR creates elsewhere (Zoom / Google Meet)
 and pastes manually — there is no calendar integration involved.
 """
@@ -34,7 +34,7 @@ class Interview(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     candidate_id: Mapped[int] = mapped_column(
-        ForeignKey("workers.id", ondelete="CASCADE"), index=True
+        ForeignKey("applications.id", ondelete="CASCADE"), index=True
     )
     hr_id: Mapped[int] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"), index=True
@@ -44,7 +44,7 @@ class Interview(Base):
     duration_minutes: Mapped[int] = mapped_column(Integer, default=60)
     status: Mapped[InterviewStatus] = mapped_column(
         # Explicit name avoids a collision with the existing "interviewstatus"
-        # enum type created by ``workers.interview_status``.
+        # enum type created by ``applications.interview_status``.
         Enum(
             InterviewStatus,
             name="interview_session_status",
@@ -64,5 +64,5 @@ class Interview(Base):
         onupdate=_utcnow,
     )
 
-    candidate: Mapped["Worker"] = relationship(back_populates="interviews")
+    candidate: Mapped["Application"] = relationship(back_populates="interviews")
     hr: Mapped["User"] = relationship(back_populates="interviews")

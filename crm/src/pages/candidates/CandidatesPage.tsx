@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import ResumeActions from "../../components/applications/ResumeActions";
-import { fetchCandidates } from "../../services/workersService";
+import { fetchCandidates } from "../../services/applicationsService";
 import PageHeader from "../../components/ui/PageHeader";
 import PageMeta from "../../components/seo/PageMeta";
 import Button from "../../components/ui/Button";
@@ -15,7 +15,7 @@ import { SkeletonCards } from "../../components/ui/Skeleton";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { getErrorMessage } from "../../utils/apiError";
 import { formatDate } from "../../utils/date";
-import type { Candidate, HiringStatus, InterviewStatus } from "../../types/worker";
+import type { Candidate, HiringStatus, InterviewStatus } from "../../types/candidate";
 
 const HIRING_STATUSES: HiringStatus[] = ["strong_hire", "hire", "weak_hire", "do_not_hire"];
 const INTERVIEW_STATUSES: InterviewStatus[] = ["in_process", "completed", "not_completed"];

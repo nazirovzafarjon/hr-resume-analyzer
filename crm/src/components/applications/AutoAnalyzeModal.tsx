@@ -7,13 +7,13 @@ import { useLanguage } from "../../contexts/LanguageContext";
 import type {
   AutoAnalyzeFilterOption,
   AutoAnalyzeProgressResponse,
-} from "../../services/workersService";
+} from "../../services/applicationsService";
 import {
   getAutoAnalyzeAvailable,
   startAutoAnalyze,
   getAutoAnalyzeProgress,
   cancelAutoAnalyze,
-} from "../../services/workersService";
+} from "../../services/applicationsService";
 import { getErrorMessage } from "../../utils/apiError";
 
 type ModalState = "setup" | "running" | "completed";

@@ -26,11 +26,11 @@ import {
   toUtcIso,
   type InterviewStats,
 } from "../../services/interviewsService";
-import { fetchCandidates } from "../../services/workersService";
+import { fetchCandidates } from "../../services/applicationsService";
 import { fetchJobs } from "../../services/jobsService";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { useNotify } from "../../contexts/ToastContext";
-import type { Candidate } from "../../types/worker";
+import type { Candidate } from "../../types/candidate";
 import type { JobInput } from "../../types/job";
 import type { Interview, InterviewStatusFilter } from "../../types/application";
 

@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session, contains_eager
 
 from app.models.interview import Interview, InterviewStatus
 from app.models.job import Job
-from app.models.worker import Worker
+from app.models.application import Application
 from app.schemas.interview import InterviewCreate, InterviewUpdate
 
 
@@ -23,9 +23,9 @@ def _owned_query(db: Session, hr_id: int):
     return (
         db.query(Interview)
         .join(Interview.candidate)
-        .join(Worker.job)
+        .join(Application.job)
         .filter(Interview.hr_id == hr_id, Job.owner_id == hr_id)
-        .options(contains_eager(Interview.candidate).contains_eager(Worker.job))
+        .options(contains_eager(Interview.candidate).contains_eager(Application.job))
     )
 
 
@@ -50,7 +50,7 @@ def get_interviews(
         like = f"%{search.strip().lower()}%"
         query = query.filter(
             or_(
-                func.lower(Worker.name).like(like),
+                func.lower(Application.name).like(like),
                 func.lower(Interview.interviewer).like(like),
             )
         )

@@ -11,9 +11,9 @@ from typing import Any, Generic, Literal, TypeVar
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.models.interview import InterviewStatus as InterviewSessionStatus
-from app.models.worker import AnalysisStatus, ApplicationStatus, HiringStatus, InterviewStatus
+from app.models.application import AnalysisStatus, ApplicationStatus, HiringStatus, InterviewStatus
 from app.schemas.application_analysis import ApplicationAnalysis
-from app.schemas.worker import ApplicantAnswer, WorkerInterviewSummary
+from app.schemas.application import ApplicantAnswer, ApplicationInterviewSummary
 
 T = TypeVar("T")
 
@@ -192,7 +192,7 @@ class AdminJobBrief(BaseModel):
     created_at: datetime
 
 
-class AdminWorkerBrief(BaseModel):
+class AdminApplicationBrief(BaseModel):
     id: int
     name: str
     position: str
@@ -207,7 +207,7 @@ class AdminUserDetail(AdminUserRow):
     stats: UserStats
     ai_provider_source: Literal["default", "custom"]
     recent_jobs: list[AdminJobBrief]
-    recent_applications: list[AdminWorkerBrief]
+    recent_applications: list[AdminApplicationBrief]
     recent_activity: list[AuditLogEntry]
 
 
@@ -242,7 +242,7 @@ class AdminJobDetail(AdminJobRow):
 # ---------------------------------------------------------------------------
 
 
-class AdminWorkerRow(BaseModel):
+class AdminApplicationRow(BaseModel):
     id: int
     name: str
     email: str
@@ -265,15 +265,15 @@ class AdminWorkerRow(BaseModel):
     submitted_at: datetime
 
 
-class AdminWorkerDetail(AdminWorkerRow):
+class AdminApplicationDetail(AdminApplicationRow):
     analysis_error: str | None
     analysis: ApplicationAnalysis | None
     responses: list[ApplicantAnswer]
-    interviews: list[WorkerInterviewSummary]
+    interviews: list[ApplicationInterviewSummary]
     has_resume: bool
 
 
-class WorkerSummary(BaseModel):
+class ApplicationSummary(BaseModel):
     total: int
     analysis_status: dict[str, int]
     application_status: dict[str, int]
@@ -281,8 +281,8 @@ class WorkerSummary(BaseModel):
     interview_status: dict[str, int]
 
 
-class AdminWorkerPage(Page[AdminWorkerRow]):
-    summary: WorkerSummary
+class AdminApplicationPage(Page[AdminApplicationRow]):
+    summary: ApplicationSummary
 
 
 # ---------------------------------------------------------------------------
@@ -314,7 +314,7 @@ class InterviewSummary(BaseModel):
     cancelled: int
     #: Still "upcoming" although the scheduled time has passed.
     overdue: int
-    #: Candidate-level interview progress (``workers.interview_status``).
+    #: Candidate-level interview progress (``applications.interview_status``).
     candidate_progress: dict[str, int]
 
 
@@ -376,7 +376,7 @@ class AIRunRow(BaseModel):
     job_id: int | None
     position: str | None
     company_name: str | None
-    worker_id: int | None
+    application_id: int | None
     provider: str | None
     model: str | None
     source: str | None

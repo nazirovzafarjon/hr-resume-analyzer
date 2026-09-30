@@ -9,8 +9,8 @@ import type {
   ApplicationStatus,
   HiringStatus,
   InterviewStatus,
-  WorkerInterviewSummary,
-} from "./worker";
+  CandidateInterviewSummary,
+} from "./candidate";
 
 export type Page<T> = {
   items: T[];
@@ -200,7 +200,7 @@ export type AdminWorkerDetail = AdminWorkerRow & {
   analysis_error: string | null;
   analysis: ApplicationAnalysis | null;
   responses: ApplicantAnswer[];
-  interviews: WorkerInterviewSummary[];
+  interviews: CandidateInterviewSummary[];
   has_resume: boolean;
 };
 
@@ -291,7 +291,7 @@ export type AIRunRow = {
   job_id: number | null;
   position: string | null;
   company_name: string | null;
-  worker_id: number | null;
+  application_id: number | null;
   provider: string | null;
   model: string | null;
   source: string | null;

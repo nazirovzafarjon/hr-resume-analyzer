@@ -4,7 +4,7 @@ The dashboard is user-scoped: it only aggregates the *current* HR user's jobs
 and candidates. Aggregation numbers are verified exactly.
 """
 
-from tests.payloads import JOB_PAYLOAD, WORKER_PAYLOAD
+from tests.payloads import JOB_PAYLOAD, APPLICATION_PAYLOAD
 
 
 def _create_job(client, headers, **overrides):
@@ -14,9 +14,9 @@ def _create_job(client, headers, **overrides):
     return response.json()
 
 
-def _create_worker(client, headers, job_id, name):
-    payload = dict(WORKER_PAYLOAD, name=name)
-    response = client.post(f"/api/workers?job_id={job_id}", json=payload, headers=headers)
+def _create_application(client, headers, job_id, name):
+    payload = dict(APPLICATION_PAYLOAD, name=name)
+    response = client.post(f"/api/applications?job_id={job_id}", json=payload, headers=headers)
     assert response.status_code == 201, response.text
     return response.json()
 
@@ -43,9 +43,9 @@ class TestOverview:
         job1 = _create_job(client, user["headers"], company_name="Acme Corp", position="Backend Developer")
         job2 = _create_job(client, user["headers"], company_name="Acme Corp", position="Data Engineer")
         job3 = _create_job(client, user["headers"], company_name="Globex", position="QA Engineer")
-        _create_worker(client, user["headers"], job1["id"], "Worker A")
-        _create_worker(client, user["headers"], job1["id"], "Worker B")
-        _create_worker(client, user["headers"], job3["id"], "Worker C")
+        _create_application(client, user["headers"], job1["id"], "Application A")
+        _create_application(client, user["headers"], job1["id"], "Application B")
+        _create_application(client, user["headers"], job3["id"], "Application C")
 
         body = client.get("/api/dashboard/overview", headers=user["headers"]).json()
 
@@ -62,9 +62,9 @@ class TestOverview:
     def test_overview_group_by_position(self, client, user):
         job1 = _create_job(client, user["headers"], position="Backend Developer")
         job2 = _create_job(client, user["headers"], position="Data Engineer")
-        _create_worker(client, user["headers"], job1["id"], "Worker A")
-        _create_worker(client, user["headers"], job1["id"], "Worker B")
-        _create_worker(client, user["headers"], job2["id"], "Worker C")
+        _create_application(client, user["headers"], job1["id"], "Application A")
+        _create_application(client, user["headers"], job1["id"], "Application B")
+        _create_application(client, user["headers"], job2["id"], "Application C")
 
         body = client.get("/api/dashboard/overview?category=position", headers=user["headers"]).json()
         breakdown = {row["category"]: row for row in body["breakdown"]}
@@ -90,23 +90,23 @@ class TestOverview:
 class TestRecentLeads:
     def test_recent_leads_returns_newest_first(self, client, user):
         job = _create_job(client, user["headers"])
-        _create_worker(client, user["headers"], job["id"], "Oldest")
-        _create_worker(client, user["headers"], job["id"], "Middle")
-        _create_worker(client, user["headers"], job["id"], "Newest")
+        _create_application(client, user["headers"], job["id"], "Oldest")
+        _create_application(client, user["headers"], job["id"], "Middle")
+        _create_application(client, user["headers"], job["id"], "Newest")
 
         response = client.get("/api/dashboard/recent-leads", headers=user["headers"])
         assert response.status_code == 200
         leads = response.json()
         assert [lead["name"] for lead in leads] == ["Newest", "Middle", "Oldest"]
-        # Each lead includes its job context, not just the worker fields.
+        # Each lead includes its job context, not just the application fields.
         assert leads[0]["company_name"] == "Acme Corp"
         assert leads[0]["position"] == "Backend Developer"
         assert leads[0]["hiring_status"] == "hire"
 
     def test_recent_leads_respects_limit(self, client, user):
         job = _create_job(client, user["headers"])
-        _create_worker(client, user["headers"], job["id"], "A")
-        _create_worker(client, user["headers"], job["id"], "B")
+        _create_application(client, user["headers"], job["id"], "A")
+        _create_application(client, user["headers"], job["id"], "B")
         leads = client.get("/api/dashboard/recent-leads?limit=1", headers=user["headers"]).json()
         assert len(leads) == 1
 
@@ -123,7 +123,7 @@ class TestRecentJobs:
     def test_recent_jobs_returns_newest_first(self, client, user):
         _create_job(client, user["headers"], position="First")
         job2 = _create_job(client, user["headers"], position="Second")
-        _create_worker(client, user["headers"], job2["id"], "Worker A")
+        _create_application(client, user["headers"], job2["id"], "Application A")
 
         response = client.get("/api/dashboard/recent-jobs", headers=user["headers"])
         assert response.status_code == 200
@@ -152,7 +152,7 @@ class TestHealth:
         assert response.status_code == 200
         assert response.json() == {"status": "ok"}
     def test_overview_only_counts_own_data(self, client, user, other_user):
-        _create_worker(client, user["headers"], _create_job(client, user["headers"])["id"], "Mine")
+        _create_application(client, user["headers"], _create_job(client, user["headers"])["id"], "Mine")
 
         body = client.get("/api/dashboard/overview", headers=other_user["headers"]).json()
         assert body["total_jobs"] == 0
@@ -231,23 +231,23 @@ class TestAnalytics:
     def test_analytics_aggregates_correctly(self, client, user):
         job1 = _create_job(client, user["headers"], company_name="Acme Corp", position="Backend Developer")
         job2 = _create_job(client, user["headers"], company_name="Globex", position="Data Engineer")
-        worker1 = _create_worker(client, user["headers"], job1["id"], "Worker A")
-        worker2 = _create_worker(client, user["headers"], job1["id"], "Worker B")
-        worker3 = _create_worker(client, user["headers"], job2["id"], "Worker C")
+        application1 = _create_application(client, user["headers"], job1["id"], "Application A")
+        application2 = _create_application(client, user["headers"], job1["id"], "Application B")
+        application3 = _create_application(client, user["headers"], job2["id"], "Application C")
 
         # Only "completed" analyses should count toward score aggregates.
         client.patch(
-            f"/api/workers/{worker1['id']}",
+            f"/api/applications/{application1['id']}",
             json={"hiring_status": "strong_hire", "interview_status": "completed", "ai_score": 95, "analysis_status": "completed"},
             headers=user["headers"],
         )
         client.patch(
-            f"/api/workers/{worker2['id']}",
+            f"/api/applications/{application2['id']}",
             json={"hiring_status": "hire", "interview_status": "in_process", "ai_score": 82, "analysis_status": "completed"},
             headers=user["headers"],
         )
         client.patch(
-            f"/api/workers/{worker3['id']}",
+            f"/api/applications/{application3['id']}",
             json={"hiring_status": "weak_hire", "interview_status": "not_completed", "ai_score": 65, "analysis_status": "completed"},
             headers=user["headers"],
         )
@@ -284,10 +284,10 @@ class TestAnalytics:
         score_dist = {d["bucket"]: d["count"] for d in body["score_distribution"]}
         assert score_dist["0-49"] == 0
         assert score_dist["50-59"] == 0
-        assert score_dist["60-69"] == 1  # Worker C with 65
+        assert score_dist["60-69"] == 1  # Application C with 65
         assert score_dist["70-79"] == 0
-        assert score_dist["80-89"] == 1  # Worker B with 82
-        assert score_dist["90-100"] == 1  # Worker A with 95
+        assert score_dist["80-89"] == 1  # Application B with 82
+        assert score_dist["90-100"] == 1  # Application A with 95
 
         # Top jobs by application count, descending.
         assert body["top_jobs"][0] == {
@@ -305,17 +305,17 @@ class TestAnalytics:
 
     def test_analytics_avg_score_excludes_non_completed_analysis(self, client, user):
         job = _create_job(client, user["headers"])
-        analyzed = _create_worker(client, user["headers"], job["id"], "Analyzed")
-        unanalyzed = _create_worker(client, user["headers"], job["id"], "Unanalyzed")
+        analyzed = _create_application(client, user["headers"], job["id"], "Analyzed")
+        unanalyzed = _create_application(client, user["headers"], job["id"], "Unanalyzed")
 
         client.patch(
-            f"/api/workers/{analyzed['id']}",
+            f"/api/applications/{analyzed['id']}",
             json={"ai_score": 80, "analysis_status": "completed"},
             headers=user["headers"],
         )
         # ai_score set but analysis never marked "completed" — must not dilute the average.
         client.patch(
-            f"/api/workers/{unanalyzed['id']}",
+            f"/api/applications/{unanalyzed['id']}",
             json={"ai_score": 10},
             headers=user["headers"],
         )
@@ -325,9 +325,9 @@ class TestAnalytics:
 
     def test_analytics_status_distribution_includes_withdrawn(self, client, user):
         job = _create_job(client, user["headers"])
-        worker = _create_worker(client, user["headers"], job["id"], "Candidate")
+        application = _create_application(client, user["headers"], job["id"], "Candidate")
         client.patch(
-            f"/api/workers/{worker['id']}",
+            f"/api/applications/{application['id']}",
             json={"application_status": "withdrawn"},
             headers=user["headers"],
         )
@@ -344,7 +344,7 @@ class TestAnalytics:
 
     def test_analytics_only_counts_own_data(self, client, user, other_user):
         _create_job(client, user["headers"], position="My Job")
-        _create_worker(client, user["headers"], 1, "My Worker")
+        _create_application(client, user["headers"], 1, "My Application")
 
         body = client.get("/api/dashboard/analytics", headers=other_user["headers"]).json()
         assert body["total_jobs"] == 0

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import ResumeActions from "../../components/applications/ResumeActions";
 import { Sparkles } from "lucide-react";
-import { fetchApplications } from "../../services/workersService";
+import { fetchApplications } from "../../services/applicationsService";
 import { fetchJobs } from "../../services/jobsService";
 import { formatDate } from "../../utils/date";
 import PageHeader from "../../components/ui/PageHeader";
@@ -19,7 +19,7 @@ import AutoAnalyzeModal from "../../components/applications/AutoAnalyzeModal";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { scoreTone } from "../../utils/statusLabels";
 import { getErrorMessage } from "../../utils/apiError";
-import type { Candidate, ApplicationStatus } from "../../types/worker";
+import type { Candidate, ApplicationStatus } from "../../types/candidate";
 import type { JobInput } from "../../types/job";
 
 const STATUS_FILTERS: ApplicationStatus[] = [

@@ -25,12 +25,12 @@ from app.core.database import get_db
 from app.crud import audit_log as audit_crud
 from app.crud import job as job_crud
 from app.crud import user as user_crud
-from app.crud.admin import WorkerFilters
+from app.crud.admin import ApplicationFilters
 from app.dependencies.audit import get_audit_context
 from app.dependencies.auth import get_current_superuser
 from app.models.interview import InterviewStatus as InterviewSessionStatus
 from app.models.user import User
-from app.models.worker import ApplicationStatus, HiringStatus, InterviewStatus
+from app.models.application import ApplicationStatus, HiringStatus, InterviewStatus
 from app.schemas import admin as schemas
 from app.services.admin import directory as admin_directory
 from app.services.admin import stats as admin_stats
@@ -231,7 +231,7 @@ def delete_job(
 # ---------------------------------------------------------------------------
 
 
-def _worker_filters(
+def _application_filters(
     q: str | None = SearchParam,
     owner_id: int | None = Query(None, ge=1),
     company: str | None = Query(None, max_length=255),
@@ -244,13 +244,13 @@ def _worker_filters(
     score_max: float | None = Query(None, ge=0, le=100),
     date_from: date | None = Query(None, description="Submitted on or after"),
     date_to: date | None = Query(None, description="Submitted on or before"),
-) -> WorkerFilters:
+) -> ApplicationFilters:
     if score_min is not None and score_max is not None and score_min > score_max:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="score_min must not exceed score_max",
         )
-    return WorkerFilters(
+    return ApplicationFilters(
         search=_clean(q),
         owner_id=owner_id,
         company=company or None,
@@ -265,52 +265,52 @@ def _worker_filters(
     )
 
 
-WorkerSort = Literal["submitted_at", "candidate_at", "name", "ai_score"]
+ApplicationSort = Literal["submitted_at", "candidate_at", "name", "ai_score"]
 
 
 @router.get(
     "/applications",
-    response_model=schemas.AdminWorkerPage,
+    response_model=schemas.AdminApplicationPage,
     summary="List every application on the platform",
     description=ADMIN_ONLY,
 )
 def list_applications(
-    filters: WorkerFilters = Depends(_worker_filters),
-    sort: WorkerSort = Query("submitted_at"),
+    filters: ApplicationFilters = Depends(_application_filters),
+    sort: ApplicationSort = Query("submitted_at"),
     order: Literal["asc", "desc"] = OrderParam,
     page: int = PageParam,
     limit: int = LimitParam,
     db: Session = Depends(get_db),
-) -> schemas.AdminWorkerPage:
-    return admin_directory.list_workers(db, filters, page=page, limit=limit, sort=sort, order=order)
+) -> schemas.AdminApplicationPage:
+    return admin_directory.list_applications(db, filters, page=page, limit=limit, sort=sort, order=order)
 
 
 @router.get(
     "/candidates",
-    response_model=schemas.AdminWorkerPage,
+    response_model=schemas.AdminApplicationPage,
     summary="List applications that were moved into the hiring pipeline",
     description=ADMIN_ONLY,
 )
 def list_candidates(
-    filters: WorkerFilters = Depends(_worker_filters),
-    sort: WorkerSort = Query("candidate_at"),
+    filters: ApplicationFilters = Depends(_application_filters),
+    sort: ApplicationSort = Query("candidate_at"),
     order: Literal["asc", "desc"] = OrderParam,
     page: int = PageParam,
     limit: int = LimitParam,
     db: Session = Depends(get_db),
-) -> schemas.AdminWorkerPage:
+) -> schemas.AdminApplicationPage:
     filters.candidates_only = True
-    return admin_directory.list_workers(db, filters, page=page, limit=limit, sort=sort, order=order)
+    return admin_directory.list_applications(db, filters, page=page, limit=limit, sort=sort, order=order)
 
 
 @router.get(
-    "/applications/{worker_id}",
-    response_model=schemas.AdminWorkerDetail,
+    "/applications/{application_id}",
+    response_model=schemas.AdminApplicationDetail,
     summary="Application / candidate details, including the stored AI analysis",
     description=f"{ADMIN_ONLY} Read-only; the resume file itself is not served to admins.",
 )
-def get_application(worker_id: int, db: Session = Depends(get_db)) -> schemas.AdminWorkerDetail:
-    detail = admin_directory.get_worker_detail(db, worker_id)
+def get_application(application_id: int, db: Session = Depends(get_db)) -> schemas.AdminApplicationDetail:
+    detail = admin_directory.get_application_detail(db, application_id)
     if detail is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Application not found")
     return detail
@@ -525,7 +525,7 @@ def update_settings(
 @router.get(
     "/system-health",
     response_model=schemas.HealthReport,
-    summary="Health of the API, database, AI provider, email, storage and workers",
+    summary="Health of the API, database, AI provider, email, storage and applications",
     description=f"{ADMIN_ONLY} Lightweight checks only; no paid AI calls, no emails sent.",
 )
 def get_system_health(db: Session = Depends(get_db)) -> dict:

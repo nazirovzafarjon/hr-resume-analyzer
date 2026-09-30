@@ -10,7 +10,7 @@ import {
   translateOr,
   type DerivedJobStatus,
 } from "../../utils/statusLabels";
-import type { HiringStatus, InterviewStatus } from "../../types/worker";
+import type { HiringStatus, InterviewStatus } from "../../types/candidate";
 
 type StatusBadgeProps = {
   kind: "hiring" | "interview" | "job";

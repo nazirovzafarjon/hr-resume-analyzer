@@ -7,7 +7,7 @@ import {
   APPLICATION_STATUS_TONES,
   translateOr,
 } from "../../utils/statusLabels";
-import type { AnalysisStatus } from "../../types/worker";
+import type { AnalysisStatus } from "../../types/candidate";
 
 /**
  * Status chip for job applications and their AI analysis progress.

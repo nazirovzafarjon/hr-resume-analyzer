@@ -11,11 +11,12 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from app.models.worker import AnalysisBatch, AnalysisStatus, ApplicationStatus, Worker
+from app.models.analysis_batch import AnalysisBatch
+from app.models.application import AnalysisStatus, Application, ApplicationStatus
 from app.schemas.application_analysis import ApplicationAnalysis
 from app.services.ai import batch as service
 from app.services.ai.job_analyzer import AIProviderUnavailableError
-from tests.payloads import JOB_PAYLOAD, WORKER_PAYLOAD
+from tests.payloads import JOB_PAYLOAD, APPLICATION_PAYLOAD
 
 ANALYSIS = {
     "match_percentage": 80,
@@ -62,24 +63,24 @@ def make_app(client, user, db_session):
         headers=None,
     ):
         response = client.post(
-            f"/api/workers?job_id={job_id}",
-            json={**WORKER_PAYLOAD, "email": f"c{minutes_ago}-{job_id}@example.com"},
+            f"/api/applications?job_id={job_id}",
+            json={**APPLICATION_PAYLOAD, "email": f"c{minutes_ago}-{job_id}@example.com"},
             headers=headers or user["headers"],
         )
         assert response.status_code == 201, response.text
-        worker = db_session.get(Worker, response.json()["id"])
-        worker.created_at = datetime.now(timezone.utc) - timedelta(minutes=minutes_ago)
-        worker.application_status = application_status
-        worker.analysis_status = analysis_status
+        application = db_session.get(Application, response.json()["id"])
+        application.created_at = datetime.now(timezone.utc) - timedelta(minutes=minutes_ago)
+        application.application_status = application_status
+        application.analysis_status = analysis_status
         db_session.commit()
-        return worker.id
+        return application.id
 
     return _make
 
 
 def _select(db_session, owner_id, **kwargs):
     db_session.expire_all()
-    return service._get_eligible_worker_ids(db_session, owner_id, **kwargs)
+    return service._get_eligible_application_ids(db_session, owner_id, **kwargs)
 
 
 class TestSelection:
@@ -146,7 +147,7 @@ class TestAvailableEndpoint:
         make_app(acme, minutes_ago=4, analysis_status=AnalysisStatus.COMPLETED)
 
         body = client.get(
-            "/api/workers/auto-analyze/available", headers=user["headers"]
+            "/api/applications/auto-analyze/available", headers=user["headers"]
         ).json()
 
         assert body["count"] == 3
@@ -156,7 +157,7 @@ class TestAvailableEndpoint:
         ]
 
         filtered = client.get(
-            "/api/workers/auto-analyze/available",
+            "/api/applications/auto-analyze/available",
             params={"company": "Globex", "position": ""},
             headers=user["headers"],
         ).json()
@@ -167,7 +168,7 @@ class TestStartEndpoint:
     @pytest.fixture(autouse=True)
     def _no_background_run(self):
         # Selection only: the background batch is exercised separately.
-        with patch("app.routers.workers.asyncio.create_task") as create_task:
+        with patch("app.routers.applications.asyncio.create_task") as create_task:
             create_task.side_effect = lambda coro: coro.close()
             yield
 
@@ -179,7 +180,7 @@ class TestStartEndpoint:
         make_app(make_job("Globex", "Backend Developer"), minutes_ago=5)
 
         response = client.post(
-            "/api/workers/auto-analyze",
+            "/api/applications/auto-analyze",
             json={"count": 2, "order": "oldest", "company": "Acme", "position": "Backend Developer"},
             headers=user["headers"],
         )
@@ -191,7 +192,7 @@ class TestStartEndpoint:
         assert body["available_count"] == 3
         assert body["remaining_count"] == 1
         batch = db_session.get(AnalysisBatch, body["batch_id"])
-        assert batch.worker_ids == ids[:2]
+        assert batch.application_ids == ids[:2]
 
     def test_fewer_eligible_than_requested_is_not_an_error(
         self, client, user, make_job, make_app
@@ -201,7 +202,7 @@ class TestStartEndpoint:
             make_app(job, minutes_ago=minutes)
 
         body = client.post(
-            "/api/workers/auto-analyze",
+            "/api/applications/auto-analyze",
             json={"count": 100, "order": "newest"},
             headers=user["headers"],
         ).json()
@@ -216,7 +217,7 @@ class TestStartEndpoint:
         make_app(make_job("Acme"), minutes_ago=1)
 
         response = client.post(
-            "/api/workers/auto-analyze",
+            "/api/applications/auto-analyze",
             json={"count": 10, "order": "oldest", "company": "Unknown Company"},
             headers=user["headers"],
         )
@@ -228,7 +229,7 @@ class TestStartEndpoint:
     @pytest.mark.parametrize("count", [0, 1001, 2.5, "ten"])
     def test_count_must_be_an_integer_from_1_to_1000(self, client, user, count):
         response = client.post(
-            "/api/workers/auto-analyze",
+            "/api/applications/auto-analyze",
             json={"count": count, "order": "oldest"},
             headers=user["headers"],
         )
@@ -238,7 +239,7 @@ class TestStartEndpoint:
     def test_count_bounds_are_inclusive(self, client, user, make_job, make_app, count):
         make_app(make_job(), minutes_ago=1)
         response = client.post(
-            "/api/workers/auto-analyze",
+            "/api/applications/auto-analyze",
             json={"count": count, "order": "oldest"},
             headers=user["headers"],
         )
@@ -288,8 +289,8 @@ class TestBatchProcessing:
         assert (batch.successful_count, batch.failed_count, batch.skipped_count) == (2, 1, 0)
         assert batch.processed == 3 and batch.remaining == 0
         statuses = {
-            worker_id: db_session.get(Worker, worker_id).analysis_status
-            for worker_id in (first, second, third)
+            application_id: db_session.get(Application, application_id).analysis_status
+            for application_id in (first, second, third)
         }
         assert statuses == {
             first: AnalysisStatus.COMPLETED,
@@ -297,7 +298,7 @@ class TestBatchProcessing:
             third: AnalysisStatus.COMPLETED,
         }
         # The AI never touches HR's pipeline status.
-        assert db_session.get(Worker, second).application_status == ApplicationStatus.NEW
+        assert db_session.get(Application, second).application_status == ApplicationStatus.NEW
 
     def test_items_analysed_or_deleted_meanwhile_are_skipped(
         self, client, db_session, user, make_job, make_app
@@ -311,9 +312,9 @@ class TestBatchProcessing:
         batch = service.create_auto_analyze_batch(
             db_session, db_session.get(User, user["id"]), count=10, order="oldest"
         )
-        db_session.get(Worker, analysed_meanwhile).analysis_status = AnalysisStatus.COMPLETED
+        db_session.get(Application, analysed_meanwhile).analysis_status = AnalysisStatus.COMPLETED
         db_session.commit()
-        client.delete(f"/api/workers/{deleted_meanwhile}", headers=user["headers"])
+        client.delete(f"/api/applications/{deleted_meanwhile}", headers=user["headers"])
 
         with patch(
             "app.services.application_analysis.analyze_application", new_callable=AsyncMock
@@ -325,7 +326,7 @@ class TestBatchProcessing:
         batch = db_session.get(AnalysisBatch, batch.id)
         assert analyze.await_count == 1
         assert (batch.successful_count, batch.failed_count, batch.skipped_count) == (1, 0, 2)
-        assert db_session.get(Worker, pending).analysis_status == AnalysisStatus.COMPLETED
+        assert db_session.get(Application, pending).analysis_status == AnalysisStatus.COMPLETED
 
     def test_progress_endpoint_reports_skipped(self, client, db_session, user, make_job, make_app):
         make_app(make_job(), minutes_ago=1)
@@ -336,7 +337,7 @@ class TestBatchProcessing:
             batch = self._run(db_session, user["id"])
 
         body = client.get(
-            f"/api/workers/auto-analyze/{batch.id}", headers=user["headers"]
+            f"/api/applications/auto-analyze/{batch.id}", headers=user["headers"]
         ).json()
         assert body["successful"] == 1
         assert body["skipped"] == 0

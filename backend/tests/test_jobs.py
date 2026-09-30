@@ -172,14 +172,14 @@ class TestDeleteJob:
         assert response.status_code == 204
         assert client.get("/api/jobs", headers=sample_job["headers"]).json() == []
 
-    def test_delete_job_with_workers_cascades(self, client, sample_job, worker_factory, db_session):
-        worker_factory(sample_job["id"])
+    def test_delete_job_with_applications_cascades(self, client, sample_job, application_factory, db_session):
+        application_factory(sample_job["id"])
         response = client.delete(f"/api/jobs/{sample_job['id']}", headers=sample_job["headers"])
         assert response.status_code == 204
         assert job_crud.get_job(db_session, sample_job["id"]) is None
-        from app.crud.worker import get_workers_for_job
+        from app.crud.application import get_applications_for_job
 
-        assert get_workers_for_job(db_session, sample_job["id"]) == []
+        assert get_applications_for_job(db_session, sample_job["id"]) == []
 
     def test_delete_other_users_job_is_not_found(self, client, sample_job, other_user):
         response = client.delete(f"/api/jobs/{sample_job['id']}", headers=other_user["headers"])

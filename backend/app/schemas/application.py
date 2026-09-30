@@ -1,6 +1,6 @@
-"""Pydantic schemas for workers/candidates (applications).
+"""Pydantic schemas for applications (and the candidates they become).
 
-A ``Worker`` row *is* an application: the list payload is what the Applications
+An ``Application`` row is one submission: the list payload is what the Applications
 menu renders, the detail payload adds the submitted answers, the stored AI
 analysis and the candidate's interviews. The AI-owned fields
 (``ai_score``/``ai_analysis_details``/``analysis_status``) are server-managed —
@@ -13,7 +13,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.models.interview import InterviewStatus as InterviewSessionStatus
-from app.models.worker import (
+from app.models.application import (
     AnalysisStatus,
     ApplicationStatus,
     HiringStatus,
@@ -22,23 +22,23 @@ from app.models.worker import (
 from app.schemas.application_analysis import ApplicationAnalysis
 
 
-class WorkerBase(BaseModel):
-    """Common worker/candidate fields."""
+class ApplicationBase(BaseModel):
+    """Common application/candidate fields."""
 
     name: str = Field(min_length=1)
     email: str
     resume_path: str = ""
 
 
-class WorkerCreate(WorkerBase):
-    """Payload for recording a worker application by hand."""
+class ApplicationCreate(ApplicationBase):
+    """Payload for recording an application by hand."""
 
 
-class WorkerUpdate(BaseModel):
+class ApplicationUpdate(BaseModel):
     """Fields HR may update on an application/candidate (all optional).
 
     Includes the HR-owned statuses only. The AI result fields are written by the
-    analysis service (``POST /workers/{id}/analyze``), never by a client, and
+    analysis service (``POST /applications/{id}/analyze``), never by a client, and
     ``candidate_at`` is set by the convert-to-candidate endpoint.
     """
 
@@ -53,8 +53,8 @@ class WorkerUpdate(BaseModel):
     analysis_status: AnalysisStatus | None = None
 
 
-class WorkerAnalyzeRequest(BaseModel):
-    """Body of ``POST /workers/{id}/analyze``.
+class ApplicationAnalyzeRequest(BaseModel):
+    """Body of ``POST /applications/{id}/analyze``.
 
     ``force`` re-runs the analysis for an application that already has one
     ("Analyze again"). Without it an existing result is reused and the AI
@@ -75,7 +75,7 @@ class AutoAnalyzeFilterOption(BaseModel):
 
 
 class AutoAnalyzeAvailableResponse(BaseModel):
-    """Response for GET /workers/auto-analyze/available."""
+    """Response for GET /applications/auto-analyze/available."""
 
     #: Eligible applications matching the requested filters.
     count: int
@@ -92,7 +92,7 @@ def _blank_to_none(value: str | None) -> str | None:
 
 
 class AutoAnalyzeStartRequest(BaseModel):
-    """Request body for POST /workers/auto-analyze.
+    """Request body for POST /applications/auto-analyze.
 
     ``count`` and ``order`` are required choices in the UI; ``company``,
     ``position`` and ``job_id`` are optional filters (omitted/empty = all).
@@ -111,7 +111,7 @@ class AutoAnalyzeStartRequest(BaseModel):
 
 
 class AutoAnalyzeStartResponse(BaseModel):
-    """Response for POST /workers/auto-analyze."""
+    """Response for POST /applications/auto-analyze."""
 
     batch_id: int
     requested_count: int
@@ -124,7 +124,7 @@ class AutoAnalyzeStartResponse(BaseModel):
 
 
 class AutoAnalyzeProgressResponse(BaseModel):
-    """Response for GET /workers/auto-analyze/{batch_id}."""
+    """Response for GET /applications/auto-analyze/{batch_id}."""
 
     batch_id: int
     status: str
@@ -139,7 +139,7 @@ class AutoAnalyzeProgressResponse(BaseModel):
     finished_at: datetime | None = None
 
 
-class WorkerResponse(BaseModel):
+class ApplicationItemResponse(BaseModel):
     """Application/candidate row as returned by the list endpoint.
 
     Enriched with the owning job's company/position so the Applications list
@@ -181,7 +181,7 @@ class ApplicantAnswer(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class WorkerInterviewSummary(BaseModel):
+class ApplicationInterviewSummary(BaseModel):
     """Interview booked for a candidate (summary for the candidate page)."""
 
     id: int
@@ -193,7 +193,7 @@ class WorkerInterviewSummary(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
-class WorkerDetailResponse(WorkerResponse):
+class ApplicationDetailResponse(ApplicationItemResponse):
     """Full application/candidate record.
 
     Adds the submitted form answers, a browser-usable resume URL, the analysis
@@ -204,4 +204,4 @@ class WorkerDetailResponse(WorkerResponse):
     resume_url: str | None = None
     responses: list[ApplicantAnswer] = Field(default_factory=list)
     analysis: ApplicationAnalysis | None = None
-    interviews: list[WorkerInterviewSummary] = Field(default_factory=list)
+    interviews: list[ApplicationInterviewSummary] = Field(default_factory=list)

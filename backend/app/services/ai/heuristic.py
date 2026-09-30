@@ -9,10 +9,10 @@ import re
 
 from sqlalchemy.orm import Session
 
-from app.crud import worker as worker_crud
-from app.models.worker import HiringStatus, Worker
+from app.crud import application as application_crud
+from app.models.application import HiringStatus, Application
 from app.schemas.analysis import AnalysisResult, SkillMatch
-from app.schemas.worker import WorkerUpdate
+from app.schemas.application import ApplicationUpdate
 
 
 def _extract_skills(requirements: str) -> list[str]:
@@ -80,30 +80,30 @@ def score_candidate(match_details: AnalysisResult) -> HiringStatus:
     return HiringStatus.DO_NOT_HIRE
 
 
-def analyze_and_update_worker(
+def analyze_and_update_application(
     db: Session,
-    worker: Worker,
+    application: Application,
     *,
     resume_text: str,
     job_requirements: str,
-) -> Worker:
-    """Run the resume analysis and persist the results onto the worker.
+) -> Application:
+    """Run the resume analysis and persist the results onto the application.
 
     Saves ``ai_score``, the full ``ai_analysis_details`` payload (matched
     skills, missing skills, per-skill matches and summary) and the
-    auto-recommended ``hiring_status`` back to the :class:`Worker` record, then
+    auto-recommended ``hiring_status`` back to the :class:`Application` record, then
     returns the refreshed instance.
 
     Args:
         db: Active database session.
-        worker: The candidate application being scored.
+        application: The candidate application being scored.
         resume_text: Plain-text resume content to compare against the job.
         job_requirements: The job's required-skills list (free text).
     """
     result = analyze_resume(resume_text, job_requirements)
-    payload = WorkerUpdate(
+    payload = ApplicationUpdate(
         ai_score=result.score,
         ai_analysis_details=result.model_dump(mode="json"),
         hiring_status=score_candidate(result),
     )
-    return worker_crud.update_worker(db, worker, payload)
+    return application_crud.update_application(db, application, payload)

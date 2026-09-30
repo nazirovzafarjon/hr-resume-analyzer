@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { fetchResume } from "../services/workersService";
+import { fetchResume } from "../services/applicationsService";
 import { ApiError } from "../utils/apiError";
 import { useNotify } from "../contexts/ToastContext";
 import { useLanguage } from "../contexts/LanguageContext";

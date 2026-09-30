@@ -16,13 +16,13 @@ from app.crud import admin as admin_crud
 from app.crud import ai_provider_config as ai_config_crud
 from app.crud import audit_log as audit_crud
 from app.crud import job as job_crud
-from app.crud import worker as worker_crud
-from app.crud.admin import WorkerFilters
+from app.crud import application as application_crud
+from app.crud.admin import ApplicationFilters
 from app.models.job import Job
 from app.models.user import User
-from app.models.worker import AnalysisStatus, Worker
+from app.models.application import AnalysisStatus, Application
 from app.schemas import admin as schemas
-from app.schemas.worker import ApplicantAnswer, WorkerInterviewSummary
+from app.schemas.application import ApplicantAnswer, ApplicationInterviewSummary
 from app.services import audit
 from app.services.application_analysis import stored_analysis
 from app.services.audit import AuditAction, AuditContext, AuditResource
@@ -64,8 +64,8 @@ def list_users(db: Session, *, page: int, limit: int, **filters: Any) -> schemas
 def get_user_detail(db: Session, user: User) -> schemas.AdminUserDetail:
     counts = admin_crud.user_activity_counts(db, user.id)
     recent_jobs, _ = admin_crud.list_jobs(db, page=1, limit=_RECENT_ITEMS, owner_id=user.id)
-    recent_workers, _ = admin_crud.list_workers(
-        db, WorkerFilters(owner_id=user.id), page=1, limit=_RECENT_ITEMS
+    recent_applications, _ = admin_crud.list_applications(
+        db, ApplicationFilters(owner_id=user.id), page=1, limit=_RECENT_ITEMS
     )
     config = ai_config_crud.get_config(db, user.id)
     return schemas.AdminUserDetail(
@@ -83,17 +83,17 @@ def get_user_detail(db: Session, user: User) -> schemas.AdminUserDetail:
             for job, _email, _name, apps, _cands, _analyzed in recent_jobs
         ],
         recent_applications=[
-            schemas.AdminWorkerBrief(
-                id=worker.id,
-                name=worker.name,
+            schemas.AdminApplicationBrief(
+                id=application.id,
+                name=application.name,
                 position=job.position,
                 company_name=job.company_name,
-                application_status=worker.application_status,
-                analysis_status=worker.analysis_status,
-                is_candidate=worker.is_candidate,
-                submitted_at=worker.submitted_at,
+                application_status=application.application_status,
+                analysis_status=application.analysis_status,
+                is_candidate=application.is_candidate,
+                submitted_at=application.submitted_at,
             )
-            for worker, job, _email, _name in recent_workers
+            for application, job, _email, _name in recent_applications
         ],
         recent_activity=[
             schemas.AuditLogEntry.model_validate(entry)
@@ -184,60 +184,60 @@ def delete_job(db: Session, admin: User, job: Job, context: AuditContext | None 
 # ---------------------------------------------------------------------------
 
 
-def _worker_row(worker: Worker, job: Job, owner_email: str, owner_name: str) -> dict[str, Any]:
-    analyzed = worker.analysis_status == AnalysisStatus.COMPLETED
-    details = worker.ai_analysis_details if isinstance(worker.ai_analysis_details, dict) else {}
+def _application_row(application: Application, job: Job, owner_email: str, owner_name: str) -> dict[str, Any]:
+    analyzed = application.analysis_status == AnalysisStatus.COMPLETED
+    details = application.ai_analysis_details if isinstance(application.ai_analysis_details, dict) else {}
     recommendation = details.get("ai_recommendation") if analyzed else None
     return {
-        "id": worker.id,
-        "name": worker.name,
-        "email": worker.email,
+        "id": application.id,
+        "name": application.name,
+        "email": application.email,
         "job_id": job.id,
         "position": job.position,
         "company_name": job.company_name,
         "owner_id": job.owner_id,
         "owner_email": owner_email,
         "owner_name": owner_name,
-        "application_status": worker.application_status,
-        "analysis_status": worker.analysis_status,
-        "ai_score": worker.ai_score if analyzed else None,
+        "application_status": application.application_status,
+        "analysis_status": application.analysis_status,
+        "ai_score": application.ai_score if analyzed else None,
         "ai_recommendation": str(recommendation) if recommendation else None,
-        "hiring_status": worker.hiring_status,
-        "interview_status": worker.interview_status,
-        "is_candidate": worker.is_candidate,
-        "candidate_at": worker.candidate_at,
-        "submitted_at": worker.submitted_at,
+        "hiring_status": application.hiring_status,
+        "interview_status": application.interview_status,
+        "is_candidate": application.is_candidate,
+        "candidate_at": application.candidate_at,
+        "submitted_at": application.submitted_at,
     }
 
 
-def list_workers(
-    db: Session, filters: WorkerFilters, *, page: int, limit: int, sort: str, order: str
-) -> schemas.AdminWorkerPage:
-    rows, total = admin_crud.list_workers(db, filters, page=page, limit=limit, sort=sort, order=order)
-    return schemas.AdminWorkerPage(
-        items=[schemas.AdminWorkerRow(**_worker_row(*row)) for row in rows],
+def list_applications(
+    db: Session, filters: ApplicationFilters, *, page: int, limit: int, sort: str, order: str
+) -> schemas.AdminApplicationPage:
+    rows, total = admin_crud.list_applications(db, filters, page=page, limit=limit, sort=sort, order=order)
+    return schemas.AdminApplicationPage(
+        items=[schemas.AdminApplicationRow(**_application_row(*row)) for row in rows],
         total=total,
         page=page,
         limit=limit,
-        summary=schemas.WorkerSummary(**admin_crud.worker_summary(db, filters.candidates_only)),
+        summary=schemas.ApplicationSummary(**admin_crud.application_summary(db, filters.candidates_only)),
     )
 
 
-def get_worker_detail(db: Session, worker_id: int) -> schemas.AdminWorkerDetail | None:
+def get_application_detail(db: Session, application_id: int) -> schemas.AdminApplicationDetail | None:
     """Full application view for admins.
 
     The resume file itself is *not* served to admins (only whether one
     exists): CVs stay reachable solely by the owning HR user, as before.
     """
-    worker = worker_crud.get_worker(db, worker_id)
-    if worker is None:
+    application = application_crud.get_application(db, application_id)
+    if application is None:
         return None
-    owner = db.execute(select(User).where(User.id == worker.job.owner_id)).scalar_one()
-    raw_answers = (worker.application_response.responses if worker.application_response else None) or []
-    return schemas.AdminWorkerDetail(
-        **_worker_row(worker, worker.job, owner.email, owner.full_name),
-        analysis_error=worker.analysis_error,
-        analysis=stored_analysis(worker),
+    owner = db.execute(select(User).where(User.id == application.job.owner_id)).scalar_one()
+    raw_answers = (application.application_response.responses if application.application_response else None) or []
+    return schemas.AdminApplicationDetail(
+        **_application_row(application, application.job, owner.email, owner.full_name),
+        analysis_error=application.analysis_error,
+        analysis=stored_analysis(application),
         responses=[
             ApplicantAnswer(
                 field_id=str(answer.get("field_id") or answer.get("id") or ""),
@@ -250,8 +250,8 @@ def get_worker_detail(db: Session, worker_id: int) -> schemas.AdminWorkerDetail 
             for answer in raw_answers
             if isinstance(answer, dict)
         ],
-        interviews=[WorkerInterviewSummary.model_validate(item) for item in worker.interviews or []],
-        has_resume=bool(worker.resume_path),
+        interviews=[ApplicationInterviewSummary.model_validate(item) for item in application.interviews or []],
+        has_resume=bool(application.resume_path),
     )
 
 
@@ -263,13 +263,13 @@ def get_worker_detail(db: Session, worker_id: int) -> schemas.AdminWorkerDetail 
 def list_interviews(db: Session, *, page: int, limit: int, **filters: Any) -> schemas.AdminInterviewPage:
     rows, total = admin_crud.list_interviews(db, page=page, limit=limit, **filters)
     summary = admin_crud.interview_summary(db, datetime.now(timezone.utc))
-    progress = admin_crud.worker_summary(db, candidates_only=True)["interview_status"]
+    progress = admin_crud.application_summary(db, candidates_only=True)["interview_status"]
     return schemas.AdminInterviewPage(
         items=[
             schemas.AdminInterviewRow(
                 id=interview.id,
-                candidate_id=worker.id,
-                candidate_name=worker.name,
+                candidate_id=application.id,
+                candidate_name=application.name,
                 job_id=job.id,
                 position=job.position,
                 company_name=job.company_name,
@@ -282,7 +282,7 @@ def list_interviews(db: Session, *, page: int, limit: int, **filters: Any) -> sc
                 status=interview.status,
                 created_at=interview.created_at,
             )
-            for interview, worker, job, hr_email, hr_name in rows
+            for interview, application, job, hr_email, hr_name in rows
         ],
         total=total,
         page=page,

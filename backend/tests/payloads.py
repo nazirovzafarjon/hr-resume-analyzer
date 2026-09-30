@@ -8,7 +8,7 @@ JOB_PAYLOAD = {
     "required_experience": "2+ years",
 }
 
-WORKER_PAYLOAD = {
+APPLICATION_PAYLOAD = {
     "name": "Jane Doe",
     "email": "jane@example.com",
     "resume_path": "/resumes/jane-doe.pdf",

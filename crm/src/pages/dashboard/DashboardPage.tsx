@@ -38,7 +38,7 @@ import SegmentedControl from "../../components/dashboard/SegmentedControl";
 import HiringPipeline, { type PipelineStage } from "../../components/dashboard/HiringPipeline";
 import RecentActivityList from "../../components/dashboard/RecentActivityList";
 import { APPLICATION_STATUS_LABELS, translateOr } from "../../utils/statusLabels";
-import type { AnalyticsGroupBy, ApplicationStatus } from "../../types/worker";
+import type { AnalyticsGroupBy, ApplicationStatus } from "../../types/candidate";
 
 type SectionError = { detail: string | null } | null;
 

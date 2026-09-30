@@ -8,7 +8,7 @@ import {
   publishApplicationForm,
   deleteJob as deleteJobApi,
 } from "../../services/jobsService";
-import { fetchCandidatesByJob } from "../../services/workersService";
+import { fetchCandidatesByJob } from "../../services/applicationsService";
 import { formatDate } from "../../utils/date";
 import { buildDefaultApplicationFields, validateApplicationFields } from "../../utils/applicationFields";
 import { jobStatusFromToken } from "../../utils/statusLabels";
@@ -33,7 +33,7 @@ import { useNotify } from "../../contexts/ToastContext";
 import { ApiError, getErrorMessage } from "../../utils/apiError";
 import type { JobInput, JobAnalytics } from "../../types/job";
 import type { ApplicationFormConfig, ApplicationFieldDef } from "../../types/applicationForm";
-import type { Candidate } from "../../types/worker";
+import type { Candidate } from "../../types/candidate";
 
 type SaveStatus = "idle" | "saving" | "saved" | "error";
 

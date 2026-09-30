@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.crud import job as job_crud
-from app.crud import worker as worker_crud
+from app.crud import application as application_crud
 from app.dependencies.auth import get_current_user
 from app.models.user import User
 from app.schemas.dashboard import (
@@ -43,18 +43,18 @@ def get_recent_leads(
     current_user: User = Depends(get_current_user),
 ) -> list[RecentLead]:
     """Return the most recent candidate applications for the current user."""
-    workers = worker_crud.get_recent_workers(db, current_user.id, limit)
+    applications = application_crud.get_recent_applications(db, current_user.id, limit)
     return [
         RecentLead(
-            id=worker.id,
-            name=worker.name,
-            email=worker.email,
-            company_name=worker.job.company_name,
-            position=worker.job.position,
-            hiring_status=worker.hiring_status,
-            created_at=worker.created_at,
+            id=application.id,
+            name=application.name,
+            email=application.email,
+            company_name=application.job.company_name,
+            position=application.job.position,
+            hiring_status=application.hiring_status,
+            created_at=application.created_at,
         )
-        for worker in workers
+        for application in applications
     ]
 
 

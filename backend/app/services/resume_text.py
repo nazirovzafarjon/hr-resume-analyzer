@@ -230,7 +230,7 @@ def extract_resume_text(
     """Extract plain text from a stored resume file.
 
     Args:
-        relative_path: Value stored in ``workers.resume_path`` (e.g.
+        relative_path: Value stored in ``applications.resume_path`` (e.g.
             ``resumes/<hex>.pdf``).
         max_chars: Upper bound for the returned text.
 

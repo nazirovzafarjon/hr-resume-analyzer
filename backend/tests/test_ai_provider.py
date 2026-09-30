@@ -243,43 +243,43 @@ class TestResolution:
 
 
 class TestAnalysesUseTheOwnersProvider:
-    def _analyze(self, client, worker, **mock_kwargs):
+    def _analyze(self, client, application, **mock_kwargs):
         with patch(
             "app.services.application_analysis.analyze_application", new_callable=AsyncMock, **mock_kwargs
         ) as analyze:
-            response = client.post(f"/api/workers/{worker['id']}/analyze", headers=worker["headers"])
+            response = client.post(f"/api/applications/{application['id']}/analyze", headers=application["headers"])
         return response, analyze
 
-    def test_manual_analysis_uses_the_custom_key(self, client, sample_worker):
-        _save(client, sample_worker["headers"])
+    def test_manual_analysis_uses_the_custom_key(self, client, sample_application):
+        _save(client, sample_application["headers"])
 
         response, analyze = self._analyze(
-            client, sample_worker, return_value=ApplicationAnalysis(**ANALYSIS)
+            client, sample_application, return_value=ApplicationAnalysis(**ANALYSIS)
         )
 
         assert response.status_code == 200
         cfg = analyze.await_args.kwargs["cfg"]
         assert (cfg["source"], cfg["api_key"], cfg["model"]) == ("custom", SECRET, MODEL)
 
-    def test_manual_analysis_uses_the_default_without_custom(self, client, sample_worker):
+    def test_manual_analysis_uses_the_default_without_custom(self, client, sample_application):
         response, analyze = self._analyze(
-            client, sample_worker, return_value=ApplicationAnalysis(**ANALYSIS)
+            client, sample_application, return_value=ApplicationAnalysis(**ANALYSIS)
         )
 
         assert response.status_code == 200
         assert analyze.await_args.kwargs["cfg"]["source"] == "default"
 
-    def test_other_users_key_is_never_used(self, client, sample_worker, other_user):
+    def test_other_users_key_is_never_used(self, client, sample_application, other_user):
         _save(client, other_user["headers"], api_key="sk-other-user-key-0000")
 
-        _, analyze = self._analyze(client, sample_worker, return_value=ApplicationAnalysis(**ANALYSIS))
+        _, analyze = self._analyze(client, sample_application, return_value=ApplicationAnalysis(**ANALYSIS))
 
         assert analyze.await_args.kwargs["cfg"]["source"] == "default"
 
-    def test_rejected_custom_key_fails_without_platform_fallback(self, client, sample_worker):
-        _save(client, sample_worker["headers"])
+    def test_rejected_custom_key_fails_without_platform_fallback(self, client, sample_application):
+        _save(client, sample_application["headers"])
 
-        response, analyze = self._analyze(client, sample_worker, side_effect=AIProviderAuthError())
+        response, analyze = self._analyze(client, sample_application, side_effect=AIProviderAuthError())
 
         assert analyze.await_count == 1
         body = response.json()
@@ -287,14 +287,14 @@ class TestAnalysesUseTheOwnersProvider:
         assert body["analysis_error"] == service.CUSTOM_KEY_REJECTED
 
     def test_unreadable_custom_key_marks_the_analysis_failed(
-        self, client, sample_worker, db_session, user
+        self, client, sample_application, db_session, user
     ):
-        _save(client, sample_worker["headers"])
+        _save(client, sample_application["headers"])
         row = _row(db_session, user["id"])
         row.api_key_encrypted = "garbage"
         db_session.commit()
 
-        response, analyze = self._analyze(client, sample_worker)
+        response, analyze = self._analyze(client, sample_application)
 
         assert analyze.await_count == 0
         assert response.json()["analysis_error"] == service.CUSTOM_KEY_UNREADABLE
@@ -316,11 +316,11 @@ class TestAnalysesUseTheOwnersProvider:
         assert response.status_code == 200, response.text
         assert analyze.await_args.kwargs["cfg"]["api_key"] == SECRET
 
-    def test_batch_analysis_uses_the_owners_custom_key(self, client, db_session, sample_worker, user):
+    def test_batch_analysis_uses_the_owners_custom_key(self, client, db_session, sample_application, user):
         from app.models.user import User
         from app.services.ai import batch as auto_analyze
 
-        _save(client, sample_worker["headers"])
+        _save(client, sample_application["headers"])
         batch = auto_analyze.create_auto_analyze_batch(
             db_session, db_session.get(User, user["id"]), count=5
         )

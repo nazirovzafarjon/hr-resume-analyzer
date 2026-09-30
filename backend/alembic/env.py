@@ -17,7 +17,7 @@ from app.models import (
     Interview,
     Job,
     User,
-    Worker,  # noqa: F401  (register models)
+    Application,  # noqa: F401  (register models)
 )
 
 config = context.config

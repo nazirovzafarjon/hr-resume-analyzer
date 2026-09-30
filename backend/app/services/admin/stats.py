@@ -18,7 +18,7 @@ from app.models.ai_analysis_run import AIAnalysisRun
 from app.models.interview import Interview
 from app.models.job import Job
 from app.models.user import User
-from app.models.worker import AnalysisStatus, ApplicationStatus, HiringStatus, InterviewStatus, Worker
+from app.models.application import AnalysisStatus, ApplicationStatus, HiringStatus, InterviewStatus, Application
 from app.services.audit import AuditAction
 from app.services.dashboard_analytics import SCORE_BUCKETS
 
@@ -98,7 +98,7 @@ def build_series(db: Session, range_: AdminRange) -> tuple[Bucket, list[dict[str
     metrics = {
         "registrations": _counts_by_bucket(db, User.created_at, bucket, since),
         "jobs": _counts_by_bucket(db, Job.created_at, bucket, since),
-        "applications": _counts_by_bucket(db, Worker.created_at, bucket, since),
+        "applications": _counts_by_bucket(db, Application.created_at, bucket, since),
         "interviews": _counts_by_bucket(db, Interview.created_at, bucket, since),
         "ai_completed": _counts_by_bucket(
             db, AIAnalysisRun.created_at, bucket, since, AIAnalysisRun.status == "completed"
@@ -140,10 +140,10 @@ def get_dashboard(db: Session) -> dict[str, Any]:
     users = user_totals(db)
     applications, candidates, analyzed, failed = db.execute(
         select(
-            func.count(Worker.id),
-            func.count(Worker.id).filter(Worker.candidate_at.is_not(None)),
-            func.count(Worker.id).filter(Worker.analysis_status == AnalysisStatus.COMPLETED),
-            func.count(Worker.id).filter(Worker.analysis_status == AnalysisStatus.FAILED),
+            func.count(Application.id),
+            func.count(Application.id).filter(Application.candidate_at.is_not(None)),
+            func.count(Application.id).filter(Application.analysis_status == AnalysisStatus.COMPLETED),
+            func.count(Application.id).filter(Application.analysis_status == AnalysisStatus.FAILED),
         )
     ).one()
     jobs = db.execute(select(func.count(Job.id))).scalar_one()
@@ -180,7 +180,7 @@ def get_dashboard(db: Session) -> dict[str, Any]:
 def _distribution(db: Session, column: Any, enum_cls: Any, since: datetime) -> list[dict[str, Any]]:
     """Counts for every value of ``enum_cls`` among applications since ``since``."""
     rows = db.execute(
-        select(column, func.count(Worker.id)).where(Worker.created_at >= since).group_by(column)
+        select(column, func.count(Application.id)).where(Application.created_at >= since).group_by(column)
     ).all()
     counts = {value.value: int(count) for value, count in rows}
     return [{"key": member.value, "count": counts.get(member.value, 0)} for member in enum_cls]
@@ -194,15 +194,15 @@ def _score_distribution(db: Session, since: datetime) -> list[dict[str, Any]]:
     for index, (label, low, _high) in enumerate(SCORE_BUCKETS):
         upper = lows[index + 1] if index + 1 < len(lows) else None
         condition = (
-            Worker.ai_score >= low
+            Application.ai_score >= low
             if upper is None
-            else and_(Worker.ai_score >= low, Worker.ai_score < upper)
+            else and_(Application.ai_score >= low, Application.ai_score < upper)
         )
         whens.append((condition, label))
     bucket_expr = case(*whens, else_=None).label("bucket")
     rows = db.execute(
-        select(bucket_expr, func.count(Worker.id))
-        .where(Worker.analysis_status == AnalysisStatus.COMPLETED, Worker.created_at >= since)
+        select(bucket_expr, func.count(Application.id))
+        .where(Application.analysis_status == AnalysisStatus.COMPLETED, Application.created_at >= since)
         .group_by(bucket_expr)
     ).all()
     counts = {label: int(count) for label, count in rows if label is not None}
@@ -225,9 +225,9 @@ def get_analytics(db: Session, range_: AdminRange) -> dict[str, Any]:
         select(
             Job.company_name,
             func.count(func.distinct(Job.id)),
-            func.count(Worker.id).filter(Worker.created_at >= since),
+            func.count(Application.id).filter(Application.created_at >= since),
         )
-        .outerjoin(Worker, Worker.job_id == Job.id)
+        .outerjoin(Application, Application.job_id == Job.id)
         .where(Job.created_at >= since)
         .group_by(Job.company_name)
         .order_by(func.count(func.distinct(Job.id)).desc(), Job.company_name)
@@ -235,20 +235,20 @@ def get_analytics(db: Session, range_: AdminRange) -> dict[str, Any]:
     ).all()
 
     top_job_rows = db.execute(
-        select(Job.id, Job.position, Job.company_name, User.email, func.count(Worker.id))
-        .join(Worker, Worker.job_id == Job.id)
+        select(Job.id, Job.position, Job.company_name, User.email, func.count(Application.id))
+        .join(Application, Application.job_id == Job.id)
         .join(User, User.id == Job.owner_id)
-        .where(Worker.created_at >= since)
+        .where(Application.created_at >= since)
         .group_by(Job.id, Job.position, Job.company_name, User.email)
-        .order_by(func.count(Worker.id).desc(), Job.id)
+        .order_by(func.count(Application.id).desc(), Job.id)
         .limit(8)
     ).all()
 
     all_jobs = db.execute(select(func.count(Job.id))).scalar_one()
-    all_applications = db.execute(select(func.count(Worker.id))).scalar_one()
+    all_applications = db.execute(select(func.count(Application.id))).scalar_one()
     avg_score = db.execute(
-        select(func.avg(Worker.ai_score)).where(
-            Worker.analysis_status == AnalysisStatus.COMPLETED, Worker.created_at >= since
+        select(func.avg(Application.ai_score)).where(
+            Application.analysis_status == AnalysisStatus.COMPLETED, Application.created_at >= since
         )
     ).scalar()
 
@@ -258,10 +258,10 @@ def get_analytics(db: Session, range_: AdminRange) -> dict[str, Any]:
         "series": series,
         "totals": totals,
         "users": user_totals(db),
-        "application_status": _distribution(db, Worker.application_status, ApplicationStatus, since),
-        "analysis_status": _distribution(db, Worker.analysis_status, AnalysisStatus, since),
-        "hiring_status": _distribution(db, Worker.hiring_status, HiringStatus, since),
-        "interview_status": _distribution(db, Worker.interview_status, InterviewStatus, since),
+        "application_status": _distribution(db, Application.application_status, ApplicationStatus, since),
+        "analysis_status": _distribution(db, Application.analysis_status, AnalysisStatus, since),
+        "hiring_status": _distribution(db, Application.hiring_status, HiringStatus, since),
+        "interview_status": _distribution(db, Application.interview_status, InterviewStatus, since),
         "score_distribution": _score_distribution(db, since),
         "top_companies": [
             {"company": company, "jobs": int(jobs), "applications": int(apps)}

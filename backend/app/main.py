@@ -20,7 +20,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.core.config import settings
 from app.core.database import Base, SessionLocal, engine
 from app.core.request_context import REQUEST_ID_HEADER, RequestContextMiddleware, request_id_from_scope
-from app.routers import admin, auth, dashboard, interviews, jobs, public, users, workers
+from app.routers import admin, applications, auth, dashboard, interviews, jobs, public, users
 from app.services.admin import errors as error_monitor
 from app.services.ai.job_analyzer import close_ai_client
 
@@ -230,7 +230,7 @@ def create_app() -> FastAPI:
     app.include_router(users.router, prefix=f"{settings.API_PREFIX}/users", tags=["users"])
     app.include_router(jobs.router, prefix=f"{settings.API_PREFIX}/jobs", tags=["jobs"])
     app.include_router(
-        workers.router, prefix=f"{settings.API_PREFIX}/workers", tags=["workers"]
+        applications.router, prefix=f"{settings.API_PREFIX}/applications", tags=["applications"]
     )
     app.include_router(
         public.router, prefix=f"{settings.API_PREFIX}", tags=["public"]
@@ -254,7 +254,7 @@ def create_app() -> FastAPI:
     # Serve stored profile images (UPLOAD_DIR/profile, written by the settings
     # service) as plain static files. Only that sub-directory is public:
     # candidates' CVs (UPLOAD_DIR/resumes) are served exclusively through the
-    # authenticated GET /api/workers/{id}/resume. The directory is created on
+    # authenticated GET /api/applications/{id}/resume. The directory is created on
     # startup so the mount always has a valid target.
     profile_dir = Path(settings.UPLOAD_DIR) / "profile"
     profile_dir.mkdir(parents=True, exist_ok=True)

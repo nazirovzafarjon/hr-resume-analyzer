@@ -6,7 +6,7 @@
  */
 
 import { apiRequest } from "./apiClient";
-import type { AnalyticsGroupBy, HiringStatus } from "../types/worker";
+import type { AnalyticsGroupBy, HiringStatus } from "../types/candidate";
 
 export type AnalyticsRange = "7d" | "30d" | "90d";
 
@@ -97,7 +97,7 @@ export type PreviousPeriod = {
 };
 
 export type StatusCount = {
-  status: import("../types/worker").ApplicationStatus;
+  status: import("../types/candidate").ApplicationStatus;
   count: number;
 };
 

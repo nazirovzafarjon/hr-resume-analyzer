@@ -166,11 +166,11 @@ class TestDeleteUser:
         # row being gone is a reliable assertion (unlike the identity map).
         assert user_crud.get_user_by_email(db_session, "hr@example.com") is None
 
-    def test_delete_user_removes_their_jobs_and_workers(
-        self, client, admin, db_session, sample_job, worker_factory
+    def test_delete_user_removes_their_jobs_and_applications(
+        self, client, admin, db_session, sample_job, application_factory
     ):
-        worker_response = worker_factory(sample_job["id"])  # hr@example.com owns a job with a worker
-        worker_id = worker_response.json()["id"]
+        application_response = application_factory(sample_job["id"])  # hr@example.com owns a job with an application
+        application_id = application_response.json()["id"]
         job_id = sample_job["id"]
         target = user_crud.get_user_by_email(db_session, "hr@example.com")
         target_id = target.id
@@ -180,11 +180,11 @@ class TestDeleteUser:
         # Query-based checks: each lookup hits the DB, so deleted rows return
         # None reliably (unlike lookups through the session identity map).
         from app.crud.job import get_job
-        from app.crud.worker import get_worker
+        from app.crud.application import get_application
 
         assert user_crud.get_user_by_email(db_session, "hr@example.com") is None
         assert get_job(db_session, job_id) is None
-        assert get_worker(db_session, worker_id) is None
+        assert get_application(db_session, application_id) is None
 
     def test_admin_cannot_delete_own_account(self, client, admin):
         response = client.delete(f"/api/users/{admin['id']}", headers=admin["headers"])

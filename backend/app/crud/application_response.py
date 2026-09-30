@@ -9,20 +9,20 @@ from app.models.application_form import ApplicationResponse
 
 
 def create_response(
-    db: Session, worker_id: int, responses: list[dict]
+    db: Session, application_id: int, responses: list[dict]
 ) -> ApplicationResponse:
     """Store the structured answers snapshot for a candidate submission."""
-    response = ApplicationResponse(worker_id=worker_id, responses=responses)
+    response = ApplicationResponse(application_id=application_id, responses=responses)
     db.add(response)
     db.commit()
     db.refresh(response)
     return response
 
 
-def get_response_by_worker(db: Session, worker_id: int) -> ApplicationResponse | None:
+def get_response_by_application(db: Session, application_id: int) -> ApplicationResponse | None:
     """Return the stored answers for a candidate, or ``None``."""
     return (
         db.query(ApplicationResponse)
-        .filter(ApplicationResponse.worker_id == worker_id)
+        .filter(ApplicationResponse.application_id == application_id)
         .first()
     )

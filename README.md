@@ -8,7 +8,7 @@ HR users manage the hiring pipeline for job vacancies:
 * HR users create accountsand authenticate with **JWT** tokens.
 * They create **jobs** (vacancies) describing the company, position, required
   skillsand experience.
-* They record **workers/candidates** (leads) who applied for those jobs,
+* They record **applications/candidates** (leads) who applied for those jobs,
   track their **hiring status** (strong hire / hire / weak hire / do not hire)and
   **interview status** (in process / completed / not completed).
 * A **dashboard** gives them analytics (total jobs/candidates/leads, breakdown
@@ -82,9 +82,9 @@ content action is job moderation (delete), which is audited.
   required experience,and a running lead count
 * Jobs are scoped to their owner: users only ever see/manage their own jobs
 
-### Worker / candidate management
-* Create, list, read, update, delete workers/candidates
-* Each worker belongs to a job; creating a worker increments the job's lead count
+### Application / candidate management
+* Create, list, read, update, delete applications/candidates
+* Each application belongs to a job; creating an application increments the job's lead count
 * Update hiring statusand interview status (validated enums; invalid values → 422)
 
 ### Dashboard / analytics
@@ -141,13 +141,13 @@ backend/
 │   │   ├── config.py        # Settings read from environment / .env
 │   │   ├── database.py      # Engine, session factory, declarative Base, get_db
 │   │   └── security.py      # Password hashing, JWT create/validate
-│   ├── models/              # SQLAlchemy models: User, Job, Worker
+│   ├── models/              # SQLAlchemy models: User, Job, Application
 │   ├── schemas/             # Pydantic request/response models (auth, user, job,
-│   │                        #   worker, dashboard, analysis)
+│   │                        #   application, dashboard, analysis)
 │   ├── crud/                # Plain database operations (no business logic)
 │   │   ├── user.py
 │   │   ├── job.py
-│   │   └── worker.py
+│   │   └── application.py
 │   ├── services/            # Business logic
 │   │   ├── auth.py          # register, authenticate, tokens, password reset
 │   │   ├── profile.py       # own-account settings (name/email, profile image)
@@ -170,7 +170,7 @@ backend/
 │   │   ├── auth.py          # /api/auth/*
 │   │   ├── users.py         # /api/users/* (superuser only)
 │   │   ├── jobs.py          # /api/jobs/*
-│   │   ├── workers.py       # /api/workers/*
+│   │   ├── applications.py  # /api/applications/*
 │   │   └── dashboard.py     # /api/dashboard/*
 │   └── dependencies/
 │       └── auth.py          # get_current_user / get_current_superuser
@@ -184,7 +184,7 @@ backend/
 │   ├── test_password_reset.py # forgot/reset/skip/refresh + token purposes
 │   ├── test_users.py        # superuser user management + user CRUD
 │   ├── test_jobs.py         # job endpoints + job CRUD
-│   ├── test_workers.py      # worker endpoints + worker CRUD
+│   ├── test_applications.py # application endpoints + application CRUD
 │   ├── test_dashboard.py    # analytics + recent activity endpoints
 │   └── test_services.py     # resume analysis + job service units
 ├── pytest.ini
@@ -269,6 +269,13 @@ alembic upgrade head
 
 Today the app uses `Base.metadata.create_all()` at startup instead, so an empty
 database works out of the box.,
+
+> **Upgrading an existing database:** `create_all()` only creates missing
+> tables; it never renames or alters existing ones. When pulling changes that
+> add a migration, run `alembic upgrade head` **before** starting the API.
+> For example, revision `2cb0c8660dbf` renames the `workers` table to
+> `applications` (and `worker_id` columns to `application_id`); it keeps all
+> data and also recovers if the API was started first by mistake.
 
 ---
 
@@ -381,8 +388,8 @@ your environment.,
 | Model | Table | Key fields | Relationships |
 | --- | --- | --- | --- |
 | `User` | `users` | id, email (unique, indexed), hashed_password, full_name, is_active, is_superuser | has many `jobs` (cascade delete via DB) |
-| `Job` | `jobs` | id, owner_id (FK users.id, indexed), company_name, position, description, required_skills, required_experience, leads_count, created_at | belongs to `User`; has many `workers` (cascade delete via DB) |
-| `Worker` | `workers` | id,, job_id,, name,, email,, resume_path,, hiring_status,, interview_status,, created_at | belongs to `Job` |
+| `Job` | `jobs` | id, owner_id (FK users.id, indexed), company_name, position, description, required_skills, required_experience, leads_count, created_at | belongs to `User`; has many `applications` (cascade delete via DB) |
+| `Application` | `applications` | id,, job_id,, name,, email,, resume_path,, hiring_status,, interview_status,, created_at | belongs to `Job` |
 
 Enum columns use SQLAlchemy `Enum` with Python `enum.Enum` values:
 
@@ -502,7 +509,7 @@ never revealed.
   session (403 `"Admin privileges required"` for HR accounts, 403 `"Switch to
   the admin workspace to use this."` for an admin account in an HR session).
   Guards `/api/users/*` and every `/api/admin/*` route.
-* Owned resources (jobs,, workers,, dashboard data)are scoped per user: reading or
+* Owned resources (jobs,, applications,, dashboard data)are scoped per user: reading or
   modifying another user's resource returns 404, never revealing that it exists.,
 
 ### Sessions and workspaces
@@ -894,7 +901,7 @@ it when no image is set still succeeds (nothing to remove).
 ---
 
 ### DELETE /api/users/{user_id}
-**Purpose:** Delete a user (their jobs and workers cascade-delete). Superuser only.,
+**Purpose:** Delete a user (their jobs and applications cascade-delete). Superuser only.,
 
 **Success (204 No Content).,
 
@@ -989,7 +996,7 @@ it when no image is set still succeeds (nothing to remove).
 ---
 
 ### DELETE /api/jobs/{job_id}
-**Purpose:** Delete a job (its workers cascade-delete)..,
+**Purpose:** Delete a job (its applications cascade-delete)..,
 
 **Authentication:** Required.,
 
@@ -999,8 +1006,8 @@ it when no image is set still succeeds (nothing to remove).
 
 ---
 
-### GET /api/workers?job_id={job_id}
-**Purpose:** List workers/candidates for one of the user's jobs.,
+### GET /api/applications?job_id={job_id}
+**Purpose:** List applications/candidates for one of the user's jobs.,
 
 **Authentication:** Required.,
 
@@ -1026,8 +1033,8 @@ it when no image is set still succeeds (nothing to remove).
 
 ---
 
-### POST /api/workers?job_id={job_id}
-**Purpose:** Record a new worker application and increment the job's `leads_count`.,
+### POST /api/applications?job_id={job_id}
+**Purpose:** Record a new application by hand and increment the job's `leads_count`.,
 
 **Authentication:** Required.,
 
@@ -1044,25 +1051,25 @@ it when no image is set still succeeds (nothing to remove).
 
 `resume_path` is optional.,
 
-**Success (201 Created):** `WorkerResponse` with default `hiring_status:"hire"`, `interview_status:"not_completed"`.,
+**Success (201 Created):** `ApplicationItemResponse` with default `hiring_status:"hire"`, `interview_status:"not_completed"`.,
 
 **Errors:** `401`, `404`, `422` (missing/empty name.,
 
 ---
 
-### GET /api/workers/{worker_id}
-**Purpose:** Read a single worker.,
+### GET /api/applications/{application_id}
+**Purpose:** Read a single application.,
 
 **Authentication:** Required.,
 
-**Success (200):** `WorkerResponse`.,
+**Success (200):** `ApplicationItemResponse`.,
 
 **Errors:** `401`, `404`.,
 
 ---
 
-### PATCH /api/workers/{worker_id}
-**Purpose:** Update worker fields (typically hiring/interview status).,
+### PATCH /api/applications/{application_id}
+**Purpose:** Update application fields (typically hiring/interview status).,
 
 **Authentication:** Required.,
 
@@ -1074,7 +1081,7 @@ it when no image is set still succeeds (nothing to remove).
 }
 ```
 
-**Success (200):** updated `WorkerResponse`.,
+**Success (200):** updated `ApplicationItemResponse`.,
 
 **Errors:**
 * `401`
@@ -1083,8 +1090,8 @@ it when no image is set still succeeds (nothing to remove).
 
 ---
 
-### DELETE /api/workers/{worker_id}
-**Purpose:** Delete a worker.,
+### DELETE /api/applications/{application_id}
+**Purpose:** Delete an application.,
 
 **Authentication:** Required.,
 
@@ -1115,7 +1122,7 @@ it when no image is set still succeeds (nothing to remove).
 }
 ```
 
-`total_candidates` counts actual worker rows; `total_leads` sums the per-job
+`total_candidates` counts actual application rows; `total_leads` sums the per-job
 `leads_count` counter.,
 
 **Errors:** `400` — invalid category,, `401`.,
@@ -1255,11 +1262,11 @@ from one client within 10 minutes; in-process limit), `503` (database unavailabl
 `get_jobs_for_user(db,, owner_id,)`, `get_recent_jobs(db,, owner_id,, limit=5,)`,
 `update_job(db,, job,, payload,)`, `delete_job(db,, job_id,)`.
 
-### CRUD — workers (`app/crud/worker.py`)
-`create_worker(db,, job_id,, payload,)`, `get_worker(db,, worker_id,)`,
-`get_workers_for_job(db,, job_id,)`, `get_recent_workers(db,, owner_id,, limit=5,)`
+### CRUD — applications (`app/crud/application.py`)
+`create_application(db,, job_id,, payload,)`, `get_application(db,, application_id,)`,
+`get_applications_for_job(db,, job_id,)`, `get_recent_applications(db,, owner_id,, limit=5,)`
 ((uses `contains_eager` to avoid N+1 for dashboard recent leads),,
-`update_worker(db,, worker,, payload,)`, `delete_worker(db,, worker_id,)`.
+`update_application(db,, application,, payload,)`, `delete_application(db,, application_id,)`.
 
 ---
 
@@ -1295,14 +1302,14 @@ HR → Authorization: Bearer <jwt>
   → 201 + JobResponse
 ```
 
-### Worker creation flow
+### Application creation flow
 ```text
-HR → POST /api/workers?job_id=...
+HR → POST /api/applications?job_id=...
   → get_current_user ((401)
   → ownership check:: job must belong to current user ((404 otherwise)
-  → crud.create_worker inserts row
+  → crud.create_application inserts row
   → service.increment_leads_count bumps job.leads_count
-  → 201 + WorkerResponse
+  → 201 + ApplicationItemResponse
 ```
 
 ### Protected endpoint flow
@@ -1324,7 +1331,7 @@ Request + Authorization header
 | Validation failure (bad email,, empty name,, missing field,, bad enum,, bad query) | `422` | FastAPI validation detail |
 | Missing / invalid / expired token,, deleted/inactive user | `401` | `{"detail": "Not authenticated"}` or `"Invalid or expired token"` |
 | Authenticated non-superuser hits admin route | `403` | `{"detail": "Admin privileges required"}` |
-| Resource not found (or not owned) | `404` | `"User/Job/Worker not found"` |
+| Resource not found (or not owned) | `404` | `"User/Job/Application not found"` |
 | Duplicate email at registration | `400` | `"A user with this email already exists"` |
 | Email change to an address another account uses | `400` | `"A user with this email already exists"` |
 | Wrong current password at `PATCH /api/auth/me/password` | `400` | `"Current password is incorrect"` |

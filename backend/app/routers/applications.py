@@ -1,19 +1,19 @@
-"""Worker/candidate API endpoints (the Applications menu's backend).
+"""Application/candidate API endpoints (the Applications menu's backend).
 
-A ``Worker`` attached to a ``Job`` *is* an Application, so everything here
-operates on the existing ``workers`` table — no separate applications table.
+Every endpoint here works on ``applications`` rows; a "candidate" is an
+application HR moved into the hiring pipeline (``candidate_at`` set).
 
 Endpoints
 ---------
-GET    /api/workers               — list applications (owned by caller)
-POST   /api/workers               — create a worker manually
-GET    /api/workers/{id}          — get full application detail
-PATCH  /api/workers/{id}          — update HR-owned fields
-DELETE /api/workers/{id}          — delete worker
-POST   /api/workers/{id}/analyze  — run AI analysis (reads resume from disk)
-GET    /api/workers/{id}/analysis — read stored AI analysis (never calls AI)
-POST   /api/workers/{id}/convert-to-candidate — move to candidate pipeline
-GET    /api/workers/{id}/resume   — view (inline) or download the stored CV
+GET    /api/applications               — list applications (owned by caller)
+POST   /api/applications               — create an application manually
+GET    /api/applications/{id}          — get full application detail
+PATCH  /api/applications/{id}          — update HR-owned fields
+DELETE /api/applications/{id}          — delete application
+POST   /api/applications/{id}/analyze  — run AI analysis (reads resume from disk)
+GET    /api/applications/{id}/analysis — read stored AI analysis (never calls AI)
+POST   /api/applications/{id}/convert-to-candidate — move to candidate pipeline
+GET    /api/applications/{id}/resume   — view (inline) or download the stored CV
 """
 
 import asyncio
@@ -26,22 +26,22 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.crud import batch as batch_crud
 from app.crud import job as job_crud
-from app.crud import worker as worker_crud
+from app.crud import application as application_crud
 from app.dependencies.audit import get_audit_context
 from app.dependencies.auth import get_current_user
 from app.models.job import Job
 from app.models.user import User
-from app.models.worker import AnalysisStatus, HiringStatus, InterviewStatus, Worker
+from app.models.application import AnalysisStatus, HiringStatus, InterviewStatus, Application
 from app.schemas.application_analysis import ApplicationAnalysisResponse
-from app.schemas.worker import (
+from app.schemas.application import (
     AutoAnalyzeAvailableResponse,
     AutoAnalyzeProgressResponse,
     AutoAnalyzeStartRequest,
     AutoAnalyzeStartResponse,
-    WorkerCreate,
-    WorkerDetailResponse,
-    WorkerResponse,
-    WorkerUpdate,
+    ApplicationCreate,
+    ApplicationDetailResponse,
+    ApplicationItemResponse,
+    ApplicationUpdate,
 )
 from app.services import application_analysis as analysis_service
 from app.services import audit
@@ -67,35 +67,35 @@ def _get_owned_job(db: Session, job_id: int, current_user: User) -> Job:
     return job
 
 
-def _get_owned_worker(db: Session, worker_id: int, current_user: User) -> Worker:
-    """Return the worker if its job belongs to the current user, else raise 404."""
-    worker = worker_crud.get_worker(db, worker_id)
-    if worker is None or worker.job.owner_id != current_user.id:
+def _get_owned_application(db: Session, application_id: int, current_user: User) -> Application:
+    """Return the application if its job belongs to the current user, else raise 404."""
+    application = application_crud.get_application(db, application_id)
+    if application is None or application.job.owner_id != current_user.id:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Worker not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="Application not found"
         )
-    return worker
+    return application
 
 
 # ---------------------------------------------------------------------------
-# Build the WorkerDetailResponse (reads stored analysis, never calls AI)
+# Build the ApplicationDetailResponse (reads stored analysis, never calls AI)
 # ---------------------------------------------------------------------------
 
 
-def _build_detail_response(worker: Worker, base_url: str = "") -> WorkerDetailResponse:
-    """Compose the full detail response for one worker.
+def _build_detail_response(application: Application, base_url: str = "") -> ApplicationDetailResponse:
+    """Compose the full detail response for one application.
 
     Reads the stored AI analysis from PostgreSQL (no provider call), the
     submitted form answers, a browser-usable resume URL and the candidate's
     interviews.
     """
-    from app.schemas.worker import ApplicantAnswer, WorkerInterviewSummary
+    from app.schemas.application import ApplicantAnswer, ApplicationInterviewSummary
 
     # Stored analysis (None when not yet analysed or data is unreadable).
-    analysis = analysis_service.stored_analysis(worker)
+    analysis = analysis_service.stored_analysis(application)
 
     # Submitted form answers from the public application form.
-    response = worker.application_response
+    response = application.application_response
     raw_answers = (response.responses if response is not None else None) or []
     answers: list[ApplicantAnswer] = []
     for ans in raw_answers:
@@ -113,39 +113,39 @@ def _build_detail_response(worker: Worker, base_url: str = "") -> WorkerDetailRe
 
     # The CV is only served through the authenticated endpoint below; this is
     # its API path (relative to the API base), never a filesystem location.
-    resume_url = f"/workers/{worker.id}/resume" if worker.resume_path else None
+    resume_url = f"/applications/{application.id}/resume" if application.resume_path else None
 
     # Interview summaries (lightweight, avoids loading all interview details).
-    interviews: list[WorkerInterviewSummary] = [
-        WorkerInterviewSummary(
+    interviews: list[ApplicationInterviewSummary] = [
+        ApplicationInterviewSummary(
             id=interview.id,
             interviewer=interview.interviewer,
             scheduled_at=interview.scheduled_at,
             status=interview.status,
             notes=interview.notes,
         )
-        for interview in (worker.interviews or [])
+        for interview in (application.interviews or [])
     ]
 
-    return WorkerDetailResponse(
-        id=worker.id,
-        job_id=worker.job_id,
-        name=worker.name,
-        email=worker.email,
-        resume_path=worker.resume_path,
-        ai_score=worker.ai_score,
-        application_status=worker.application_status,
-        analysis_status=worker.analysis_status,
-        analysis_error=worker.analysis_error,
-        analysis_started_at=worker.analysis_started_at,
-        hiring_status=worker.hiring_status,
-        interview_status=worker.interview_status,
-        is_candidate=worker.is_candidate,
-        candidate_at=worker.candidate_at,
-        created_at=worker.created_at,
-        submitted_at=worker.submitted_at,
-        company_name=worker.job.company_name,
-        position=worker.job.position,
+    return ApplicationDetailResponse(
+        id=application.id,
+        job_id=application.job_id,
+        name=application.name,
+        email=application.email,
+        resume_path=application.resume_path,
+        ai_score=application.ai_score,
+        application_status=application.application_status,
+        analysis_status=application.analysis_status,
+        analysis_error=application.analysis_error,
+        analysis_started_at=application.analysis_started_at,
+        hiring_status=application.hiring_status,
+        interview_status=application.interview_status,
+        is_candidate=application.is_candidate,
+        candidate_at=application.candidate_at,
+        created_at=application.created_at,
+        submitted_at=application.submitted_at,
+        company_name=application.job.company_name,
+        position=application.job.position,
         resume_url=resume_url,
         responses=answers,
         analysis=analysis,
@@ -158,23 +158,23 @@ def _build_detail_response(worker: Worker, base_url: str = "") -> WorkerDetailRe
 # ---------------------------------------------------------------------------
 
 
-@router.get("", response_model=list[WorkerResponse])
-def list_workers(
+@router.get("", response_model=list[ApplicationItemResponse])
+def list_applications(
     job_id: int | None = Query(None, description="Filter by job (must be owned by the caller)"),
     application_status: str | None = Query(None, description="Filter by application status"),
     hiring_status: HiringStatus | None = Query(None, description="Filter by hiring status"),
     interview_status: InterviewStatus | None = Query(
         None, description="Filter by interview status"
     ),
-    candidate_only: bool = Query(False, description="Only return workers that are candidates"),
+    candidate_only: bool = Query(False, description="Only return applications that are candidates"),
     search: str | None = Query(None, description="Free-text search on name/email"),
     sort: str = Query("newest", description="Sort order: newest, oldest, match"),
     skip: int = Query(0, ge=0, description="Number of applications to skip"),
     limit: int = Query(50, ge=1, le=200, description="Max applications to return"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-) -> list[Worker]:
-    """Return the current user's applications (workers).
+) -> list[Application]:
+    """Return the current user's applications.
 
     Scoped to jobs owned by the caller. With no ``job_id`` this lists
     applications across all of the caller's jobs; otherwise restricted to that
@@ -182,7 +182,7 @@ def list_workers(
     ``interview_status``, ``candidate_only``, free-text ``search`` and
     ``skip``/``limit`` pagination.
     """
-    from app.models.worker import ApplicationStatus
+    from app.models.application import ApplicationStatus
 
     if job_id is not None:
         _get_owned_job(db, job_id, current_user)
@@ -197,7 +197,7 @@ def list_workers(
                 detail=f"Invalid application_status: {application_status}",
             )
 
-    return worker_crud.list_workers(
+    return application_crud.list_applications(
         db,
         current_user.id,
         job_id=job_id,
@@ -212,30 +212,30 @@ def list_workers(
     )
 
 
-@router.post("", response_model=WorkerResponse, status_code=status.HTTP_201_CREATED)
-def create_worker(
-    job_id: int = Query(..., description="Job the worker is applying for"),
-    payload: WorkerCreate = ...,
+@router.post("", response_model=ApplicationItemResponse, status_code=status.HTTP_201_CREATED)
+def create_application(
+    job_id: int = Query(..., description="Job the application is applying for"),
+    payload: ApplicationCreate = ...,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
     audit_ctx: AuditContext = Depends(get_audit_context),
-) -> Worker:
-    """Record a new worker/candidate application and bump the job's lead count."""
+) -> Application:
+    """Record a new application by hand and bump the job's lead count."""
     from app.services import job as job_service
 
     job = _get_owned_job(db, job_id, current_user)
-    worker = worker_crud.create_worker(db, job.id, payload)
+    application = application_crud.create_application(db, job.id, payload)
     job_service.increment_leads_count(db, job.id)
     audit.record(
         db,
         AuditAction.CREATE_APPLICATION,
         resource_type=AuditResource.APPLICATION,
-        resource_id=worker.id,
+        resource_id=application.id,
         actor=current_user,
         details={"job_id": job.id},
         context=audit_ctx,
     )
-    return worker
+    return application
 
 
 # ---------------------------------------------------------------------------
@@ -243,38 +243,38 @@ def create_worker(
 # ---------------------------------------------------------------------------
 
 
-@router.get("/{worker_id}", response_model=WorkerDetailResponse)
-def get_worker(
-    worker_id: int,
+@router.get("/{application_id}", response_model=ApplicationDetailResponse)
+def get_application(
+    application_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-) -> WorkerDetailResponse:
+) -> ApplicationDetailResponse:
     """Return a single application/candidate with full detail.
 
     Never triggers AI — reads only what is already stored in PostgreSQL.
     """
-    worker = _get_owned_worker(db, worker_id, current_user)
-    return _build_detail_response(worker)
+    application = _get_owned_application(db, application_id, current_user)
+    return _build_detail_response(application)
 
 
-@router.patch("/{worker_id}", response_model=WorkerDetailResponse)
-def update_worker(
-    worker_id: int,
-    payload: WorkerUpdate,
+@router.patch("/{application_id}", response_model=ApplicationDetailResponse)
+def update_application(
+    application_id: int,
+    payload: ApplicationUpdate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
     audit_ctx: AuditContext = Depends(get_audit_context),
-) -> WorkerDetailResponse:
+) -> ApplicationDetailResponse:
     """Update HR-owned fields on an application/candidate."""
-    worker = _get_owned_worker(db, worker_id, current_user)
-    worker = worker_crud.update_worker(db, worker, payload)
+    application = _get_owned_application(db, application_id, current_user)
+    application = application_crud.update_application(db, application, payload)
     # Statuses are enum values (safe to log); other fields only by name.
     changes = payload.model_dump(exclude_unset=True)
     audit.record(
         db,
         AuditAction.UPDATE_APPLICATION,
         resource_type=AuditResource.APPLICATION,
-        resource_id=worker.id,
+        resource_id=application.id,
         actor=current_user,
         details={
             "fields": sorted(changes),
@@ -286,25 +286,25 @@ def update_worker(
         },
         context=audit_ctx,
     )
-    return _build_detail_response(worker)
+    return _build_detail_response(application)
 
 
-@router.delete("/{worker_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_worker(
-    worker_id: int,
+@router.delete("/{application_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_application(
+    application_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
     audit_ctx: AuditContext = Depends(get_audit_context),
 ) -> None:
-    """Delete a worker/candidate owned by the current user."""
-    worker = _get_owned_worker(db, worker_id, current_user)
-    job_id = worker.job_id
-    worker_crud.delete_worker(db, worker.id)
+    """Delete an application/candidate owned by the current user."""
+    application = _get_owned_application(db, application_id, current_user)
+    job_id = application.job_id
+    application_crud.delete_application(db, application.id)
     audit.record(
         db,
         AuditAction.DELETE_APPLICATION,
         resource_type=AuditResource.APPLICATION,
-        resource_id=worker_id,
+        resource_id=application_id,
         actor=current_user,
         details={"job_id": job_id},
         context=audit_ctx,
@@ -317,13 +317,13 @@ def delete_worker(
 # ---------------------------------------------------------------------------
 
 
-@router.post("/{worker_id}/analyze", response_model=WorkerDetailResponse)
-async def analyze_worker(
-    worker_id: int,
+@router.post("/{application_id}/analyze", response_model=ApplicationDetailResponse)
+async def analyze_application(
+    application_id: int,
     force: bool = Query(False, description="Re-run even if a completed analysis exists"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-) -> WorkerDetailResponse:
+) -> ApplicationDetailResponse:
     """Run AI analysis on a submitted application.
 
     Uses the job requirements + submitted form answers + resume text extracted
@@ -338,29 +338,29 @@ async def analyze_worker(
     """
     from app.services.ai.job_analyzer import AIServiceError
 
-    worker = _get_owned_worker(db, worker_id, current_user)
+    application = _get_owned_application(db, application_id, current_user)
 
     try:
-        worker = await analysis_service.run_analysis(db, worker, force=force)
+        application = await analysis_service.run_analysis(db, application, force=force)
     except analysis_service.AnalysisInProgressError as exc:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail=exc.message
         ) from exc
     except AIServiceError as exc:
-        # The failure has already been persisted on the worker — return the
-        # updated worker so the UI can show the retryable failed state.
+        # The failure has already been persisted on the application — return the
+        # updated application so the UI can show the retryable failed state.
         logger.warning(
-            "AI analysis failed for worker_id=%s: %s", worker_id, exc.message
+            "AI analysis failed for application_id=%s: %s", application_id, exc.message
         )
-        db.refresh(worker)
-        return _build_detail_response(worker)
+        db.refresh(application)
+        return _build_detail_response(application)
 
-    return _build_detail_response(worker)
+    return _build_detail_response(application)
 
 
-@router.get("/{worker_id}/analysis", response_model=ApplicationAnalysisResponse)
-def get_worker_analysis(
-    worker_id: int,
+@router.get("/{application_id}/analysis", response_model=ApplicationAnalysisResponse)
+def get_application_analysis(
+    application_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> ApplicationAnalysisResponse:
@@ -369,14 +369,14 @@ def get_worker_analysis(
     This endpoint reads from PostgreSQL only — it never calls the AI provider.
     Use ``POST /{id}/analyze`` to run or re-run the analysis.
     """
-    worker = _get_owned_worker(db, worker_id, current_user)
-    analysis = analysis_service.stored_analysis(worker)
+    application = _get_owned_application(db, application_id, current_user)
+    analysis = analysis_service.stored_analysis(application)
     return ApplicationAnalysisResponse(
-        worker_id=worker.id,
-        analysis_status=worker.analysis_status,
-        analysis_error=worker.analysis_error,
-        analysis_started_at=worker.analysis_started_at,
-        ai_score=worker.ai_score,
+        application_id=application.id,
+        analysis_status=application.analysis_status,
+        analysis_error=application.analysis_error,
+        analysis_started_at=application.analysis_started_at,
+        ai_score=application.ai_score,
         analysis=analysis,
     )
 
@@ -386,9 +386,9 @@ def get_worker_analysis(
 # ---------------------------------------------------------------------------
 
 
-@router.get("/{worker_id}/resume", response_class=FileResponse)
-def get_worker_resume(
-    worker_id: int,
+@router.get("/{application_id}/resume", response_class=FileResponse)
+def get_application_resume(
+    application_id: int,
     download: bool = Query(False, description="Send as an attachment instead of inline"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -399,9 +399,9 @@ def get_worker_resume(
     as an attachment named after the candidate. Another user's application
     returns the same 404 as a missing one.
     """
-    worker = _get_owned_worker(db, worker_id, current_user)
+    application = _get_owned_application(db, application_id, current_user)
     try:
-        resume = resume_file_service.get_resume_file(worker)
+        resume = resume_file_service.get_resume_file(application)
     except resume_file_service.ResumeUnavailableError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=exc.message) from exc
 
@@ -423,16 +423,16 @@ def get_worker_resume(
 
 
 @router.post(
-    "/{worker_id}/convert-to-candidate",
-    response_model=WorkerDetailResponse,
+    "/{application_id}/convert-to-candidate",
+    response_model=ApplicationDetailResponse,
     status_code=status.HTTP_200_OK,
 )
 def convert_to_candidate(
-    worker_id: int,
+    application_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
     audit_ctx: AuditContext = Depends(get_audit_context),
-) -> WorkerDetailResponse:
+) -> ApplicationDetailResponse:
     """Move an application into the candidate (hiring/interview) pipeline.
 
     Idempotent: calling this again on an application that is already a
@@ -443,20 +443,20 @@ def convert_to_candidate(
     AI analysis is not required before converting — HR may move an application
     to the candidate pipeline at any point.
     """
-    worker = _get_owned_worker(db, worker_id, current_user)
-    already_candidate = worker.candidate_at is not None
-    worker = analysis_service.convert_to_candidate(db, worker)
+    application = _get_owned_application(db, application_id, current_user)
+    already_candidate = application.candidate_at is not None
+    application = analysis_service.convert_to_candidate(db, application)
     if not already_candidate:
         audit.record(
             db,
             AuditAction.CONVERT_TO_CANDIDATE,
             resource_type=AuditResource.APPLICATION,
-            resource_id=worker.id,
+            resource_id=application.id,
             actor=current_user,
-            details={"job_id": worker.job_id},
+            details={"job_id": application.job_id},
             context=audit_ctx,
         )
-    return _build_detail_response(worker)
+    return _build_detail_response(application)
 
 
 # ---------------------------------------------------------------------------
@@ -509,7 +509,7 @@ async def start_auto_analyze(
     Selects eligible applications (new, never analysed, matching the
     optional company/position/job filters) in the requested order, up to
     ``count``, creates a batch, and returns immediately. The analysis runs in the
-    background - poll GET /workers/auto-analyze/{batch_id} for progress.
+    background - poll GET /applications/auto-analyze/{batch_id} for progress.
 
     Raises:
         422: If count is not in 1-1000 range or order is invalid.
@@ -552,7 +552,7 @@ async def start_auto_analyze(
             detail=exc.message,
         ) from exc
 
-    selected = len(batch.worker_ids)
+    selected = len(batch.application_ids)
     audit.record(
         db,
         AuditAction.AI_BATCH_STARTED,
@@ -636,7 +636,7 @@ def cancel_auto_analyze(
         failed=batch.failed_count,
         skipped=batch.skipped_count,
         remaining=batch.remaining,
-        current_application_id=batch.current_worker_id,
+        current_application_id=batch.current_application_id,
         created_at=batch.created_at,
         finished_at=batch.finished_at,
     )

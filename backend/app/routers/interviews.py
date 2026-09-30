@@ -10,12 +10,12 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.crud import interview as interview_crud
-from app.crud import worker as worker_crud
+from app.crud import application as application_crud
 from app.dependencies.audit import get_audit_context
 from app.dependencies.auth import get_current_user
 from app.models.interview import Interview, InterviewStatus
 from app.models.user import User
-from app.models.worker import Worker
+from app.models.application import Application
 from app.schemas.interview import (
     InterviewCreate,
     InterviewResponse,
@@ -28,14 +28,14 @@ from app.services.audit import AuditAction, AuditContext, AuditResource
 router = APIRouter()
 
 
-def _get_owned_worker(db: Session, worker_id: int, current_user: User) -> Worker:
+def _get_owned_application(db: Session, application_id: int, current_user: User) -> Application:
     """Return the candidate if their job belongs to the current user, else 404."""
-    worker = worker_crud.get_worker(db, worker_id)
-    if worker is None or worker.job.owner_id != current_user.id:
+    application = application_crud.get_application(db, application_id)
+    if application is None or application.job.owner_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Candidate not found"
         )
-    return worker
+    return application
 
 
 def _get_owned_interview(db: Session, interview_id: int, current_user: User) -> Interview:
@@ -113,7 +113,7 @@ def create_interview(
     audit_ctx: AuditContext = Depends(get_audit_context),
 ) -> InterviewResponse:
     """Schedule a new interview for one of the current user's candidates."""
-    _get_owned_worker(db, payload.candidate_id, current_user)
+    _get_owned_application(db, payload.candidate_id, current_user)
     interview = interview_crud.create_interview(db, payload, current_user.id)
     audit.record(
         db,
@@ -150,7 +150,7 @@ def update_interview(
     interview = _get_owned_interview(db, interview_id, current_user)
     if payload.candidate_id is not None:
         # Re-validate ownership when the interview is moved to another candidate.
-        _get_owned_worker(db, payload.candidate_id, current_user)
+        _get_owned_application(db, payload.candidate_id, current_user)
     interview = interview_crud.update_interview(db, interview, payload)
     details: dict = {"fields": audit.changed_fields(payload)}
     if payload.status is not None:
