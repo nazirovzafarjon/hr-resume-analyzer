@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { ShieldOff, ShieldPlus, Trash2, UserCheck, UserX } from "lucide-react";
+import { Pencil, ShieldOff, ShieldPlus, Trash2, UserCheck, UserX } from "lucide-react";
 import PageHeader from "../../components/ui/PageHeader";
 import PageMeta from "../../components/seo/PageMeta";
 import Button from "../../components/ui/Button";
@@ -10,6 +10,7 @@ import StatCard from "../../components/ui/StatCard";
 import { SkeletonCards, SkeletonText } from "../../components/ui/Skeleton";
 import { AnalysisStatusBadge, ApplicationStatusBadge } from "../../components/ui/ApplicationStatusBadge";
 import AuditActivityList from "../../components/admin/AuditActivityList";
+import EditUserDialog from "../../components/admin/EditUserDialog";
 import UserActionDialog, { type UserAction } from "../../components/admin/UserActionDialog";
 import { AccountStatusBadge, RoleBadge } from "../../components/admin/badges";
 import { useLanguage } from "../../contexts/LanguageContext";
@@ -26,6 +27,7 @@ export default function AdminUserDetailPage() {
   const userId = parseId(useParams().id);
   const { user: me } = useCurrentUser();
   const [pending, setPending] = useState<UserAction | null>(null);
+  const [editing, setEditing] = useState(false);
   const { data: user, loading, error, reload } = useApiQuery(
     () => (userId ? fetchAdminUser(userId) : Promise.reject(new ApiError(404, "User not found"))),
     String(userId),
@@ -79,27 +81,34 @@ export default function AdminUserDetailPage() {
         description={user.email}
         breadcrumbs={crumbs}
         action={
-          !isSelf && (
-            <div className="admin-actions">
-              <Button
-                variant="secondary"
-                icon={user.is_active ? <UserX size={15} /> : <UserCheck size={15} />}
-                onClick={() => setPending(user.is_active ? "deactivate" : "activate")}
-              >
-                {user.is_active ? t("admin.users.deactivate") : t("admin.users.activate")}
-              </Button>
-              <Button
-                variant="secondary"
-                icon={user.is_superuser ? <ShieldOff size={15} /> : <ShieldPlus size={15} />}
-                onClick={() => setPending(user.is_superuser ? "demote" : "promote")}
-              >
-                {user.is_superuser ? t("admin.users.demote") : t("admin.users.promote")}
-              </Button>
-              <Button variant="danger-subtle" icon={<Trash2 size={15} />} onClick={() => setPending("delete")}>
-                {t("admin.users.delete")}
-              </Button>
-            </div>
-          )
+          <div className="admin-actions">
+            <Button variant="secondary" icon={<Pencil size={15} />} onClick={() => setEditing(true)}>
+              {t("admin.users.edit.action")}
+            </Button>
+            {/* Self-protection mirrors the backend: no self-demotion,
+                deactivation or deletion is even offered. */}
+            {!isSelf && (
+              <>
+                <Button
+                  variant="secondary"
+                  icon={user.is_active ? <UserX size={15} /> : <UserCheck size={15} />}
+                  onClick={() => setPending(user.is_active ? "deactivate" : "activate")}
+                >
+                  {user.is_active ? t("admin.users.deactivate") : t("admin.users.activate")}
+                </Button>
+                <Button
+                  variant="secondary"
+                  icon={user.is_superuser ? <ShieldOff size={15} /> : <ShieldPlus size={15} />}
+                  onClick={() => setPending(user.is_superuser ? "demote" : "promote")}
+                >
+                  {user.is_superuser ? t("admin.users.demote") : t("admin.users.promote")}
+                </Button>
+                <Button variant="danger-subtle" icon={<Trash2 size={15} />} onClick={() => setPending("delete")}>
+                  {t("admin.users.delete")}
+                </Button>
+              </>
+            )}
+          </div>
         }
       />
 
@@ -210,6 +219,16 @@ export default function AdminUserDetailPage() {
           )}
         </Card>
       </div>
+
+      <EditUserDialog
+        user={editing ? user : null}
+        isSelf={isSelf}
+        onClose={() => setEditing(false)}
+        onDone={() => {
+          setEditing(false);
+          reload();
+        }}
+      />
 
       <UserActionDialog
         pending={pending ? { action: pending, user } : null}

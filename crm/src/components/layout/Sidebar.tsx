@@ -10,12 +10,14 @@ import {
   LayoutDashboard,
   Settings as SettingsIcon,
   ShieldCheck,
+  UserCog,
   Users,
   type LucideIcon,
 } from "lucide-react";
 import Tooltip from "../ui/Tooltip";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { useAuth } from "../../context/AuthContext";
+import { useCurrentUser } from "../../hooks/useCurrentUser";
 import { useWorkspaceSwitch } from "../../hooks/useWorkspaceSwitch";
 import { SESSION_ROLES } from "../../types/auth";
 import { LANDING_URL } from "../../config";
@@ -46,8 +48,17 @@ export type NavGroup = {
   items: NavItem[];
 };
 
-/** Shortcut to the console, shown on HR pages during an admin session. */
-const ADMIN_ENTRY: NavItem = { to: "/admin", labelKey: "admin.nav.openAdmin", icon: ShieldCheck };
+/**
+ * Admin shortcuts on HR pages, shown only to accounts the server reports as
+ * administrators. User management comes first: it is the admin's core job.
+ */
+const ADMIN_GROUP: NavGroup = {
+  labelKey: "shell.navGroup.admin",
+  items: [
+    { to: "/admin/users", labelKey: "admin.nav.users", icon: UserCog },
+    { to: "/admin/dashboard", labelKey: "admin.nav.openAdmin", icon: ShieldCheck },
+  ],
+};
 
 /** Navigation grouped by the HR workflow: overview → recruitment → insights → system. */
 const NAV_GROUPS: NavGroup[] = [
@@ -81,18 +92,21 @@ export default function Sidebar({
 }: SidebarProps) {
   const { t } = useLanguage();
   const { activeRole } = useAuth();
+  const { user } = useCurrentUser();
   const { switchTo, switching } = useWorkspaceSwitch();
   const isAdminShell = variant === "admin";
 
-  // Only an admin *session* gets the console link. An administrator working
-  // in the HR workspace switches workspace from the account menu instead.
-  // Only a shortcut: the admin routes and API check the session themselves.
+  // The ADMIN group appears only for an account the backend (/auth/me) says
+  // may use the admin workspace. In an admin session its items are plain
+  // links; in an HR session they first ask the server to switch the session,
+  // which it grants only to a real administrator. Either way this is only a
+  // shortcut: the admin routes and API check the session themselves.
+  const adminSession = activeRole === SESSION_ROLES.ADMIN;
+  const adminAccount = adminSession || (user?.available_roles ?? []).includes(SESSION_ROLES.ADMIN);
   const groups: NavGroup[] = isAdminShell
     ? ADMIN_NAV_GROUPS
-    : activeRole === SESSION_ROLES.ADMIN
-      ? NAV_GROUPS.map((group, index) =>
-          index === NAV_GROUPS.length - 1 ? { ...group, items: [...group.items, ADMIN_ENTRY] } : group,
-        )
+    : adminAccount
+      ? [...NAV_GROUPS, ADMIN_GROUP]
       : NAV_GROUPS;
   const homePath = isAdminShell ? "/admin/dashboard" : "/dashboard";
 
@@ -149,22 +163,40 @@ export default function Sidebar({
                   {group.items.map((item) => {
                     const Icon = item.icon;
                     const label = t(item.labelKey);
+                    const needsSwitch = !isAdminShell && !adminSession && item.to.startsWith("/admin");
                     return (
                       <li key={item.to}>
                         <Tooltip label={collapsed && !open ? label : null} side="right">
-                          <NavLink
-                            to={item.to}
-                            end={item.end}
-                            className={({ isActive }) =>
-                              `sidebar-link${isActive ? " is-active" : ""}`
-                            }
-                            onClick={onClose}
-                          >
-                            <span className="sidebar-link-icon" aria-hidden="true">
-                              <Icon size={18} />
-                            </span>
-                            <span className="sidebar-link-label">{label}</span>
-                          </NavLink>
+                          {needsSwitch ? (
+                            <button
+                              type="button"
+                              className="sidebar-link sidebar-link--button"
+                              onClick={() => {
+                                onClose();
+                                void switchTo(SESSION_ROLES.ADMIN, item.to);
+                              }}
+                              disabled={switching}
+                            >
+                              <span className="sidebar-link-icon" aria-hidden="true">
+                                <Icon size={18} />
+                              </span>
+                              <span className="sidebar-link-label">{label}</span>
+                            </button>
+                          ) : (
+                            <NavLink
+                              to={item.to}
+                              end={item.end}
+                              className={({ isActive }) =>
+                                `sidebar-link${isActive ? " is-active" : ""}`
+                              }
+                              onClick={onClose}
+                            >
+                              <span className="sidebar-link-icon" aria-hidden="true">
+                                <Icon size={18} />
+                              </span>
+                              <span className="sidebar-link-label">{label}</span>
+                            </NavLink>
+                          )}
                         </Tooltip>
                       </li>
                     );

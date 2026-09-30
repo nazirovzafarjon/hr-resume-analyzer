@@ -14,7 +14,8 @@
     "navGroup": {
       "recruitment": "Ишга қабул",
       "insights": "Таҳлиллар",
-      "system": "Тизим"
+      "system": "Тизим",
+      "admin": "Администратор"
     }
   },
   "appearance": {

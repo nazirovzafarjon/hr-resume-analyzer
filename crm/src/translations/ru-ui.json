@@ -14,7 +14,8 @@
     "navGroup": {
       "recruitment": "Найм",
       "insights": "Аналитика",
-      "system": "Система"
+      "system": "Система",
+      "admin": "Администрирование"
     }
   },
   "appearance": {

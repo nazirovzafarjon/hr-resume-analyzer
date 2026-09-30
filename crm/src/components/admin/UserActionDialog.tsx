@@ -72,7 +72,7 @@ export default function UserActionDialog({
       open
       danger={DESTRUCTIVE[action]}
       title={t(`admin.users.actions.${action}.title`)}
-      message={t(`admin.users.actions.${action}.message`, { name })}
+      message={t(`admin.users.actions.${action}.message`, { name, email: user.email })}
       confirmLabel={t(`admin.users.actions.${action}.confirm`)}
       cancelLabel={t("common.cancel")}
       loading={busy}

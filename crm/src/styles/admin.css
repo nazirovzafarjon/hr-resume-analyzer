@@ -192,3 +192,29 @@
 }
 
 .sidebar-link--button:disabled { opacity: 0.6; cursor: default; }
+
+/* Edit-user dialog ------------------------------------------------------- */
+.admin-edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.admin-edit-fieldset {
+  border: none;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+
+.admin-edit-fieldset:disabled label { cursor: not-allowed; opacity: 0.6; }
+
+.admin-edit-changes-title { margin: 0 0 var(--space-xs); font-weight: 600; }
+
+.admin-edit-changes {
+  margin: 0;
+  padding-left: var(--space-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}

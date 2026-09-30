@@ -19,13 +19,14 @@ export function useWorkspaceSwitch() {
   const { t } = useLanguage();
   const [switching, setSwitching] = useState(false);
 
-  async function switchTo(role: SessionRole) {
+  /** Switch to `role`, then open `destination` (default: the workspace home). */
+  async function switchTo(role: SessionRole, destination?: string) {
     if (switching) return;
     setSwitching(true);
     try {
       const next = await switchRole(role);
       notify.success(t(`workspace.switched.${role}`));
-      navigate(next, { replace: true });
+      navigate(destination ?? next, { replace: true });
     } catch (error) {
       const forbidden = error instanceof ApiError && error.status === 403;
       notify.error(

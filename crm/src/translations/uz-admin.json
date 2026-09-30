@@ -99,6 +99,17 @@
       "notFoundMessage": "Bu akkaunt mavjud emas yoki o'chirilgan.",
       "backToList": "Foydalanuvchilar ro'yxatiga",
       "selfNote": "Bu sizning akkauntingiz. O'zingizni o'chirib qo'yish, pasaytirish yoki o'chirish mumkin emas.",
+      "edit": {
+        "action": "Tahrirlash",
+        "status": "Akkaunt holati",
+        "activeLabel": "Faol — tizimga kira oladi",
+        "changesTitle": "Saqlanganda:",
+        "title": "Foydalanuvchini tahrirlash",
+        "fullName": "To'liq ism",
+        "save": "O'zgarishlarni saqlash",
+        "nameRequired": "To'liq ismni kiriting.",
+        "done": "{name} uchun o'zgarishlar saqlandi."
+      },
       "profile": "Akkaunt",
       "signIn": "Kirish usullari",
       "signInPassword": "Parol",
@@ -141,7 +152,7 @@
         },
         "delete": {
           "title": "Akkauntni butunlay o'chirasizmi?",
-          "message": "{name} va uning barcha ishlari, arizalari va suhbatlari o'chiriladi. Buni qaytarib bo'lmaydi.",
+          "message": "{name} ({email}) va uning barcha ishlari, arizalari va suhbatlari o'chiriladi. Buni qaytarib bo'lmaydi.",
           "confirm": "Butunlay o'chirish",
           "done": "{name} o'chirildi."
         }
