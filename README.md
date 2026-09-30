@@ -17,8 +17,17 @@ HR users manage the hiring pipeline for job vacancies:
   required skillsand suggests a hiring recommendation. It is currently a local
   heuristic (see “Resume analysis” below)so the MVP needs no external AI service.
 
-**Who uses it:** HR users manage their own jobsand candidatesonly (each user sees
-only the data they created)and superusers manage user accounts.
+**Who uses it:**
+
+| Role | Can do |
+|---|---|
+| **HR user** | Manage their own account, jobs, applications/candidates, interviews and dashboard. Never sees another HR user's data or any admin feature. |
+| **Admin (superuser)** | Everything an HR user can do in the HR workspace, **plus** the admin console: manage user accounts, see platform-wide data **read-only** for oversight and support, moderate (delete) jobs, and monitor AI usage, audit logs, errors, health and runtime settings. |
+
+Admin access needs two things, both checked server-side on every request: an
+account with `is_superuser=True` **and** a session opened in the *admin
+workspace* (see “Sessions and workspaces” under Authorization). The frontend
+only mirrors these rules for a better UX.
 
 
 
@@ -43,11 +52,29 @@ only the data they created)and superusers manage user accounts.
 * Ownership is guaranteed by design: the user is always resolved from the JWT,
   so these endpoints can never touch another user's account
 
-### User management (superuser only)
-* List, read, update, delete registered users
-* Deactivate / reactivate accounts (deactivated accounts cannot log in)
-* Promote users to superuser
-* Guardrails: an admin cannot demote/deactivate/delete their own account
+### User management (admin only)
+* List, read, update, delete registered users (`/api/users`)
+* Edit a user's full name, account status (`is_active`) and role (`is_superuser`)
+* Deactivate / reactivate accounts (deactivated accounts cannot log in and
+  their existing tokens stop working immediately)
+* Promote users to admin / demote other admins to HR
+* Guardrails: an admin cannot demote/deactivate/delete their own account, and
+  the last active admin can never be removed (400)
+* Deleting a user cascade-deletes their jobs, applications and interviews
+* Every change is written to the audit log
+
+### Admin console (admin only, `/api/admin/*`)
+Read-only, platform-wide views that support user management and operations.
+Admins do **not** get write access to HR users' jobs or applications; the only
+content action is job moderation (delete), which is audited.
+
+* Dashboard and analytics across all HR users
+* Users directory with search/filter/sort/pagination and a per-user detail view
+  (usage stats, recent jobs/applications, recent audit activity)
+* Jobs, applications, candidates and interviews across all HR users (read-only)
+  plus `DELETE /api/admin/jobs/{id}` for moderation
+* AI analysis monitoring, audit logs, system errors and system health
+* Runtime settings (e.g. whether public registration is open), audited
 
 ### Job management
 * Create, list, read, update, delete jobs
@@ -455,10 +482,24 @@ for every address, so local development keeps working and account existence is
 never revealed.
 
 ### Authorization
-* `get_current_user` — requires a valid Bearer JWT (401 without/invalid/expired).
-* `get_current_superuser` — requires `is_superuser=True` (403 for regular HR users).
+* `get_current_user` — requires a valid Bearer JWT for an active account
+  (401 without/invalid/expired token or a deactivated account).
+* `get_current_superuser` — requires `is_superuser=True` **and** an admin
+  session (403 `"Admin privileges required"` for HR accounts, 403 `"Switch to
+  the admin workspace to use this."` for an admin account in an HR session).
+  Guards `/api/users/*` and every `/api/admin/*` route.
 * Owned resources (jobs,, workers,, dashboard data)are scoped per user: reading or
   modifying another user's resource returns 404, never revealing that it exists.,
+
+### Sessions and workspaces
+Every session is signed with a workspace (`role` claim): `user` (HR) or
+`admin`. HR-only accounts always get `user`. An admin account chooses at
+sign-in (the login returns `requires_role_selection` and a short-lived
+selection token for `POST /api/auth/select-role`) and can switch later by
+calling `POST /api/auth/select-role` with its current session; the old access
+token is revoked. The server grants `admin` only to accounts that really have
+it, so a client cannot upgrade itself by editing a token, storage or the URL.
+
 ---
 
 ## API Documentation
