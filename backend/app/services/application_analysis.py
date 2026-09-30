@@ -240,6 +240,21 @@ async def run_analysis(db: Session, application: Application, *, force: bool = F
     if _is_run_active(application):
         raise AnalysisInProgressError()
 
+    # Credentials first (the job owner's; see app.services.ai.provider). With
+    # no AI configuration there is nothing to attempt, so the application is
+    # left exactly as it was: not "failed" and not recorded as an AI attempt.
+    owner_id = application.job.owner_id
+    started = time.monotonic()
+    try:
+        cfg = ai_provider_service.resolve_for_user(db, owner_id)
+    except ai_provider_service.AIConfigurationRequiredError:
+        raise
+    except AIServiceError as exc:
+        # A saved key that cannot be used: a real, retryable failure.
+        _mark_failed(db, application, exc.message)
+        _record_outcome(db, application, owner_id, {}, started, error=exc)
+        raise
+
     job_requirements, form_answers, resume_text, resume_reason = (
         collect_analysis_inputs(application)
     )
@@ -257,12 +272,8 @@ async def run_analysis(db: Session, application: Application, *, force: bool = F
         bool(resume_text.strip()),
     )
 
-    cfg: dict = {}
-    owner_id = application.job.owner_id
     started = time.monotonic()
     try:
-        # The job owner's own provider when configured, else the platform's.
-        cfg = ai_provider_service.resolve_for_user(db, owner_id)
         analysis = await analyze_application(
             job_requirements=job_requirements,
             form_answers=form_answers,

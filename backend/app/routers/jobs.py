@@ -1,5 +1,6 @@
 """Job CRUD API endpoints."""
 
+import math
 import time
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -278,11 +279,16 @@ async def analyze_job(
         cfg = ai_provider_service.resolve_for_user(db, current_user.id)
         result = await analyze_vacancy(payload.content, cfg=cfg)
     except AIServiceError as exc:
-        # 422 = the vacancy text itself was rejected before any provider call,
-        # so it is not an AI attempt worth monitoring.
-        if exc.status_code != status.HTTP_422_UNPROCESSABLE_ENTITY:
+        # Neither a rejected vacancy text (422) nor missing AI configuration
+        # reached a provider, so neither is an AI attempt worth monitoring.
+        if exc.status_code != status.HTTP_422_UNPROCESSABLE_ENTITY and not isinstance(
+            exc, ai_provider_service.AIConfigurationRequiredError
+        ):
             record(exc)
         exc = ai_provider_service.safe_error_for(cfg, exc)
-        raise HTTPException(status_code=exc.status_code, detail=exc.message)
+        headers = None
+        if isinstance(exc, AIRateLimitError) and exc.retry_after:
+            headers = {"Retry-After": str(math.ceil(exc.retry_after))}
+        raise HTTPException(status_code=exc.status_code, detail=exc.message, headers=headers)
     record()
     return result

@@ -65,4 +65,7 @@ class AIProviderConfigResponse(BaseModel):
     updated_at: datetime | None = None
     #: False when the server has no encryption key, so keys cannot be saved.
     can_save: bool
+    #: True when AI features need the user's own configuration (no platform
+    #: fallback; ``REQUIRE_USER_AI_CONFIG``).
+    required: bool = False
     supported_providers: list[str]

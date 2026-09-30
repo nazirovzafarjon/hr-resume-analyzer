@@ -1,15 +1,28 @@
 """Which AI provider, key and model an HR user's AI operations use.
 
+This is the single gateway for AI credentials: every AI feature (vacancy
+analysis, manual and background application analysis, Auto Analyze batches)
+calls :func:`resolve_for_user` with the owning user's id, and the analyzers
+refuse to run without the config it returns.
+
 Resolution rule (the single place it lives):
 
-1. The user has an active custom configuration (Settings -> "Connect your
-   provider and API key") -> their provider, their decrypted key, their model.
-2. Otherwise -> the platform provider from the environment
-   (``settings.ai_provider_config()``), exactly as before.
+1. The user has an active custom configuration (Settings -> "AI provider")
+   -> their provider, their decrypted key and their model. Always, whatever
+   ``REQUIRE_USER_AI_CONFIG`` says, and never mixed with platform values.
+2. Otherwise, with ``REQUIRE_USER_AI_CONFIG=true`` (the default) ->
+   :class:`AIConfigurationRequiredError`, pointing the user to Settings.
+3. Otherwise (``REQUIRE_USER_AI_CONFIG=false``) -> the platform provider from
+   the environment (``settings.ai_provider_config()``).
 
 A broken custom configuration (for example a key that can no longer be
 decrypted) raises instead of falling back: users must never silently spend
 the platform's quota when they chose their own key.
+
+The configuration is read from the database on every call and the decrypted
+key lives only in the returned dict for that call, so a change or removal in
+Settings applies to the very next AI request and nothing is cached across
+users.
 
 The returned dict has the same shape as ``settings.ai_provider_config()`` plus
 ``source`` ("custom"/"default"), so the analyzers and their shared
@@ -58,10 +71,27 @@ CUSTOM_KEY_REJECTED = (
     "Your AI provider rejected the API key. Check it in Settings."
 )
 
+#: Shown when AI needs the user's own configuration and there is none.
+AI_NOT_CONFIGURED = (
+    "AI is not set up for your account yet. Add your AI provider, API key and "
+    "model in Settings → AI provider."
+)
+
 TEST_OK = "Connection successful."
 TEST_REJECTED = "The AI provider rejected the credentials."
 TEST_MODEL_UNAVAILABLE = "The model ID was not accepted by the provider."
 TEST_UNREACHABLE = "Unable to connect with the provided configuration."
+
+
+class AIConfigurationRequiredError(AIServiceError):
+    """The user has no AI configuration and the platform fallback is off.
+
+    Raised before any provider call or state change, so nothing is marked as
+    failed and nothing is recorded as an AI attempt.
+    """
+
+    def __init__(self) -> None:
+        super().__init__(AI_NOT_CONFIGURED, status_code=400)
 
 
 class AIProviderSettingsError(Exception):
@@ -93,10 +123,15 @@ def resolve_for_user(db: Session, user_id: int) -> dict[str, Any]:
     """Return the provider config for AI work on ``user_id``'s data.
 
     Raises:
+        AIConfigurationRequiredError: No configuration and the platform
+            fallback is disabled (``REQUIRE_USER_AI_CONFIG``).
         AIServiceError: The user's custom key exists but cannot be decrypted.
     """
     config = config_crud.get_config(db, user_id)
     if config is None or not config.is_active:
+        if settings.REQUIRE_USER_AI_CONFIG:
+            logger.info("AI configuration required but missing: user_id=%s", user_id)
+            raise AIConfigurationRequiredError()
         cfg = settings.ai_provider_config()
         cfg["source"] = "default"
         return cfg
@@ -150,6 +185,7 @@ def get_status(db: Session, user_id: int) -> AIProviderConfigResponse:
         masked_api_key=_masked(config) if config else None,
         updated_at=config.updated_at if config else None,
         can_save=encryption_available(),
+        required=settings.REQUIRE_USER_AI_CONFIG,
         supported_providers=list(AI_PROVIDER_BASE_URLS),
     )
 

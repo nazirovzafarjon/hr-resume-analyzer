@@ -85,7 +85,10 @@ def check_ai_provider(db: Session) -> dict[str, Any]:
         "attempts_1h": recent["total"],
         "failed_1h": recent["failed"],
     }
-    if not cfg["api_key"] or not cfg["model"]:
+    # With REQUIRE_USER_AI_CONFIG every HR uses their own provider, so a
+    # missing platform key is expected; judge by recent attempts only.
+    metrics["per_user_credentials_required"] = settings.REQUIRE_USER_AI_CONFIG
+    if not settings.REQUIRE_USER_AI_CONFIG and (not cfg["api_key"] or not cfg["model"]):
         return _component(
             "ai_provider",
             "not_configured",

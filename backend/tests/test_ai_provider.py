@@ -331,3 +331,210 @@ class TestAnalysesUseTheOwnersProvider:
             asyncio.run(auto_analyze.run_batch_analysis(batch.id))
 
         assert analyze.await_args.kwargs["cfg"]["api_key"] == SECRET
+
+
+# ---------------------------------------------------------------------------
+# REQUIRE_USER_AI_CONFIG=true: every HR must bring their own provider
+# ---------------------------------------------------------------------------
+
+VACANCY_RESULT = {
+    "company_name": "Acme",
+    "position": "Dev",
+    "description": "",
+    "required_skills": "",
+    "required_experience": "",
+}
+
+
+def _analyze_vacancy(client, headers):
+    with patch("app.routers.jobs.analyze_vacancy", new_callable=AsyncMock) as analyze:
+        analyze.return_value = VACANCY_RESULT
+        response = client.post("/api/jobs/analyze", json={"content": "Acme hires a dev"}, headers=headers)
+    return response, analyze
+
+
+def _ai_runs(db_session) -> int:
+    from app.models.ai_analysis_run import AIAnalysisRun
+
+    db_session.expire_all()
+    return db_session.query(AIAnalysisRun).count()
+
+
+@pytest.fixture
+def required(monkeypatch):
+    monkeypatch.setattr(settings, "REQUIRE_USER_AI_CONFIG", True)
+
+
+@pytest.mark.usefixtures("required")
+class TestOwnConfigurationRequired:
+    def test_settings_status_says_it_is_required(self, client, user):
+        body = client.get(URL, headers=user["headers"]).json()
+        assert body["required"] is True
+        assert body["configured"] is False
+
+    def test_job_analysis_without_configuration_is_refused(self, client, user, db_session):
+        response, analyze = _analyze_vacancy(client, user["headers"])
+
+        assert response.status_code == 400
+        assert response.json()["detail"] == service.AI_NOT_CONFIGURED
+        analyze.assert_not_awaited()
+        assert _ai_runs(db_session) == 0  # not an AI attempt
+
+    def test_manual_analysis_without_configuration_leaves_the_application_untouched(
+        self, client, sample_application, db_session
+    ):
+        with patch(
+            "app.services.application_analysis.analyze_application", new_callable=AsyncMock
+        ) as analyze:
+            response = client.post(
+                f"/api/applications/{sample_application['id']}/analyze",
+                headers=sample_application["headers"],
+            )
+
+        assert response.status_code == 400
+        assert response.json()["detail"] == service.AI_NOT_CONFIGURED
+        analyze.assert_not_awaited()
+        detail = client.get(
+            f"/api/applications/{sample_application['id']}", headers=sample_application["headers"]
+        ).json()
+        assert detail["analysis_status"] == "new"
+        assert detail["analysis_error"] is None
+        assert _ai_runs(db_session) == 0
+
+    def test_auto_analyze_without_configuration_creates_no_batch(
+        self, client, sample_application, db_session
+    ):
+        from app.models.analysis_batch import AnalysisBatch
+
+        response = client.post(
+            "/api/applications/auto-analyze",
+            json={"count": 5, "order": "oldest"},
+            headers=sample_application["headers"],
+        )
+
+        assert response.status_code == 400
+        assert response.json()["detail"] == service.AI_NOT_CONFIGURED
+        assert db_session.query(AnalysisBatch).count() == 0
+
+    def test_saved_configuration_is_used(self, client, user):
+        _save(client, user["headers"])
+        response, analyze = _analyze_vacancy(client, user["headers"])
+
+        assert response.status_code == 200, response.text
+        cfg = analyze.await_args.kwargs["cfg"]
+        assert (cfg["source"], cfg["api_key"], cfg["model"]) == ("custom", SECRET, MODEL)
+
+    def test_deleting_the_configuration_disables_ai_again(self, client, user):
+        _save(client, user["headers"])
+        assert client.delete(URL, headers=user["headers"]).status_code == 200
+
+        response, analyze = _analyze_vacancy(client, user["headers"])
+
+        assert response.status_code == 400
+        analyze.assert_not_awaited()
+
+    def test_a_new_key_applies_to_the_next_call(self, client, user):
+        _save(client, user["headers"])
+        _save(client, user["headers"], api_key="sk-or-v1-the-replacement-key-9b1c")
+
+        _, analyze = _analyze_vacancy(client, user["headers"])
+
+        assert analyze.await_args.kwargs["cfg"]["api_key"] == "sk-or-v1-the-replacement-key-9b1c"
+
+    def test_a_new_model_applies_to_the_next_call(self, client, user):
+        _save(client, user["headers"])
+        _, first = _analyze_vacancy(client, user["headers"])
+        _save(client, user["headers"], model_id="qwen/qwen3.8-27b", api_key=None)
+        _, second = _analyze_vacancy(client, user["headers"])
+
+        assert first.await_args.kwargs["cfg"]["model"] == MODEL
+        cfg = second.await_args.kwargs["cfg"]
+        assert (cfg["model"], cfg["api_key"]) == ("qwen/qwen3.8-27b", SECRET)
+
+    def test_each_user_gets_only_their_own_credentials(self, client, user, other_user):
+        _save(client, user["headers"], api_key="sk-user-a-key-aaaa", model_id="model/a")
+        _save(client, other_user["headers"], api_key="sk-user-b-key-bbbb", model_id="model/b")
+
+        _, analyze_a = _analyze_vacancy(client, user["headers"])
+        _, analyze_b = _analyze_vacancy(client, other_user["headers"])
+
+        a, b = analyze_a.await_args.kwargs["cfg"], analyze_b.await_args.kwargs["cfg"]
+        assert (a["api_key"], a["model"]) == ("sk-user-a-key-aaaa", "model/a")
+        assert (b["api_key"], b["model"]) == ("sk-user-b-key-bbbb", "model/b")
+
+    def test_another_users_configuration_never_stands_in(self, client, user, other_user):
+        _save(client, other_user["headers"])
+
+        response, analyze = _analyze_vacancy(client, user["headers"])
+
+        assert response.status_code == 400
+        analyze.assert_not_awaited()
+
+    def test_batch_stops_when_the_configuration_is_removed(
+        self, client, db_session, sample_application, user
+    ):
+        from app.models.analysis_batch import AnalysisBatchStatus
+        from app.models.user import User
+        from app.services.ai import batch as auto_analyze
+
+        _save(client, sample_application["headers"])
+        batch = auto_analyze.create_auto_analyze_batch(
+            db_session, db_session.get(User, user["id"]), count=5
+        )
+        client.delete(URL, headers=sample_application["headers"])  # removed before it runs
+        with patch(
+            "app.services.application_analysis.analyze_application", new_callable=AsyncMock
+        ) as analyze:
+            asyncio.run(auto_analyze.run_batch_analysis(batch.id))
+
+        analyze.assert_not_awaited()
+        db_session.expire_all()
+        batch = auto_analyze.batch_crud.get_batch_by_id(db_session, batch.id)
+        assert batch.status == AnalysisBatchStatus.FAILED
+        assert batch.failed_count == 0  # nothing was attempted or marked failed
+        detail = client.get(
+            f"/api/applications/{sample_application['id']}", headers=sample_application["headers"]
+        ).json()
+        assert detail["analysis_status"] == "new"
+
+
+    @pytest.mark.parametrize("status_code", [401, 429, 503])
+    def test_a_saved_key_is_never_logged(self, client, user, caplog, status_code):
+        """Real resolution and retry code with a saved key; only HTTP is faked."""
+        import logging
+
+        from tests.test_ai_rate_limit import _FakeResponse, _mock_client_with_response
+
+        _save(client, user["headers"])
+        fake = _FakeResponse(status_code=status_code, json_data={"error": {"message": "nope"}})
+        mock_client = _mock_client_with_response(fake)
+        with patch("app.services.ai.job_analyzer._get_client", return_value=mock_client), \
+             patch("app.services.ai.job_analyzer.asyncio.sleep", new_callable=AsyncMock), \
+             caplog.at_level(logging.DEBUG):
+            response = client.post(
+                "/api/jobs/analyze", json={"content": "Acme hires a Python developer"},
+                headers=user["headers"],
+            )
+
+        assert response.status_code >= 400
+        sent = mock_client.post.await_args.kwargs["headers"]["Authorization"]
+        assert sent == f"Bearer {SECRET}"  # the user's key reached the provider...
+        assert SECRET not in caplog.text  # ...and nowhere else
+        assert "Bearer" not in caplog.text
+        assert SECRET not in response.text
+
+
+class TestAnalyzersCannotBypassResolution:
+    """The analyzers take the resolved config as a required argument."""
+
+    def test_vacancy_analyzer_requires_a_config(self):
+        from app.services.ai.job_analyzer import analyze_vacancy
+
+        with pytest.raises(TypeError):
+            asyncio.run(analyze_vacancy("Acme hires a dev"))
+
+    def test_application_analyzer_requires_a_config(self):
+        from app.services.ai.application_analyzer import analyze_application
+
+        with pytest.raises(TypeError):
+            asyncio.run(analyze_application(job_requirements="x", form_answers="y"))

@@ -536,7 +536,8 @@
         "free_percent": "Free space (%)",
         "active_batches": "Active batches",
         "stuck_batches": "Stuck batches",
-        "stale_analyses": "Stale analyses"
+        "stale_analyses": "Stale analyses",
+        "per_user_credentials_required": "Each HR uses their own AI key"
       }
     }
   }

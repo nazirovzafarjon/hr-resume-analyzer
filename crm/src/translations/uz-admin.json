@@ -536,7 +536,8 @@
         "free_percent": "Bo'sh joy (%)",
         "active_batches": "Faol paketlar",
         "stuck_batches": "Qotib qolgan paketlar",
-        "stale_analyses": "Qotib qolgan tahlillar"
+        "stale_analyses": "Qotib qolgan tahlillar",
+        "per_user_credentials_required": "Har bir HR o'z AI kalitidan foydalanadi"
       }
     }
   }

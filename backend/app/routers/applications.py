@@ -47,6 +47,8 @@ from app.services import application_analysis as analysis_service
 from app.services import audit
 from app.services.audit import AuditAction, AuditContext, AuditResource
 from app.services.ai import batch as auto_analyze_service
+from app.services.ai import provider as ai_provider_service
+from app.services.ai.job_analyzer import AIServiceError
 from app.services import resume_file as resume_file_service
 
 logger = logging.getLogger(__name__)
@@ -336,8 +338,6 @@ async def analyze_application(
     AI never writes ``application_status``, ``hiring_status`` or
     ``interview_status`` — those remain under HR control.
     """
-    from app.services.ai.job_analyzer import AIServiceError
-
     application = _get_owned_application(db, application_id, current_user)
 
     try:
@@ -346,6 +346,9 @@ async def analyze_application(
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail=exc.message
         ) from exc
+    except ai_provider_service.AIConfigurationRequiredError as exc:
+        # Nothing was attempted or persisted: tell the user to configure AI.
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
     except AIServiceError as exc:
         # The failure has already been persisted on the application — return the
         # updated application so the UI can show the retryable failed state.
@@ -518,6 +521,13 @@ async def start_auto_analyze(
     # Validate job_id if provided
     if request.job_id is not None:
         _get_owned_job(db, request.job_id, current_user)
+
+    # Fail before creating a batch when the user's AI credentials are missing
+    # or unusable, instead of failing every selected application.
+    try:
+        ai_provider_service.resolve_for_user(db, current_user.id)
+    except AIServiceError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
 
     available = auto_analyze_service.get_available_new_count(
         db,

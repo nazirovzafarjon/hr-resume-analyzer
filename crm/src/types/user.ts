@@ -53,6 +53,8 @@ export type AIProviderSettings = {
   updated_at: string | null;
   /** False when the server cannot encrypt keys (custom providers disabled). */
   can_save: boolean;
+  /** True when AI features need the user's own provider (no platform fallback). */
+  required: boolean;
   supported_providers: AIProviderName[];
 };
 

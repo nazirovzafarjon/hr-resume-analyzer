@@ -120,7 +120,16 @@ export default function ApplicationDetailsPage() {
     try {
       const updated = await analyzeWorker(application.id, force);
       setApplication(updated);
-      notify.success(t("toast.analysisComplete") || "AI analysis complete");
+      // A provider failure (e.g. a rate limit) still answers 200 with the
+      // failure recorded on the application, so check the outcome.
+      if (updated.analysis_status === "failed") {
+        notify.error(
+          t("toast.analysisFailed") || "AI analysis failed",
+          updated.analysis_error || undefined,
+        );
+      } else {
+        notify.success(t("toast.analysisComplete") || "AI analysis complete");
+      }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : t("toast.analysisFailed") || "AI analysis failed";
       setActionError(msg);

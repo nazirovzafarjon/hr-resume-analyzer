@@ -26,6 +26,7 @@ from app.models.application import AnalysisStatus, Application, ApplicationStatu
 from app.models.job import Job
 from app.models.user import User
 from app.services import application_analysis as single_analysis
+from app.services.ai import provider as ai_provider_service
 from app.services.ai.application_analyzer import analyze_application as ai_analyze
 from app.services.ai.job_analyzer import AIServiceError
 from app.services.resume_text import extract_resume_text
@@ -278,6 +279,9 @@ async def analyze_single_application(
     try:
         await single_analysis.run_analysis(db, application)
         return True, None
+    except ai_provider_service.AIConfigurationRequiredError:
+        # Not about this application: the whole batch cannot run.
+        raise
     except AIServiceError as exc:
         logger.warning(
             "AI analysis failed for application_id=%s: %s",
@@ -398,7 +402,26 @@ async def run_batch_analysis(batch_id: int) -> None:
                 batch_id,
             )
 
-            success, error = await analyze_single_application(db, application)
+            try:
+                success, error = await analyze_single_application(db, application)
+            except ai_provider_service.AIConfigurationRequiredError:
+                # The owner removed their AI configuration mid-batch (it is
+                # resolved per application at run time). Stop instead of
+                # failing every remaining application; they stay "new".
+                logger.warning(
+                    "Batch analysis stopped, AI configuration removed: batch_id=%s at %d/%d",
+                    batch_id,
+                    idx,
+                    len(application_ids),
+                )
+                batch_crud.update_batch(
+                    db,
+                    batch,
+                    status=AnalysisBatchStatus.FAILED,
+                    finished_at=True,
+                    current_application_id=None,
+                )
+                return
 
             if success:
                 batch_crud.update_batch(

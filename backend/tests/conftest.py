@@ -29,6 +29,9 @@ os.environ["RESEND_API_KEY"] = ""
 os.environ["EMAIL_FROM"] = "onboarding@resend.dev"
 # Throwaway Fernet key so custom AI provider keys can be encrypted in tests
 # (backend/.env's real key, if any, is never used by the suite).
+# Existing tests exercise the platform-fallback provider; the tests for the
+# "every HR must configure their own AI" mode switch it on explicitly.
+os.environ["REQUIRE_USER_AI_CONFIG"] = "false"
 os.environ["AI_CREDENTIAL_ENCRYPTION_KEY"] = "7nDjrhPPT4Ie0rBTPRUQ_AL9V4XYmBv2ygD13uNJx5Q="
 # Profile image uploads go to a throwaway directory so tests never write into
 # the repository's real uploads folder.

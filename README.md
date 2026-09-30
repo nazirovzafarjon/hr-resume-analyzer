@@ -317,18 +317,54 @@ All settings are read from real environment variables or the `.env` file
 
 ### AI Provider Configuration
 
+#### Per-user AI credentials (who pays for which call)
+
+Each HR user can save their own **provider, API key and model ID** in
+**Settings → AI provider** (`GET/PUT/DELETE /api/auth/me/ai-provider`, plus
+`POST .../test` to check them). Every AI feature resolves credentials for the
+user who owns the data through one gateway, `resolve_for_user` in
+`app/services/ai/provider.py`:
+
+| User's state | `REQUIRE_USER_AI_CONFIG=true` (default) | `REQUIRE_USER_AI_CONFIG=false` |
+|---|---|---|
+| Saved own provider | Their provider + key + model, never mixed with `.env` | Same |
+| Nothing saved | 400 "AI is not set up for your account…" (nothing attempted, nothing marked failed) | The platform provider below |
+| Saved key can't be decrypted | Clear error, no fallback | Same |
+
+* **Features covered:** vacancy analysis (`POST /api/jobs/analyze`), manual
+  application analysis, background analysis of public submissions, and Auto
+  Analyze batches. The analyzers take the resolved config as a *required*
+  argument, so a new feature cannot skip the gateway.
+* **Changes apply to the next call:** configurations are read from the
+  database on every AI call and nothing is cached across users; there is no
+  restart. Batches resolve the owner's configuration per application at run
+  time and only ever carry ids; removing the configuration mid-batch stops the
+  batch and leaves the remaining applications untouched.
+* **Secrets:** keys are encrypted at rest with Fernet using
+  `AI_CREDENTIAL_ENCRYPTION_KEY` (server environment only; saving is refused
+  without it), decrypted only for the call, never returned (the UI shows the
+  last four characters), never logged, and never kept in browser storage.
+
+#### Platform (environment) settings
+
 All settings are read from real environment variables or the `.env` file
 (`app/core/config.py`). The `AI_*` variables take precedence over provider-specific
-legacy variables.
+legacy variables. The provider, key and model here are used for HR work only
+when `REQUIRE_USER_AI_CONFIG=false`; the retry and timeout settings apply to
+every AI call.
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
+| `REQUIRE_USER_AI_CONFIG` | `true` | `true`: every HR must save their own provider, key and model before AI features run for them. `false`: HRs without one use the platform provider below. |
+| `AI_CREDENTIAL_ENCRYPTION_KEY` | *(empty)* | Fernet key that encrypts users' saved API keys. Generate with `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`. |
 | `AI_PROVIDER` | `openrouter` | AI provider: `openrouter`, `groq`, or `gemini`. |
 | `AI_MODEL` | *(empty)* | Model identifier. Falls back to `OPENROUTER_MODEL` for OpenRouter. |
 | `AI_API_KEY` | *(empty)* | API key for the configured provider. Falls back to `OPENROUTER_API_KEY`. |
 | `AI_BASE_URL` | *(provider default)* | Base URL for the provider's API. |
 | `AI_MAX_RETRIES` | `3` | Maximum retry attempts for transient failures (429, 503, network). |
 | `AI_RETRY_BASE_DELAY` | `2` | Base delay in seconds for exponential backoff. |
+| `AI_MAX_RETRY_WAIT` | `30` | Longest single wait (seconds) honoured when the provider says how long to back off; a longer request ends the retries at once. |
+| `AI_RETRY_BUDGET` | `45` | Total seconds one AI call may spend waiting between retries. |
 | `AI_REQUEST_TIMEOUT` | `60` | Request timeout in seconds. |
 | `AI_HTTP_REFERER` | *(empty)* | HTTP-Referer header for provider attribution. Falls back to `OPENROUTER_REFERER`. |
 | `AI_APP_TITLE` | `Resume Analyzer` | X-Title header for provider attribution. Falls back to `OPENROUTER_APP_TITLE`. |
@@ -368,11 +404,21 @@ No source-code changes are required.
 #### Rate limiting
 
 Changing the model name does **not** eliminate rate limits. Rate limits are
-enforced by the provider's infrastructure and account quota. The application
-handles 429 responses with exponential backoff retries (configurable via
-`AI_MAX_RETRIES` and `AI_RETRY_BASE_DELAY`). Attribution headers (`HTTP-Referer`,
-`X-Title`) are for application identification only and do not guarantee
-rate-limit avoidance.
+enforced by the provider's infrastructure and account quota. On a 429 the
+application:
+
+* waits as long as the provider asks (`Retry-After`, or OpenRouter's
+  `X-RateLimit-Reset` for account limits) up to `AI_MAX_RETRY_WAIT`, otherwise
+  backs off exponentially (`AI_RETRY_BASE_DELAY`, up to `AI_MAX_RETRIES`);
+* stops early, without sending requests that are bound to fail, when the
+  provider asks for a longer wait or the call's `AI_RETRY_BUDGET` is spent;
+* reports a specific message: for OpenRouter `:free` models it names the
+  model, explains that free models share one rate limit with everyone using
+  them, and suggests choosing a paid model in **Settings → AI provider**. The
+  job-analysis endpoint also returns the wait as a `Retry-After` header.
+
+Attribution headers (`HTTP-Referer`, `X-Title`) are for application
+identification only and do not guarantee rate-limit avoidance.
 
 ---
 

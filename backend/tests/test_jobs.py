@@ -345,6 +345,23 @@ class TestAnalyzeJob:
         assert response.status_code == 503
         assert "rate limit" in response.json()["detail"].lower()
 
+    def test_analyze_job_free_model_rate_limit_explains_and_sets_retry_after(self, client, user):
+        """A 429 names the busy free model and passes the provider's wait on."""
+        from app.services.ai.job_analyzer import AIRateLimitError
+
+        with patch("app.routers.jobs.analyze_vacancy", new_callable=AsyncMock) as mock_analyze:
+            mock_analyze.side_effect = AIRateLimitError(retry_after=37.2, model="qwen/qwen3.8-27b:free")
+            response = client.post(
+                "/api/jobs/analyze",
+                json={"content": VACANCY_CONTENT},
+                headers=user["headers"],
+            )
+        assert response.status_code == 429
+        assert response.headers["retry-after"] == "38"
+        detail = response.json()["detail"]
+        assert "qwen/qwen3.8-27b:free" in detail
+        assert "Settings → AI provider" in detail
+
 
 # ---------------------------------------------------------------------------
 # Public Apply Endpoint

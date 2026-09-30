@@ -536,7 +536,8 @@
         "free_percent": "Бўш жой (%)",
         "active_batches": "Фаол пакетлар",
         "stuck_batches": "Қотиб қолган пакетлар",
-        "stale_analyses": "Қотиб қолган таҳлиллар"
+        "stale_analyses": "Қотиб қолган таҳлиллар",
+        "per_user_credentials_required": "Ҳар бир HR ўз AI калитидан фойдаланади"
       }
     }
   }

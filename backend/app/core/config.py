@@ -113,10 +113,23 @@ class Settings(BaseSettings):
     # Base URL for the AI provider's OpenAI-compatible API.
     # Leave empty to use the provider's default.
     AI_BASE_URL: str = ""
+    # When True, every HR user must save their own AI provider, key and model in
+    # Settings -> AI provider before any AI feature runs for them; the
+    # platform credentials above are never used for HR work. When False, users
+    # without their own configuration fall back to the platform provider.
+    # Users who saved their own configuration always use it, either way.
+    REQUIRE_USER_AI_CONFIG: bool = True
     # Maximum number of retry attempts for transient failures (429, 503, network).
     AI_MAX_RETRIES: int = 3
     # Base delay in seconds for exponential backoff between retries.
     AI_RETRY_BASE_DELAY: int = 2
+    # Longest single wait (seconds) honoured when the provider says how long to
+    # back off (Retry-After / X-RateLimit-Reset). Longer requests end the retries.
+    AI_MAX_RETRY_WAIT: int = 30
+    # Total seconds one AI call may spend waiting between retries. When the next
+    # wait would exceed it, the call fails at once instead of making requests
+    # that are bound to be rejected again.
+    AI_RETRY_BUDGET: int = 45
     # Request timeout in seconds.
     AI_REQUEST_TIMEOUT: int = 60
     # HTTP-Referer header value for AI provider attribution.
@@ -182,6 +195,8 @@ class Settings(BaseSettings):
             "base_url": base_url,
             "max_retries": self.AI_MAX_RETRIES,
             "retry_base_delay": self.AI_RETRY_BASE_DELAY,
+            "max_retry_wait": self.AI_MAX_RETRY_WAIT,
+            "retry_budget": self.AI_RETRY_BUDGET,
             "request_timeout": self.AI_REQUEST_TIMEOUT,
             "http_referer": http_referer,
             "app_title": app_title,

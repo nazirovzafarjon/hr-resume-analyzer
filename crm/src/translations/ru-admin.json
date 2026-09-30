@@ -536,7 +536,8 @@
         "free_percent": "Свободно (%)",
         "active_batches": "Активные пакеты",
         "stuck_batches": "Зависшие пакеты",
-        "stale_analyses": "Зависшие анализы"
+        "stale_analyses": "Зависшие анализы",
+        "per_user_credentials_required": "У каждого HR свой ключ ИИ"
       }
     }
   }
