@@ -17,7 +17,7 @@ import logging
 import re
 import time
 from email.utils import parsedate_to_datetime
-from typing import Any
+from typing import Any, Callable, TypeVar
 
 import httpx
 from pydantic import ValidationError
@@ -27,6 +27,8 @@ from app.schemas.application_form import normalise_application_fields
 from app.schemas.job import JobAIAnalysisResult
 
 logger = logging.getLogger(__name__)
+
+T = TypeVar("T")
 
 # Transient status codes that warrant a retry.
 _RETRYABLE_STATUS_CODES = {429, 502, 503, 504}
@@ -115,6 +117,27 @@ class AIInvalidResponseError(AIServiceError):
 
     def __init__(self, message: str = "AI service returned an invalid response.") -> None:
         super().__init__(message, status_code=502)
+
+
+class AIEmptyResponseError(AIInvalidResponseError):
+    """The model answered with nothing usable: empty text or an empty ``{}``.
+
+    Usually a one-off from an overloaded (often free) model, so
+    :func:`_request_and_parse` retries it once before giving up.
+    """
+
+    def __init__(self, model: str | None = None) -> None:
+        self.model = model
+        super().__init__(empty_response_message(model))
+
+
+def empty_response_message(model: str | None) -> str:
+    """User-facing explanation of an empty model answer."""
+    who = f'The AI model "{model}"' if model else "The AI model"
+    return (
+        f"{who} returned an empty answer. Try again, or choose another model "
+        "in Settings → AI provider."
+    )
 
 
 class AIRateLimitError(AIServiceError):
@@ -483,8 +506,8 @@ def _parse_response(response: httpx.Response, cfg: dict[str, Any]) -> str:
             logger.error("Gemini response missing expected shape: %s", json.dumps(response_data, ensure_ascii=False)[:300])
             raise AIInvalidResponseError() from exc
         if not isinstance(text, str) or not text.strip():
-            logger.error("Gemini returned empty message content")
-            raise AIInvalidResponseError("AI service returned an empty response.")
+            logger.warning("Gemini returned empty message content: model=%s", cfg.get("model"))
+            raise AIEmptyResponseError(cfg.get("model"))
         return text
 
     # OpenAI-compatible providers (OpenRouter, Groq)
@@ -498,8 +521,12 @@ def _parse_response(response: httpx.Response, cfg: dict[str, Any]) -> str:
         raise AIInvalidResponseError()
 
     if not isinstance(content, str) or not content.strip():
-        logger.error("AI provider returned empty message content")
-        raise AIInvalidResponseError("AI service returned an empty response.")
+        logger.warning(
+            "AI provider returned empty message content: provider=%s model=%s",
+            provider,
+            cfg.get("model"),
+        )
+        raise AIEmptyResponseError(cfg.get("model"))
     if response_data["choices"][0].get("finish_reason") == "length":
         # Not fatal by itself (the JSON may still be complete), but it is the
         # usual reason for a "not valid JSON" error that follows.
@@ -510,7 +537,7 @@ def _parse_response(response: httpx.Response, cfg: dict[str, Any]) -> str:
     return content
 
 
-def _parse_job_response(text: str) -> JobAIAnalysisResult:
+def _parse_job_response(text: str, model: str | None = None) -> JobAIAnalysisResult:
     """Parse and validate the AI response text into a JobAIAnalysisResult.
 
     Strips Markdown fences, parses JSON, and validates through Pydantic.
@@ -533,10 +560,13 @@ def _parse_job_response(text: str) -> JobAIAnalysisResult:
             "AI service returned a response that is not valid JSON."
         )
 
+    if parsed == {}:
+        raise AIEmptyResponseError(model)
+
     try:
         result = JobAIAnalysisResult.model_validate(parsed)
     except ValidationError as exc:
-        logger.exception("AI response failed Pydantic validation: %s", exc)
+        logger.exception("AI response failed Pydantic validation: model=%s %s", model, exc)
         raise AIInvalidResponseError(
             "AI service returned data that does not match the expected format."
         )
@@ -721,6 +751,46 @@ async def _make_request_with_retry(
     raise AIProviderUnavailableError()
 
 
+#: Extra attempts after an empty answer (see :class:`AIEmptyResponseError`).
+_EMPTY_ANSWER_RETRIES = 1
+
+
+async def _request_and_parse(
+    client: httpx.AsyncClient,
+    url: str,
+    *,
+    payload: dict[str, Any],
+    headers: dict[str, str],
+    cfg: dict[str, Any],
+    parse: Callable[[str, str | None], T],
+) -> T:
+    """Send one AI request and parse its reply with ``parse(text, model)``.
+
+    Shared by every AI feature. An empty answer (no text, or ``{}``) is
+    retried once, since overloaded models return one now and then; every other
+    failure is raised at once. Transport retries (429/503/network) happen
+    inside :func:`_make_request_with_retry` as before.
+    """
+    model = cfg.get("model")
+    for attempt in range(_EMPTY_ANSWER_RETRIES + 1):
+        response = await _make_request_with_retry(
+            client, "POST", url, json=payload, headers=headers, cfg=cfg
+        )
+        try:
+            return parse(_parse_response(response, cfg), model)
+        except AIEmptyResponseError:
+            logger.warning(
+                "AI model returned an empty answer: provider=%s model=%s attempt=%d/%d",
+                cfg["provider"],
+                model,
+                attempt + 1,
+                _EMPTY_ANSWER_RETRIES + 1,
+            )
+            if attempt == _EMPTY_ANSWER_RETRIES:
+                raise AIEmptyResponseError(model) from None
+    raise AssertionError("unreachable")
+
+
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
@@ -773,16 +843,9 @@ async def analyze_vacancy(vacancy_content: str, *, cfg: dict[str, Any]) -> JobAI
 
     client = _get_client()
 
-    try:
-        response = await _make_request_with_retry(
-            client, "POST", url, json=payload, headers=headers, cfg=cfg
-        )
-    except AIServiceError:
-        raise
-
-    # Parse the response.
-    text = _parse_response(response, cfg)
-    result = _parse_job_response(text)
+    result = await _request_and_parse(
+        client, url, payload=payload, headers=headers, cfg=cfg, parse=_parse_job_response
+    )
 
     logger.info(
         "AI request succeeded: provider=%s model=%s",
