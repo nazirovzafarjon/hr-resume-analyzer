@@ -1,0 +1,326 @@
+import type { Dictionary } from "./en";
+
+export const uz: Dictionary = {
+  meta: {
+    title: "Resume Analyzer — HR jamoalari uchun aqlli ishga qabul",
+    description:
+      "Resume Analyzer HR jamoalariga vakansiyalarni e'lon qilish, arizalarni yig'ish, rezyumelarni vakansiya talablari bo'yicha tahlil qilish hamda nomzodlar, suhbatlar va qarorlarni bir joyda boshqarishda yordam beradi.",
+  },
+  common: {
+    appName: "Resume Analyzer",
+    sampleData: "Namuna uchun misol ma'lumotlar",
+    skipToContent: "Asosiy mazmunga o'tish",
+  },
+  nav: {
+    label: "Asosiy navigatsiya",
+    features: "Imkoniyatlar",
+    howItWorks: "Qanday ishlaydi",
+    solutions: "Kimlar uchun",
+    faq: "Savollar",
+    contact: "Aloqa",
+    login: "Kirish",
+    getStarted: "Boshlash",
+    openWorkspace: "Ish maydoni",
+    openMenu: "Menyuni ochish",
+    closeMenu: "Menyuni yopish",
+    language: "Til",
+    theme: "Mavzu",
+    themeLight: "Yorug'",
+    themeDark: "Qorong'i",
+    themeSystem: "Tizim",
+    home: "Resume Analyzer bosh sahifasi",
+  },
+  hero: {
+    eyebrow: "HR jamoalari uchun ishga qabul platformasi",
+    titleLead: "Aqlliroq yollang.",
+    titleTail: "Munosib nomzodni tezroq toping.",
+    subtitle:
+      "Vakansiyalarni e'lon qilish, arizalarni yig'ish, rezyumelarni tahlil qilish va har bir nomzod, suhbat hamda qarorni bir joyda tartibli saqlashning oddiy usuli.",
+    primaryCta: "Boshlash",
+    secondaryCta: "Imkoniyatlarni ko'rish",
+    note: "Hisob yaratishingiz bilan ish maydoningiz tayyor bo'ladi.",
+    mockupLabel:
+      "Resume Analyzer boshqaruv panelining namunaviy ko'rinishi: ishlar, arizalar, nomzodlar va suhbatlar misol ma'lumotlar bilan.",
+  },
+  mockup: {
+    nav: ["Boshqaruv paneli", "Ishlar", "Arizalar", "Nomzodlar", "Suhbatlar", "Tahlil"],
+    title: "Umumiy ko'rinish",
+    subtitle: "Ishga qabul faolligi",
+    newJob: "Yangi ish",
+    kpis: ["Faol ishlar", "Arizalar", "Nomzodlar", "Suhbatlar"],
+    chartTitle: "Haftalik arizalar",
+    listTitle: "So'nggi nomzodlar",
+    match: "moslik",
+    candidates: [
+      { name: "Aziza K.", role: "Python dasturchi", status: "Suhbat" },
+      { name: "Timur R.", role: "Ma'lumotlar tahlilchisi", status: "Ko'rilmoqda" },
+      { name: "Laylo S.", role: "HR mutaxassisi", status: "Yangi" },
+    ],
+  },
+  trust: {
+    label: "Resume Analyzer jamoangizga nima beradi",
+    items: [
+      { title: "Sun'iy intellekt yordamida tahlil", text: "Rezyumelar har bir vakansiya talablari bo'yicha baholanadi" },
+      { title: "Nomzodlar bir joyda", text: "Barcha arizalar tartibli yagona maydonda" },
+      { title: "Aniq ishga qabul jarayoni", text: "Har bir nomzod bo'yicha holat va suhbatlar" },
+      { title: "Ma'lumotlarga asoslangan qarorlar", text: "O'z faoliyatingiz asosidagi boshqaruv panellari" },
+    ],
+  },
+  features: {
+    eyebrow: "Imkoniyatlar",
+    title: "Ishga qabul uchun kerakli hamma narsa — bir joyda",
+    subtitle:
+      "Birinchi vakansiyadan yakuniy qarorgacha Resume Analyzer ishni tartibga soladi — jamoangiz qog'ozlar bilan emas, odamlar bilan shug'ullanadi.",
+    items: [
+      {
+        title: "Rezyume tahlili",
+        text: "Har bir rezyumeni vakansiya talablari bilan solishtiring va moslik foizi, mos hamda yetishmayotgan ko'nikmalarni darhol ko'ring.",
+      },
+      {
+        title: "Vakansiyalarni boshqarish",
+        text: "Kompaniya, lavozim, ko'nikmalar va tajriba bilan vakansiya yarating — yoki talablarni tavsif faylidan sun'iy intellekt ajratib olsin.",
+      },
+      {
+        title: "Havola orqali ariza shakllari",
+        text: "Har bir vakansiya uchun ariza shaklini tuzing va ochiq havolani ulashing. Nomzodlar ro'yxatdan o'tmasdan ariza va rezyume yuboradi.",
+      },
+      {
+        title: "Nomzodlarni boshqarish",
+        text: "Barcha arizachilar, rezyumelar va izohlar tarqoq xatlar va jadvallarda emas, qidiruvli yagona ro'yxatda.",
+      },
+      {
+        title: "Ishga qabul jarayoni",
+        text: "Har bir nomzodning holatini kuzating va suhbatlarni rejalashtiring — har kim ariza qaysi bosqichda ekanini biladi.",
+      },
+      {
+        title: "Tahlil",
+        text: "Ishlar, nomzodlar, arizalar va suhbatlar bo'yicha boshqaruv panellarida faollikni kuzatib boring.",
+      },
+    ],
+  },
+  how: {
+    eyebrow: "Qanday ishlaydi",
+    title: "Vakansiyadan qarorgacha — to'rt qadam",
+    subtitle: "Uzoq sozlash va o'qitishsiz. Hisob yarating va birinchi vakansiyadan boshlang.",
+    steps: [
+      { title: "Vakansiya yarating", text: "Lavozim, talab qilinadigan ko'nikmalar va tajriba darajasini belgilang." },
+      { title: "Arizalarni yig'ing", text: "Ariza havolasini ulashing. Nomzodlar ma'lumotlari va rezyumesini yuboradi." },
+      { title: "Nomzodlarni tahlil qiling", text: "Rezyumelar vakansiya talablari bo'yicha aniq moslik tahlili bilan baholanadi." },
+      { title: "Jarayonni davom ettiring", text: "Nomzodlarni ko'rib chiqing, suhbat belgilang va holatni yangilang." },
+    ],
+  },
+  workflow: {
+    eyebrow: "Ishga qabul yo'li",
+    title: "Vakansiyadan ishga qabulgacha yagona yo'l",
+    subtitle: "Har bir bosqich keyingisiga ulanadi — vakansiya va qaror orasida hech narsa yo'qolmaydi.",
+    stages: [
+      { title: "Vakansiya", text: "Lavozim va talablar" },
+      { title: "Ariza", text: "Shakl va rezyume yuborildi" },
+      { title: "Rezyume tahlili", text: "Talablar bilan solishtirish" },
+      { title: "Nomzodni ko'rib chiqish", text: "Saralash va solishtirish" },
+      { title: "Suhbat", text: "Rejalashtirish va natija" },
+      { title: "Qaror", text: "Jamoangiz qabul qiladi" },
+    ],
+    note: "Resume Analyzer qaror qabul qilishga yordam beradi, lekin hech qachon siz uchun qaror qilmaydi. Har bir qadam jamoangiz nazoratida.",
+  },
+  analysis: {
+    eyebrow: "Rezyume tahlili",
+    title: "Rezyumeni ochmasdan nomzod qanchalik mosligini biling",
+    subtitle:
+      "Resume Analyzer rezyumeni o'qiydi, uni vakansiya talab qiladigan ko'nikmalar bilan solishtiradi va jamoangizga baholash uchun tartibli boshlang'ich nuqta beradi.",
+    points: [
+      { title: "Moslik foizi", text: "Rezyume vakansiyaga qanchalik mos kelishini ko'rsatadi." },
+      { title: "Mos va yetishmayotgan ko'nikmalar", text: "Qaysi talablar bajarilgan va qaysilari yo'qligini aniq ko'ring." },
+      { title: "Xulosa va tavsiya", text: "Qisqa baho saralashni tezlashtiradi — yakuniy qaror sizniki." },
+    ],
+    card: {
+      label: "Rezyume tahlili",
+      candidate: "Nomzod",
+      name: "Aziza K.",
+      role: "Python dasturchi",
+      match: "Moslik",
+      matched: "Mos ko'nikmalar",
+      missing: "Yetishmayotgan ko'nikmalar",
+      summaryLabel: "Xulosa",
+      summary: "Talab qilinadigan backend ko'nikmalariga yaxshi mos. Konteynerlash tajribasi ko'rsatilmagan.",
+      recommendationLabel: "Tavsiya",
+      recommendation: "Ishga olish",
+    },
+  },
+  solutions: {
+    eyebrow: "Kimlar uchun",
+    title: "Ishga qabulni boshqaradiganlar uchun yaratilgan",
+    subtitle: "Vaqti-vaqti bilan yoki har hafta xodim olasizmi — Resume Analyzer jarayonga murakkablik emas, tartib qo'shadi.",
+    items: [
+      {
+        title: "Rekruterlar",
+        text: "Bir nechta vakansiya va nomzodlar oqimini bir vaqtda boshqaring, rezyumelarni dastlabki saralashga kamroq vaqt sarflang.",
+      },
+      {
+        title: "HR jamoalari",
+        text: "Ishga qabul faolligi va nomzodlar ma'lumotini bir joyga jamlang — butun jamoa bir xil manzarani ko'radi.",
+      },
+      {
+        title: "O'sayotgan kompaniyalar",
+        text: "Og'ir korporativ tizimlar va uzoq joriy etishsiz tartibli ishga qabul jarayonini boshidanoq yo'lga qo'ying.",
+      },
+    ],
+  },
+  benefits: {
+    eyebrow: "Afzalliklar",
+    title: "Kamroq rutina. Ko'proq aniqlik.",
+    items: [
+      { title: "Kamroq takroriy ish", text: "Avtomatik tahlil rezyumeni birinchi o'qishni o'z zimmasiga oladi." },
+      { title: "Tartibli nomzodlar", text: "Arizalar, rezyumelar va izohlar bir joyda saqlanadi." },
+      { title: "Aniq jarayonlar", text: "Har bir nomzodning holati va keyingi qadami ko'rinib turadi." },
+      { title: "Tezroq rezyume ko'rib chiqish", text: "Bo'sh sahifadan emas, mos va yetishmayotgan ko'nikmalardan boshlang." },
+      { title: "Markazlashgan ma'lumot", text: "Endi xatlar va fayllar orasidan qidirish shart emas." },
+      { title: "Yaxshiroq kuzatuv", text: "Boshqaruv panellari ishga qabulda nima bo'layotganini ko'rsatadi." },
+    ],
+  },
+  analytics: {
+    eyebrow: "Tahlil",
+    title: "Ishga qabul jarayonini bir qarashda tushuning",
+    subtitle:
+      "Boshqaruv paneli ishlar, nomzodlar, arizalar va suhbatlaringizni tushunarli umumiy ko'rinishga aylantiradi — jarayon qayerda yurib, qayerda to'xtab qolganini ko'rasiz.",
+    points: [
+      "Ishlar, nomzodlar va arizalar bo'yicha jami ko'rsatkichlar",
+      "Arizalar holati, ishga olish tavsiyasi va suhbat natijalari bo'yicha",
+      "Arizalar dinamikasi, ballar taqsimoti va eng faol ishlar",
+    ],
+    card: {
+      title: "Ishga qabul sharhi",
+      period: "So'nggi 30 kun",
+      kpis: ["Jami ishlar", "Nomzodlar", "Arizalar", "Suhbatlar"],
+      pipelineTitle: "Ishga qabul voronkasi",
+      stages: ["Yangi", "Ko'rilmoqda", "Tanlangan", "Suhbat"],
+    },
+  },
+  security: {
+    eyebrow: "Xavfsizlik",
+    title: "Ma'lumotlaringiz faqat sizniki",
+    subtitle: "Himoya hisoblar va ma'lumotlar ishlashiga o'rnatilgan — bugun amalda bo'lgan choralar:",
+    items: [
+      { title: "Xavfsiz autentifikatsiya", text: "Email va parol yoki Google hisobi orqali kirish." },
+      { title: "Tokenlarga asoslangan sessiyalar", text: "Qisqa muddatli JWT kirish tokenlari va bir martalik yangilash tokenlari." },
+      { title: "Xeshlangan parollar", text: "Parollar ochiq matn sifatida emas, bcrypt xeshi ko'rinishida saqlanadi." },
+      { title: "Himoyalangan resurslar", text: "Har bir HR endpointi tasdiqlangan sessiyani talab qiladi." },
+      { title: "Faqat o'z ma'lumotlaringiz", text: "Egalik tekshiruvi faqat o'z ishlaringiz va nomzodlaringizni ko'rishingizni ta'minlaydi." },
+    ],
+  },
+  faq: {
+    eyebrow: "Savollar",
+    title: "Ko'p beriladigan savollar",
+    subtitle: "Javob topa olmadingizmi? Quyidagi aloqa bo'limi orqali yozing.",
+    items: [
+      {
+        q: "Resume Analyzer nima?",
+        a: "Resume Analyzer — HR jamoalari uchun ishga qabul platformasi. U vakansiyalarni e'lon qilish, arizalarni yig'ish, rezyumelarni vakansiya talablari bo'yicha tahlil qilish hamda nomzodlar, suhbatlar va qarorlarni bir joyda boshqarishga yordam beradi.",
+      },
+      {
+        q: "Resume Analyzer kimlar uchun?",
+        a: "Rekruterlar, HR mutaxassislari va ishga qabul jamoalari uchun — vaqti-vaqti bilan xodim oladigan kompaniyalardan tortib bir nechta ochiq lavozimni boshqaradigan jamoalargacha.",
+      },
+      {
+        q: "Resume Analyzer'da nimalarni boshqarish mumkin?",
+        a: "Vakansiyalar va ularning talablari, ariza shakllari va ochiq havolalari, nomzodlar va rezyumelari, rezyume tahlili natijalari, suhbatlar va har bir nomzodning holati. Boshqaruv paneli va tahlil sahifasi faollikni umumlashtiradi.",
+      },
+      {
+        q: "Rezyume tahlili qanday ishlaydi?",
+        a: "Rezyume matni vakansiya talab qiladigan ko'nikmalar va tajriba bilan solishtiriladi. Siz moslik foizi, mos va yetishmayotgan ko'nikmalar ro'yxati, qisqa xulosa va ishga olish tavsiyasini olasiz. Bu baholash uchun boshlang'ich nuqta — qaror har doim sizniki.",
+      },
+      {
+        q: "Texnik bilim kerakmi?",
+        a: "Yo'q. Resume Analyzer kundalik HR vazifalari atrofida qurilgan: vakansiya yaratish, nomzodlarni ko'rib chiqish va suhbat belgilash. Email va jadvallardan foydalana olsangiz, Resume Analyzer'dan ham foydalana olasiz.",
+      },
+      {
+        q: "Bir nechta vakansiyani boshqarsa bo'ladimi?",
+        a: "Ha. O'zingizga kerakli miqdordagi vakansiyalarni yaratib boshqarishingiz mumkin — har birining o'z talablari, ariza shakli va nomzodlari bor.",
+      },
+      {
+        q: "Nomzodning holatini o'zgartirsa bo'ladimi?",
+        a: "Ha. Har bir nomzodning ishga qabul holati bor va u jarayonda oldinga siljigani sari yangilanadi, suhbatlar esa yonida rejalashtiriladi va kuzatiladi.",
+      },
+      {
+        q: "Hisobim himoyalanganmi?",
+        a: "Ha. Parollar bcrypt xeshi sifatida saqlanadi, sessiyalar JWT kirish tokenlari va bir martalik yangilash tokenlaridan foydalanadi, har bir HR resursi esa tizimga kirgan foydalanuvchiga tegishli ekani tekshiriladi. Google orqali kirish va unutilgan parolni email orqali tiklash ham mumkin.",
+      },
+      {
+        q: "Qorong'i mavzu bormi?",
+        a: "Ha. Bu sayt ham, HR ish maydoni ham yorug' va qorong'i mavzularni qo'llab-quvvatlaydi va tizim sozlamasiga avtomatik moslasha oladi.",
+      },
+      {
+        q: "Tilni o'zgartirsa bo'ladimi?",
+        a: "Ha. Navigatsiya panelidagi til tanlagich orqali o'zbek (lotin va kirill), rus va ingliz tillari o'rtasida almashing.",
+      },
+      {
+        q: "Jamoa bilan qanday bog'lanish mumkin?",
+        a: "Ushbu sahifa pastidagi aloqa bo'limidan foydalaning.",
+      },
+    ],
+  },
+  contact: {
+    eyebrow: "Aloqa",
+    title: "Savolingiz bormi? Yordam berishga tayyormiz.",
+    subtitle: "Resume Analyzer, hisobingiz yoki uning ishga qabul jarayoningizga qanday mos kelishi haqida savollar bo'lsa — bizga yozing.",
+    emailLabel: "Email",
+    firstName: "Ism",
+    lastName: "Familiya",
+    email: "Email",
+    message: "Xabar",
+    firstNamePlaceholder: "Aziza",
+    lastNamePlaceholder: "Karimova",
+    emailPlaceholder: "you@company.com",
+    messagePlaceholder: "Qanday yordam bera olamiz?",
+    submit: "Xabar yuborish",
+    sending: "Yuborilmoqda…",
+    submitHint: "Siz kiritgan email manziliga javob beramiz. Hisob kerak emas.",
+    required: "Bu maydon to'ldirilishi shart.",
+    invalidEmail: "To'g'ri email manzilini kiriting.",
+    tooLong: "{max} ta belgidan oshmasin.",
+    successTitle: "Xabar yuborildi",
+    success: "Murojaatingiz uchun rahmat! Tez orada siz bilan bog'lanamiz.",
+    sendAnother: "Yana xabar yuborish",
+    errorNetwork: "Serverga ulanib bo'lmadi. Internet aloqangizni tekshirib, qayta urinib ko'ring.",
+    errorValidation: "Ba'zi maydonlar noto'g'ri to'ldirilgan. Tekshirib, qayta urinib ko'ring.",
+    errorRateLimited: "Qisqa vaqt ichida bir nechta xabar yubordingiz. Birozdan so'ng qayta urinib ko'ring.",
+    errorServer: "Biz tomonda xatolik yuz berdi. Birozdan so'ng qayta urinib ko'ring.",
+    alreadyUser: "Hisobingiz bormi?",
+    alreadyUserLink: "Ish maydoningizga kiring",
+    signedInUser: "Siz tizimga kirgansiz.",
+    signedInLink: "Ish maydoningizni oching",
+  },
+  cta: {
+    title: "Ishga qabul jarayonini soddalashtirishga tayyormisiz?",
+    subtitle: "Hisob yarating va birinchi vakansiyangizni bugunoq e'lon qiling.",
+    primary: "Boshlash",
+    secondary: "Kirish",
+  },
+  footer: {
+    tagline: "Zamonaviy HR jamoalari uchun aqlli ishga qabul jarayonlari.",
+    product: "Mahsulot",
+    company: "Kompaniya",
+    legal: "Hujjatlar",
+    features: "Imkoniyatlar",
+    howItWorks: "Qanday ishlaydi",
+    analytics: "Tahlil",
+    about: "Kimlar uchun",
+    contact: "Aloqa",
+    faq: "Savollar",
+    privacy: "Maxfiylik siyosati",
+    terms: "Foydalanish shartlari",
+    rights: "Barcha huquqlar himoyalangan.",
+  },
+  legal: {
+    privacyTitle: "Maxfiylik siyosati",
+    termsTitle: "Foydalanish shartlari",
+    placeholder:
+      "Hujjat tayyorlanmoqda va shu yerda e'lon qilinadi. Ma'lumotlaringiz qanday qayta ishlanishi haqida savolingiz bo'lsa, aloqa bo'limidan foydalaning.",
+    back: "Bosh sahifaga",
+  },
+  notFound: {
+    title: "Sahifa topilmadi",
+    text: "Siz izlayotgan sahifa mavjud emas yoki boshqa joyga ko'chirilgan.",
+    back: "Bosh sahifaga",
+  },
+};

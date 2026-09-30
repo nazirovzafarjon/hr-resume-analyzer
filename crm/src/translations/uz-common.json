@@ -1,0 +1,41 @@
+{
+  "common": {
+    "search": "Qidirish",
+    "filter": "Filtr",
+    "sort": "Saralash",
+    "save": "Saqlash",
+    "cancel": "Bekor qilish",
+    "delete": "O'chirish",
+    "edit": "Tahrirlash",
+    "view": "Ko'rish",
+    "create": "Yaratish",
+    "update": "Yangilash",
+    "confirm": "Tasdiqlash",
+    "back": "Orqaga",
+    "next": "Keyingi",
+    "loading": "Yuklanmoqda...",
+    "error": "Xatolik yuz berdi",
+    "errorDescription": "Iltimos, keyinroq qayta urinib ko'ring",
+    "retry": "Qayta urinish",
+    "noData": "Ma'lumot topilmadi",
+    "copied": "Nusxalandi!",
+    "copy": "Nusxalash",
+    "filters": "Filtrlarni tozalash",
+    "clearFilters": "Filtrlarni tozalash",
+    "minutes": "{count} daq",
+    "yes": "Ha",
+    "no": "Yo'q",
+    "pagination": {
+      "label": "Sahifalash",
+      "range": "{total} tadan {from}–{to}",
+      "previous": "Oldingi",
+      "next": "Keyingi"
+    }
+  },
+  "notifications": {
+    "success": "Muvaffaqiyatli",
+    "error": "Xatolik",
+    "warning": "Ogohlantirish",
+    "info": "Ma'lumot"
+  }
+}

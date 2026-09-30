@@ -20,6 +20,7 @@ import pytest
 
 from tests.payloads import JOB_PAYLOAD
 
+from app.core.config import settings
 from app.crud.application_response import get_response_by_worker
 from app.schemas.application_form import (
     MAX_FIELDS,
@@ -664,6 +665,55 @@ class TestDuplicateSubmissionGuard:
         second = submit_application(client, token, values, files=files)
         assert second.status_code == 409
         assert "already" in second.json()["detail"].lower()
+
+    def test_rejected_duplicate_leaves_no_resume_file(self, client, user):
+        job = create_job_with_form(client, user["headers"])
+        token = job["application_form"]["public_token"]
+        fields = job["application_form"]["fields"]
+        values = {fields[0]["id"]: "Jane", fields[1]["id"]: "jane@example.com"}
+        files = {fields[2]["id"]: ("r.pdf", b"%PDF", "application/pdf")}
+        resumes = Path(settings.UPLOAD_DIR) / "resumes"
+
+        assert submit_application(client, token, values, files=files).status_code == 201
+        stored_before = set(resumes.iterdir())
+
+        second = submit_application(client, token, values, files=files)
+
+        assert second.status_code == 409
+        assert set(resumes.iterdir()) == stored_before
+
+    def test_failed_save_removes_files_already_written(self, client, user, monkeypatch):
+        fields = [
+            {"label": "Full name", "type": "text", "required": True},
+            {"label": "Email", "type": "email", "required": True},
+            {"label": "Resume", "type": "file", "required": True},
+            {"label": "Cover letter", "type": "file", "required": True},
+        ]
+        job = create_job_with_form(client, user["headers"], fields=fields)
+        token = job["application_form"]["public_token"]
+        stored = job["application_form"]["fields"]
+        resumes = Path(settings.UPLOAD_DIR) / "resumes"
+        resumes.mkdir(parents=True, exist_ok=True)
+        stored_before = set(resumes.iterdir())
+
+        from app.crud import worker as worker_crud
+
+        def boom(*args, **kwargs):
+            raise RuntimeError("database down")
+
+        monkeypatch.setattr(worker_crud, "create_worker", boom)
+        with pytest.raises(RuntimeError):
+            submit_application(
+                client,
+                token,
+                {stored[0]["id"]: "Jane", stored[1]["id"]: "jane@example.com"},
+                files={
+                    stored[2]["id"]: ("r.pdf", b"%PDF", "application/pdf"),
+                    stored[3]["id"]: ("c.txt", b"hello", "text/plain"),
+                },
+            )
+
+        assert set(resumes.iterdir()) == stored_before
 
     def test_different_email_allowed(self, client, user):
         job = create_job_with_form(client, user["headers"])

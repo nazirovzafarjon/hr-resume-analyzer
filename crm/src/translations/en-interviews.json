@@ -1,0 +1,54 @@
+{
+  "interviews": {
+    "title": "Interviews",
+    "description": "Schedule and manage interviews",
+    "createInterview": "Schedule Interview",
+    "noInterviews": "No interviews scheduled",
+    "noInterviewsDescription": "Schedule interviews for your candidates.",
+    "noMatchingInterviews": "No matching interviews",
+    "candidate": "Candidate",
+    "job": "Job",
+    "interviewer": "Interviewer",
+    "scheduled": "Scheduled",
+    "duration": "Duration",
+    "status": {
+      "in_process": "In Progress",
+      "completed": "Completed",
+      "not_completed": "Not Completed"
+    },
+    "actions": "Actions",
+    "view": "View",
+    "schedule": "Schedule",
+    "loading": "Loading interviews...",
+    "error": "Failed to load interviews",
+    "filters": {
+      "all": "All interviews",
+      "upcoming": "Upcoming",
+      "completed": "Completed",
+      "cancelled": "Cancelled"
+    },
+    "deleteTitle": "Delete this interview?",
+    "deleteMessage": "The interview with {name} will be permanently deleted. This can't be undone.",
+    "errors": {
+      "dateRequired": "Pick a date and time.",
+      "interviewerRequired": "Enter the interviewer's name."
+    },
+    "meeting": "Meeting",
+    "meetingLink": "Meeting link",
+    "noCandidatesOption": "No candidates yet",
+    "selectCandidate": "Select a candidate",
+    "noNotes": "No notes yet",
+    "searchPlaceholder": "Search by candidate, job or interviewer…"
+  },
+  "stats": {
+    "total": "Interviews",
+    "totalHint": "all time",
+    "upcoming": "Upcoming",
+    "upcomingHint": "scheduled ahead",
+    "completed": "Completed",
+    "completedHint": "feedback pending",
+    "cancelled": "Cancelled",
+    "cancelledHint": "not held"
+  },
+  "searchPlaceholder": "Search by candidate, job or interviewer…"
+}

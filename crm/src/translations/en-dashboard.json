@@ -1,0 +1,107 @@
+{
+  "dashboard": {
+    "title": "Dashboard",
+    "description": "Overview of your recruitment pipeline",
+    "totalJobs": "Total Jobs",
+    "totalCandidates": "Total Candidates",
+    "totalLeads": "Total Leads",
+    "recentJobs": "Recent Jobs",
+    "recentCandidates": "Recent Candidates",
+    "viewApplications": "View Applications",
+    "viewAll": "View all",
+    "noJobs": "No jobs yet",
+    "noJobsDescription": "Create your first vacancy to start receiving applications.",
+    "noCandidates": "No candidates yet",
+    "analytics": "Hiring Analytics",
+    "groupBy": "Group by",
+    "company": "Company",
+    "position": "Position",
+    "experience": "Experience",
+    "loading": "Loading dashboard...",
+    "error": "Failed to load dashboard",
+    "partialErrorMessage": "Some dashboard data couldn't load.",
+    "tableCreated": "Created",
+    "period": {
+      "label": "Date range"
+    },
+    "kpi": {
+      "applications": "Applications",
+      "applicationsHint": "received in this period",
+      "jobs": "Total Jobs",
+      "jobsHint": "across all vacancies",
+      "candidates": "Candidates",
+      "candidatesHint": "moved into the hiring pipeline",
+      "interviews": "Upcoming Interviews",
+      "interviewsHint": "scheduled in total",
+      "aiAnalyzed": "AI Analyzed",
+      "aiAnalyzedHint": "pending analysis",
+      "recommendedHire": "Recommended Hire",
+      "recommendedHireHint": "strong hire + hire recommendations",
+      "vsPreviousPeriod": "vs previous period"
+    },
+    "trend": {
+      "title": "Hiring Activity",
+      "subtitle": "Applications and interviews over the selected period",
+      "emptyTitle": "No activity yet",
+      "emptyMessage": "Once candidates start applying, your hiring trend will appear here."
+    },
+    "statusChart": {
+      "title": "Application Status",
+      "subtitle": "Current distribution of all applications",
+      "emptyTitle": "No applications yet",
+      "emptyMessage": "Application statuses will appear here once candidates apply."
+    },
+    "pipelineChart": {
+      "title": "Hiring Pipeline",
+      "subtitle": "Where candidates currently stand",
+      "emptyTitle": "Pipeline is empty",
+      "emptyMessage": "Applications will move through your hiring pipeline as they arrive."
+    },
+    "performance": {
+      "title": "Recruitment Performance",
+      "byJob": "By Job",
+      "bySegment": "By Segment",
+      "emptyTitle": "No data yet",
+      "emptyMessage": "Create a job and start receiving applications to see this chart."
+    },
+    "activity": {
+      "title": "Recent Activity",
+      "jobCreated": "Job created",
+      "newApplication": "New application",
+      "emptyTitle": "No recent activity",
+      "emptyMessage": "Recent jobs and applications will show up here."
+    },
+    "quickActions": {
+      "reviewApplications": "Review Applications",
+      "scheduleInterview": "Schedule Interview"
+    },
+    "attention": {
+      "awaitingAnalysis": "{count} applications haven't been analyzed yet.",
+      "action": "Review applications"
+    },
+    "welcome": {
+      "title": "Welcome to Resume Analyzer",
+      "text": "Start by creating your first job. Once candidates apply, their resumes are analyzed and this dashboard fills with your hiring activity.",
+      "step1Title": "Create a job",
+      "step1Text": "Add the position, required skills and experience.",
+      "step2Title": "Share the application link",
+      "step2Text": "Candidates apply and upload their resume — no account needed.",
+      "step3Title": "Review analyzed applications",
+      "step3Text": "See match scores and missing skills, then move candidates forward.",
+      "cta": "Create your first job"
+    }
+  },
+  "stats": {
+    "jobs": "Open jobs",
+    "jobsHint": "active vacancies",
+    "candidates": "Candidates",
+    "candidatesHint": "in pipeline",
+    "applications": "Applications",
+    "applicationsHint": "received total",
+    "leads": "New leads",
+    "leadsHint": "last 7 days"
+  },
+  "viewAll": "View all",
+  "emptyJobs": "No jobs yet.",
+  "emptyCandidates": "No candidates yet."
+}

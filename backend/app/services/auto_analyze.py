@@ -1,7 +1,8 @@
 """Auto-analyze batch service for processing multiple applications.
 
 Provides the business logic for:
-- Counting available NEW applications
+- Counting eligible applications (new and never analysed), with optional
+  company/position/job filters applied in SQL
 - Creating analysis batches
 - Running batch analysis one-by-one in background
 - Tracking progress
@@ -10,10 +11,11 @@ Provides the business logic for:
 
 import asyncio
 import logging
+import time
 from datetime import datetime, timezone
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.database import SessionLocal
@@ -25,6 +27,7 @@ from app.models.worker import (
     AnalysisBatch,
     AnalysisBatchStatus,
     AnalysisStatus,
+    ApplicationStatus,
     Worker,
 )
 from app.services import application_analysis as single_analysis
@@ -76,6 +79,38 @@ def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
+#: Never-analysed states (``PENDING`` is the legacy spelling of ``NEW``).
+#: Completed, running and failed analyses are not picked up automatically;
+#: HR retries a failed one from the application itself.
+ELIGIBLE_ANALYSIS_STATUSES = (AnalysisStatus.NEW, AnalysisStatus.PENDING)
+
+
+def _eligible_filter(
+    owner_id: int,
+    *,
+    job_id: int | None = None,
+    company: str | None = None,
+    position: str | None = None,
+) -> list:
+    """SQL conditions for applications Auto Analyze may pick.
+
+    Owned by the HR user, still ``application_status = new`` and never
+    analysed. ``None`` filters ("All") add no condition.
+    """
+    conditions = [
+        Job.owner_id == owner_id,
+        Worker.application_status == ApplicationStatus.NEW,
+        Worker.analysis_status.in_(ELIGIBLE_ANALYSIS_STATUSES),
+    ]
+    if job_id is not None:
+        conditions.append(Worker.job_id == job_id)
+    if company is not None:
+        conditions.append(Job.company_name == company)
+    if position is not None:
+        conditions.append(Job.position == position)
+    return conditions
+
+
 def _get_eligible_worker_ids(
     db: Session,
     owner_id: int,
@@ -83,46 +118,34 @@ def _get_eligible_worker_ids(
     order: str = "oldest",
     limit: int | None = None,
     job_id: int | None = None,
+    company: str | None = None,
+    position: str | None = None,
 ) -> list[int]:
-    """Return IDs of NEW applications for the owner, ordered as requested.
-
-    Only applications with analysis_status == NEW are eligible.
-    Applications with ANALYZING, COMPLETED, or FAILED status are excluded.
+    """Return IDs of eligible applications, ordered and limited in PostgreSQL.
 
     Args:
         db: Database session.
         owner_id: The HR user's ID (for ownership scoping).
         order: "oldest" for created_at ASC, "newest" for created_at DESC.
         limit: Maximum number of worker IDs to return (None for unlimited).
-        job_id: Optional job filter.
-
-    Returns:
-        List of worker IDs in the requested order.
+        job_id / company / position: Optional filters (``None`` = all).
     """
-    # Base query: workers belonging to owner's jobs with NEW analysis status
     query = (
         select(Worker.id)
         .join(Worker.job)
-        .filter(Job.owner_id == owner_id)
-        .filter(Worker.analysis_status == AnalysisStatus.NEW)
+        .where(*_eligible_filter(owner_id, job_id=job_id, company=company, position=position))
     )
 
-    # Optional job filter
-    if job_id is not None:
-        query = query.filter(Worker.job_id == job_id)
-
-    # Ordering: created_at ASC/DESC, then id ASC/DESC for determinism
+    # Ordering: created_at ASC/DESC, then id for determinism
     if order == "newest":
         query = query.order_by(Worker.created_at.desc(), Worker.id.desc())
     else:  # oldest (default)
         query = query.order_by(Worker.created_at.asc(), Worker.id.asc())
 
-    # Apply limit
     if limit is not None:
         query = query.limit(limit)
 
-    result = db.execute(query).scalars().all()
-    return list(result)
+    return list(db.execute(query).scalars().all())
 
 
 def get_available_new_count(
@@ -130,19 +153,35 @@ def get_available_new_count(
     owner_id: int,
     *,
     job_id: int | None = None,
+    company: str | None = None,
+    position: str | None = None,
 ) -> int:
-    """Count NEW applications available for auto-analysis.
+    """Count eligible applications (a COUNT query; no rows are loaded)."""
+    query = (
+        select(func.count(Worker.id))
+        .join(Worker.job)
+        .where(*_eligible_filter(owner_id, job_id=job_id, company=company, position=position))
+    )
+    return db.execute(query).scalar_one()
 
-    Args:
-        db: Database session.
-        owner_id: The HR user's ID (for ownership scoping).
-        job_id: Optional job filter.
 
-    Returns:
-        Number of NEW applications available.
+def get_filter_options(db: Session, owner_id: int) -> list[dict[str, Any]]:
+    """Company/position pairs that currently have eligible applications.
+
+    Feeds the Company and Position dropdowns, with the number of eligible
+    applications per pair, so HR only sees choices that can select something.
     """
-    worker_ids = _get_eligible_worker_ids(db, owner_id, job_id=job_id)
-    return len(worker_ids)
+    query = (
+        select(Job.company_name, Job.position, func.count(Worker.id))
+        .join(Worker.job)
+        .where(*_eligible_filter(owner_id))
+        .group_by(Job.company_name, Job.position)
+        .order_by(Job.company_name, Job.position)
+    )
+    return [
+        {"company_name": company, "position": position, "count": count}
+        for company, position, count in db.execute(query).all()
+    ]
 
 
 def create_auto_analyze_batch(
@@ -152,6 +191,8 @@ def create_auto_analyze_batch(
     count: int,
     order: str = "oldest",
     job_id: int | None = None,
+    company: str | None = None,
+    position: str | None = None,
 ) -> AnalysisBatch:
     """Create a new auto-analyze batch and return it.
 
@@ -188,11 +229,14 @@ def create_auto_analyze_batch(
         order=order,
         limit=count,
         job_id=job_id,
+        company=company,
+        position=position,
     )
 
     if not worker_ids:
+        # Nothing matches: no batch, and the AI provider is never called.
         raise NoAvailableApplicationsError(
-            "No new applications are available for analysis."
+            "No new, unanalyzed applications match these filters."
         )
 
     # Cap to available count if user requested more than available
@@ -206,11 +250,16 @@ def create_auto_analyze_batch(
     )
 
     logger.info(
-        "Created auto-analyze batch: batch_id=%s owner_id=%s requested=%d selected=%d",
+        "Created auto-analyze batch: batch_id=%s owner_id=%s requested=%d selected=%d "
+        "order=%s job_id=%s company_filter=%s position_filter=%s",
         batch.id,
         current_user.id,
         count,
         selected_count,
+        order,
+        job_id,
+        company is not None,
+        position is not None,
     )
 
     return batch
@@ -287,6 +336,13 @@ async def run_batch_analysis(batch_id: int) -> None:
             batch,
             status=AnalysisBatchStatus.RUNNING,
         )
+        started = time.monotonic()
+        logger.info(
+            "Batch analysis started: batch_id=%s owner_id=%s total=%d",
+            batch_id,
+            batch.owner_id,
+            len(batch.worker_ids),
+        )
 
         # Process each worker
         worker_ids = batch.worker_ids
@@ -307,18 +363,24 @@ async def run_batch_analysis(batch_id: int) -> None:
                 )
                 return
 
-            # Get the worker
+            # Skip applications that were deleted, moved to another owner or
+            # analysed/started elsewhere since the batch was created: they are
+            # neither failures nor worth a second (paid) AI call.
             worker = db.get(Worker, worker_id)
-            if worker is None:
-                logger.warning(
-                    "Worker not found during batch: worker_id=%s batch_id=%s",
+            if (
+                worker is None
+                or worker.job.owner_id != batch.owner_id
+                or worker.analysis_status not in ELIGIBLE_ANALYSIS_STATUSES
+            ):
+                logger.info(
+                    "Skipping application no longer eligible: worker_id=%s batch_id=%s",
                     worker_id,
                     batch_id,
                 )
                 batch_crud.update_batch(
                     db,
                     batch,
-                    failed_count=batch.failed_count + 1,
+                    skipped_count=batch.skipped_count + 1,
                     current_index=idx + 1,
                     current_worker_id=None,
                 )
@@ -384,11 +446,14 @@ async def run_batch_analysis(batch_id: int) -> None:
         )
 
         logger.info(
-            "Batch analysis completed: batch_id=%s total=%d successful=%d failed=%d",
+            "Batch analysis completed: batch_id=%s total=%d successful=%d failed=%d "
+            "skipped=%d duration=%.1fs",
             batch_id,
             len(worker_ids),
             batch.successful_count,
             batch.failed_count,
+            batch.skipped_count,
+            time.monotonic() - started,
         )
 
     except Exception:
@@ -435,6 +500,7 @@ def get_batch_progress(
         "processed": batch.processed,
         "successful": batch.successful_count,
         "failed": batch.failed_count,
+        "skipped": batch.skipped_count,
         "remaining": batch.remaining,
         "current_application_id": batch.current_worker_id,
         "created_at": batch.created_at,

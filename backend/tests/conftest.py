@@ -27,6 +27,9 @@ os.environ["SUPERUSER_PASSWORD"] = ""
 # the live email API, and pin the sender for deterministic mailer assertions.
 os.environ["RESEND_API_KEY"] = ""
 os.environ["EMAIL_FROM"] = "onboarding@resend.dev"
+# Throwaway Fernet key so custom AI provider keys can be encrypted in tests
+# (backend/.env's real key, if any, is never used by the suite).
+os.environ["AI_CREDENTIAL_ENCRYPTION_KEY"] = "7nDjrhPPT4Ie0rBTPRUQ_AL9V4XYmBv2ygD13uNJx5Q="
 # Profile image uploads go to a throwaway directory so tests never write into
 # the repository's real uploads folder.
 os.environ["UPLOAD_DIR"] = tempfile.mkdtemp(prefix="resume_analyzer_test_uploads_")
@@ -69,7 +72,9 @@ def _clean_tables(_prepare_database):
         conn.execute(
             text(
                 "TRUNCATE application_responses, application_forms, interviews, "
-                "workers, jobs, users RESTART IDENTITY CASCADE"
+                "workers, jobs, users, contact_messages, audit_logs, system_errors, "
+                "ai_analysis_runs, platform_settings, revoked_tokens, session_cutoffs "
+                "RESTART IDENTITY CASCADE"
             )
         )
     yield
@@ -77,7 +82,7 @@ def _clean_tables(_prepare_database):
 
 @pytest.fixture(autouse=True)
 def _reset_token_registry(_clean_tables):
-    """Clear in-process token revocation state around every test.
+    """Clear token revocation state around every test.
 
     Revocation cutoffs are keyed by user id and the truncation above restarts
     those ids, so a cutoff left behind by one test could otherwise reject a
@@ -166,7 +171,9 @@ def admin(db_session):
         ),
         is_superuser=True,
     )
-    token = create_access_token(subject=admin_user.id)
+    # Admin endpoints need an admin *session* (the signed role claim), not
+    # just the superuser flag, so the fixture signs in to the admin workspace.
+    token = create_access_token(subject=admin_user.id, role="admin")
     return {
         "id": admin_user.id,
         "email": TEST_ADMIN_EMAIL,

@@ -3,23 +3,29 @@
 Register, login, logout, forgot/reset password.
 """
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Body, Depends, File, HTTPException, UploadFile, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 import logging
 
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.dependencies.auth import get_current_user
+from app.dependencies.audit import get_audit_context
+from app.core.roles import available_roles
+from app.dependencies.auth import CurrentSession, get_current_session, get_current_user
 from app.models.user import User
 from app.schemas.auth import (
     ForgotPasswordRequest,
     GoogleAuthRequest,
     LoginRequest,
+    LogoutRequest,
     RefreshTokenRequest,
     RegisterRequest,
     ResetPasswordRequest,
     ResetTokenInfo,
+    SelectRoleRequest,
+    SignInResult,
     SkipResetRequest,
     Token,
 )
@@ -28,33 +34,66 @@ from app.schemas.user import (
     UserProfileResponse,
     UserProfileUpdate,
 )
+from app.schemas.ai_provider import (
+    AIProviderConfigResponse,
+    AIProviderConfigUpdate,
+    AIProviderTestRequest,
+    AIProviderTestResult,
+)
+from app.services import ai_provider as ai_provider_service
 from app.services import auth as auth_service
+from app.services import audit
 from app.services import settings as settings_service
+from app.services.audit import AuditAction, AuditContext, AuditResource
 from app.services.google_auth import GoogleAuthError
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+# Optional bearer: select-role accepts either a selection token or a session.
+_optional_bearer = HTTPBearer(auto_error=False)
+
+SIGN_IN_DOC = (
+    " Returns a session, or — for accounts with several workspaces — "
+    "`requires_role_selection: true` with a short-lived `selection_token` to "
+    "exchange at `POST /api/auth/select-role`."
+)
+
 
 @router.post(
     "/register",
-    response_model=Token,
+    response_model=SignInResult,
     status_code=status.HTTP_201_CREATED,
 )
-def register(payload: RegisterRequest, db: Session = Depends(get_db)) -> Token:
-    """Create a new HR account and return a fresh access token."""
+def register(
+    payload: RegisterRequest,
+    db: Session = Depends(get_db),
+    audit_ctx: AuditContext = Depends(get_audit_context),
+) -> SignInResult:
+    """Create a new HR account and return a fresh access token.
+
+    Errors:
+    * 400 — the email is already registered
+    * 403 — an administrator has switched registration off
+    """
     try:
-        user = auth_service.register_user(db, payload)
+        user = auth_service.register_user(db, payload, audit_ctx)
+    except auth_service.RegistrationDisabledError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
         ) from exc
-    return auth_service.issue_token(user)
+    return auth_service.begin_session(user)
 
 
-@router.post("/login", response_model=Token)
-def login(payload: LoginRequest, db: Session = Depends(get_db)) -> Token:
+@router.post("/login", response_model=SignInResult, description="Sign in with email and password." + SIGN_IN_DOC)
+def login(
+    payload: LoginRequest,
+    db: Session = Depends(get_db),
+    audit_ctx: AuditContext = Depends(get_audit_context),
+) -> Token:
     """Authenticate credentials and return an access token."""
     user = auth_service.authenticate_user(db, payload.email, payload.password)
     if user is None:
@@ -62,12 +101,15 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)) -> Token:
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
         )
-    return auth_service.issue_token(user)
+    auth_service.record_sign_in(db, user, "password", audit_ctx)
+    return auth_service.begin_session(user)
 
 
-@router.post("/google", response_model=Token)
+@router.post("/google", response_model=SignInResult)
 async def google_login(
-    payload: GoogleAuthRequest, db: Session = Depends(get_db)
+    payload: GoogleAuthRequest,
+    db: Session = Depends(get_db),
+    audit_ctx: AuditContext = Depends(get_audit_context),
 ) -> Token:
     """Sign in with a Google authorization ``code``.
 
@@ -89,7 +131,7 @@ async def google_login(
     )
     try:
         return await auth_service.login_with_google(
-            db, payload.code, redirect_uri=payload.redirect_uri
+            db, payload.code, redirect_uri=payload.redirect_uri, context=audit_ctx
         )
     except GoogleAuthError as exc:
         # Flow-level failure (bad/expired code, redirect_uri mismatch, network,
@@ -99,6 +141,8 @@ async def google_login(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
         ) from exc
+    except auth_service.RegistrationDisabledError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
     except ValueError as exc:
         logger.warning("Google sign-in rejected for account reasons: %s", exc)
         raise HTTPException(
@@ -113,12 +157,29 @@ async def google_login(
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
-def logout(current_user: User = Depends(get_current_user)) -> None:
-    """Invalidate the client session.
+def logout(
+    payload: LogoutRequest | None = Body(default=None),
+    db: Session = Depends(get_db),
+    session: CurrentSession = Depends(get_current_session),
+    audit_ctx: AuditContext = Depends(get_audit_context),
+) -> None:
+    """End the session.
 
-    JWT tokens are stateless, so logging out simply asks the client to
-    discard its token; the endpoint exists to trigger that client-side.
+    The presented access token is revoked (and the refresh token, when sent
+    in the body), so the session and its workspace cannot be resumed; the
+    client discards both. Signing in again starts over, including the
+    workspace choice for accounts that have several.
     """
+    current_user = session.user
+    auth_service.logout(current_user, session.payload, payload.refresh_token if payload else None)
+    audit.record(
+        db,
+        AuditAction.LOGOUT,
+        resource_type=AuditResource.USER,
+        resource_id=current_user.id,
+        actor=current_user,
+        context=audit_ctx,
+    )
     return None
 
 
@@ -155,9 +216,11 @@ def verify_reset_token(
         ) from exc
 
 
-@router.post("/reset-password", response_model=Token)
+@router.post("/reset-password", response_model=SignInResult)
 def reset_password(
-    payload: ResetPasswordRequest, db: Session = Depends(get_db)
+    payload: ResetPasswordRequest,
+    db: Session = Depends(get_db),
+    audit_ctx: AuditContext = Depends(get_audit_context),
 ) -> Token:
     """Reset a password using the token from the reset email.
 
@@ -166,22 +229,28 @@ def reset_password(
     sign the user in immediately.
     """
     try:
-        return auth_service.reset_password(db, payload.token, payload.new_password)
+        return auth_service.reset_password(
+            db, payload.token, payload.new_password, context=audit_ctx
+        )
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
         ) from exc
 
 
-@router.post("/skip-reset", response_model=Token)
-def skip_reset(payload: SkipResetRequest, db: Session = Depends(get_db)) -> Token:
+@router.post("/skip-reset", response_model=SignInResult)
+def skip_reset(
+    payload: SkipResetRequest,
+    db: Session = Depends(get_db),
+    audit_ctx: AuditContext = Depends(get_audit_context),
+) -> Token:
     """Keep the current password and turn the reset link into a live session.
 
     Backs the "Skip" button: the reset token is validated, the password is left
     untouched, and a fresh access/refresh pair is returned.
     """
     try:
-        return auth_service.skip_reset(db, payload.token)
+        return auth_service.skip_reset(db, payload.token, context=audit_ctx)
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
@@ -208,14 +277,58 @@ def refresh(payload: RefreshTokenRequest, db: Session = Depends(get_db)) -> Toke
 # ---------------------------------------------------------------------------
 
 
+@router.post(
+    "/select-role",
+    response_model=Token,
+    summary="Choose the session's workspace (HR or admin)",
+    description=(
+        "With `selection_token` (from a sign-in that returned "
+        "`requires_role_selection`): finish signing in. Without it: switch the "
+        "workspace of the current bearer session, whose access token is revoked. "
+        "The requested role is honoured only if the account really has it (403 "
+        "otherwise); an invalid/expired selection token gives 401."
+    ),
+)
+def select_role(
+    payload: SelectRoleRequest,
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials | None = Depends(_optional_bearer),
+    audit_ctx: AuditContext = Depends(get_audit_context),
+) -> Token:
+    try:
+        if payload.selection_token:
+            return auth_service.select_role(db, payload.selection_token, payload.role, audit_ctx)
+        # Switching: a normal session is required (raises 401 otherwise).
+        session = get_current_session(db=db, credentials=credentials)
+        return auth_service.switch_role(db, session.user, session.payload, payload.role, audit_ctx)
+    except auth_service.RoleNotAvailableError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=str(exc),
+            headers={"WWW-Authenticate": "Bearer"},
+        ) from exc
+
+
+def _profile(user: User, session: CurrentSession) -> UserProfileResponse:
+    """Own profile plus the session's workspace information."""
+    return UserProfileResponse.model_validate(user).model_copy(
+        update={
+            "available_roles": [role.value for role in available_roles(user)],
+            "active_role": session.role.value,
+        }
+    )
+
+
 @router.get("/me", response_model=UserProfileResponse)
-def get_my_profile(current_user: User = Depends(get_current_user)) -> User:
-    """Return the authenticated user's own profile.
+def get_my_profile(session: CurrentSession = Depends(get_current_session)) -> UserProfileResponse:
+    """Return the authenticated user's own profile and session workspace.
 
     The user is resolved from the JWT, never from a request-supplied id, so
     this can only ever return the caller's own account.
     """
-    return current_user
+    return _profile(session.user, session)
 
 
 @router.patch("/me", response_model=UserProfileResponse)
@@ -246,7 +359,8 @@ def update_my_profile(
 def change_my_password(
     payload: ChangePasswordRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    session: CurrentSession = Depends(get_current_session),
+    audit_ctx: AuditContext = Depends(get_audit_context),
 ) -> Token:
     """Change the authenticated user's own password.
 
@@ -260,7 +374,12 @@ def change_my_password(
     """
     try:
         return auth_service.change_password(
-            db, current_user, payload.current_password, payload.new_password
+            db,
+            session.user,
+            payload.current_password,
+            payload.new_password,
+            context=audit_ctx,
+            role=session.role,
         )
     except ValueError as exc:
         raise HTTPException(
@@ -308,3 +427,59 @@ def remove_my_profile_image(
     When no image is set the request still succeeds (nothing to remove).
     """
     return settings_service.remove_profile_image(db, current_user)
+
+
+# ---------------------------------------------------------------------------
+# Settings -> "Connect your provider and API key"
+# ---------------------------------------------------------------------------
+# Always the caller's own configuration (resolved from the JWT). Responses
+# never contain the API key, only a masked hint of its last characters.
+
+
+@router.get("/me/ai-provider", response_model=AIProviderConfigResponse)
+def get_my_ai_provider(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> AIProviderConfigResponse:
+    """Return which AI provider the user's analyses use (no secrets)."""
+    return ai_provider_service.get_status(db, current_user.id)
+
+
+@router.put("/me/ai-provider", response_model=AIProviderConfigResponse)
+def save_my_ai_provider(
+    payload: AIProviderConfigUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> AIProviderConfigResponse:
+    """Save the user's provider, model and (encrypted) API key.
+
+    Errors:
+    * 422 — invalid provider/model/key, or no key for a new provider
+    * 503 — the server has no encryption key configured
+    """
+    try:
+        return ai_provider_service.save_config(db, current_user.id, payload)
+    except ai_provider_service.AIProviderSettingsError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+
+
+@router.delete("/me/ai-provider", response_model=AIProviderConfigResponse)
+def delete_my_ai_provider(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> AIProviderConfigResponse:
+    """Remove the user's provider; analyses use the platform provider again."""
+    return ai_provider_service.delete_config(db, current_user.id)
+
+
+@router.post("/me/ai-provider/test", response_model=AIProviderTestResult)
+async def test_my_ai_provider(
+    payload: AIProviderTestRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> AIProviderTestResult:
+    """Check credentials with one small provider request, without saving."""
+    try:
+        return await ai_provider_service.test_connection(db, current_user.id, payload)
+    except ai_provider_service.AIProviderSettingsError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc

@@ -1,0 +1,132 @@
+{
+  "shell": {
+    "toggleNavigation": "Toggle navigation",
+    "closeNavigation": "Close navigation",
+    "collapseSidebar": "Collapse sidebar",
+    "expandSidebar": "Expand sidebar",
+    "backToHome": "Back to home",
+    "skipToContent": "Skip to content",
+    "accountMenu": "Account",
+    "profile": "Profile",
+    "fallbackName": "HR user",
+    "selectLanguage": "Select language",
+    "mainNavigation": "Main navigation",
+    "navGroup": {
+      "recruitment": "Recruitment",
+      "insights": "Insights",
+      "system": "System"
+    }
+  },
+  "appearance": {
+    "title": "Theme",
+    "light": "Light",
+    "dark": "Dark",
+    "system": "System"
+  },
+  "palette": {
+    "title": "Search and commands",
+    "placeholder": "Search or jump to…",
+    "noResults": "No matching results",
+    "groupNavigation": "Navigation",
+    "groupAppearance": "Appearance",
+    "groupLanguage": "Language",
+    "hintNavigate": "to navigate",
+    "hintSelect": "to select"
+  },
+  "labels": {
+    "actions": "Actions",
+    "all": "All",
+    "close": "Close",
+    "refresh": "Refresh",
+    "optional": "Optional",
+    "required": "Required",
+    "status": "Status",
+    "somethingWentWrong": "Something went wrong",
+    "notFoundTitle": "Not found",
+    "results": "{count} results",
+    "of": "of",
+    "nothing": "—"
+  },
+  "empty": {
+    "jobsTitle": "No jobs yet",
+    "jobsMessage": "Create your first vacancy to start receiving applications.",
+    "noMatchingTitle": "No matching records",
+    "noMatchingMessage": "Try adjusting your search or filters.",
+    "applicationsTitle": "No applications yet",
+    "applicationsMessage": "Applications submitted through your public job links will appear here.",
+    "candidatesTitle": "No candidates yet",
+    "candidatesMessage": "Candidates will appear here after applications are received.",
+    "interviewsTitle": "No interviews scheduled",
+    "interviewsMessage": "Schedule interviews for shortlisted candidates from their profile.",
+    "genericTitle": "Nothing here yet",
+    "genericMessage": "Data will appear here as soon as it is available."
+  },
+  "errors": {
+    "loadTitle": "We couldn't load this section",
+    "loadMessage": "Please check your connection and try again.",
+    "notFoundMessage": "The record you are looking for may have been deleted or moved."
+  },
+  "toast": {
+    "loggedOut": "Signed out",
+    "copied": "Copied to clipboard",
+    "copyFailed": "Couldn't copy the link",
+    "jobCreated": "Job created",
+    "jobUpdated": "Job updated",
+    "jobDeleted": "Job deleted",
+    "deleteFailed": "Couldn't delete",
+    "profileSaved": "Profile updated",
+    "passwordChanged": "Password changed",
+    "settingsSaved": "Settings saved",
+    "analysisStarted": "AI analysis started",
+    "analysisComplete": "AI analysis complete",
+    "analysisFailed": "AI analysis failed",
+    "statusUpdated": "Status updated",
+    "loginFailed": "Sign-in failed",
+    "saveFailed": "Couldn't save your changes",
+    "dismiss": "Dismiss notification"
+  },
+  "statusMeta": {
+    "application": {
+      "new": "New",
+      "reviewing": "Reviewing",
+      "shortlisted": "Shortlisted",
+      "interview": "Interview",
+      "rejected": "Rejected",
+      "withdrawn": "Withdrawn"
+    },
+    "analysis": {
+      "new": "Not analyzed",
+      "pending": "Queued",
+      "analyzing": "Analyzing",
+      "completed": "Analyzed",
+      "failed": "Analysis failed"
+    },
+    "hiring": {
+      "strong_hire": "Strong hire",
+      "hire": "Hire",
+      "weak_hire": "Weak hire",
+      "do_not_hire": "Do not hire"
+    },
+    "interview": {
+      "in_process": "In process",
+      "completed": "Completed",
+      "not_completed": "Not completed"
+    },
+    "interviewFilter": {
+      "upcoming": "Upcoming",
+      "completed": "Completed",
+      "cancelled": "Cancelled"
+    }
+  },
+  "table": {
+    "empty": "No records."
+  },
+  "pages": {
+    "createJob": "Create job",
+    "editJob": "Edit job",
+    "jobDetails": "Job details",
+    "applicationDetails": "Application details",
+    "candidateDetails": "Candidate details",
+    "interviewDetails": "Interview details"
+  }
+}

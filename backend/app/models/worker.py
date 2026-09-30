@@ -201,6 +201,9 @@ class AnalysisBatch(Base):
     successful_count: Mapped[int] = mapped_column(default=0, server_default="0")
     # Number of workers that failed analysis
     failed_count: Mapped[int] = mapped_column(default=0, server_default="0")
+    # Number of workers skipped because they were no longer eligible when
+    # their turn came (deleted, or analysed elsewhere in the meantime)
+    skipped_count: Mapped[int] = mapped_column(default=0, server_default="0")
     # Currently processing worker ID (for progress tracking)
     current_worker_id: Mapped[int | None] = mapped_column(default=None, nullable=True)
     # Human-readable status
@@ -230,7 +233,7 @@ class AnalysisBatch(Base):
     #: Number of workers processed so far
     @property
     def processed(self) -> int:
-        return self.successful_count + self.failed_count
+        return self.successful_count + self.failed_count + self.skipped_count
 
     #: Remaining workers to process
     @property

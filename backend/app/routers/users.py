@@ -3,15 +3,23 @@ Superuser-only endpoints to manage registered users.
 
 All routes require an authenticated superuser (JWT + is_superuser=True),
 otherwise a normal HR user receives 403 and an anonymous request 401.
+
+These are the mutation endpoints the admin panel uses for activate /
+deactivate / promote / demote / delete; the richer, paginated read views live
+under ``/api/admin/users``. Safeguards and auditing are in
+``app.services.user_admin``.
 """
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.crud import user as user_crud
+from app.dependencies.audit import get_audit_context
 from app.dependencies.auth import get_current_superuser
 from app.models.user import User
 from app.schemas.user import AdminUserUpdate, UserResponse
+from app.services import user_admin as user_admin_service
+from app.services.audit import AuditContext
 
 router = APIRouter()
 
@@ -53,25 +61,21 @@ def update_user(
     payload: AdminUserUpdate,
     db: Session = Depends(get_db),
     current_admin: User = Depends(get_current_superuser),
+    audit_ctx: AuditContext = Depends(get_audit_context),
 ) -> User:
-    """Update a user's name / active / superuser flags. Superuser only."""
+    """Update a user's name / active / superuser flags. Superuser only.
+
+    Errors:
+    * 400 — the change would demote/deactivate the caller, or remove the last
+      active administrator
+    """
     target = _get_user_or_404(db, user_id)
-    data = payload.model_dump(exclude_unset=True)
-
-    if target.id == current_admin.id and (
-        data.get("is_superuser") is False or data.get("is_active") is False
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="You cannot demote or deactivate your own account",
+    try:
+        return user_admin_service.update_user(
+            db, current_admin, target, payload.model_dump(exclude_unset=True), audit_ctx
         )
-
-    update = {
-        key: data[key]
-        for key in ("full_name", "is_active", "is_superuser")
-        if key in data
-    }
-    return user_crud.update_user(db, target, update)
+    except user_admin_service.UserAdminError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
 
 
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -79,12 +83,11 @@ def delete_user(
     user_id: int,
     db: Session = Depends(get_db),
     current_admin: User = Depends(get_current_superuser),
+    audit_ctx: AuditContext = Depends(get_audit_context),
 ) -> None:
-    """Delete a registered user. Superuser only."""
+    """Delete a registered user and everything they own. Superuser only."""
     target = _get_user_or_404(db, user_id)
-    if target.id == current_admin.id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="You cannot delete your own account",
-        )
-    user_crud.delete_user(db, target)
+    try:
+        user_admin_service.delete_user(db, current_admin, target, audit_ctx)
+    except user_admin_service.UserAdminError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc

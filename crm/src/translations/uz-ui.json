@@ -1,0 +1,132 @@
+{
+  "shell": {
+    "toggleNavigation": "Menyuni yashirish/ko'rsatish",
+    "closeNavigation": "Menyuni yopish",
+    "collapseSidebar": "Paneni toraytirish",
+    "expandSidebar": "Paneni kengaytirish",
+    "backToHome": "Bosh sahifaga",
+    "skipToContent": "Tarkibga o'tish",
+    "accountMenu": "Hisob",
+    "profile": "Profil",
+    "fallbackName": "HR xodimi",
+    "selectLanguage": "Tilni tanlash",
+    "mainNavigation": "Asosiy navigatsiya",
+    "navGroup": {
+      "recruitment": "Ishga qabul",
+      "insights": "Tahlillar",
+      "system": "Tizim"
+    }
+  },
+  "appearance": {
+    "title": "Mavzu",
+    "light": "Yorug'",
+    "dark": "Qorong'u",
+    "system": "Tizim bo'yicha"
+  },
+  "palette": {
+    "title": "Qidiruv va buyruqlar",
+    "placeholder": "Qidirish yoki o'tish…",
+    "noResults": "Mos natija topilmadi",
+    "groupNavigation": "Navigatsiya",
+    "groupAppearance": "Ko'rinish",
+    "groupLanguage": "Til",
+    "hintNavigate": "harakat uchun",
+    "hintSelect": "tanlash uchun"
+  },
+  "labels": {
+    "actions": "Amallar",
+    "all": "Barchasi",
+    "close": "Yopish",
+    "refresh": "Yangilash",
+    "optional": "Ixtiyoriy",
+    "required": "Majburiy",
+    "status": "Holat",
+    "somethingWentWrong": "Xatolik yuz berdi",
+    "notFoundTitle": "Topilmadi",
+    "results": "{count} ta natija",
+    "of": "dan",
+    "nothing": "—"
+  },
+  "empty": {
+    "jobsTitle": "Hozircha vakansiyalar yo'q",
+    "jobsMessage": "Birinchi vakansiyangizni yarating — arizalar shu yerda to'planadi.",
+    "noMatchingTitle": "Mos yozuvlar topilmadi",
+    "noMatchingMessage": "Qidiruv yoki filtrlarni o'zgartirib ko'ring.",
+    "applicationsTitle": "Hozircha arizalar yo'q",
+    "applicationsMessage": "Ommaviy havola orqali yuborilgan arizalar shu yerda paydo bo'ladi.",
+    "candidatesTitle": "Hozircha nomzodlar yo'q",
+    "candidatesMessage": "Nomzodlar arizalar qabul qilingandan keyin paydo bo'ladi.",
+    "interviewsTitle": "Suhbat rejalashtirilmagan",
+    "interviewsMessage": "Tanlangan nomzodlar uchun suhbatni profilidan rejalashtiring.",
+    "genericTitle": "Hozircha bo'sh",
+    "genericMessage": "Ma'lumot paydo bo'lishi bilan shu yerda ko'rinadi."
+  },
+  "errors": {
+    "loadTitle": "Bo'limni yuklab bo'lmadi",
+    "loadMessage": "Iltimos, internet aloqasini tekshirib yana urinib ko'ring.",
+    "notFoundMessage": "Qidirayotgan yozuv o'chirilgan yoki ko'chirilgan bo'lishi mumkin."
+  },
+  "toast": {
+    "loggedOut": "Tizimdan chiqdingiz",
+    "copied": "Havola nusxalandi",
+    "copyFailed": "Havolani nusxalab bo'lmadi",
+    "jobCreated": "Vakansiya yaratildi",
+    "jobUpdated": "Vakansiya yangilandi",
+    "jobDeleted": "Vakansiya o'chirildi",
+    "deleteFailed": "O'chirib bo'lmadi",
+    "profileSaved": "Profil yangilandi",
+    "passwordChanged": "Parol o'zgartirildi",
+    "settingsSaved": "Sozlamalar saqlandi",
+    "analysisStarted": "AI tahlili boshlandi",
+    "analysisComplete": "AI tahlili tugadi",
+    "analysisFailed": "AI tahlili bajarilmadi",
+    "statusUpdated": "Holat yangilandi",
+    "loginFailed": "Kirish amalga oshmadi",
+    "saveFailed": "O'zgarishlarni saqlab bo'lmadi",
+    "dismiss": "Bildirishnomani yopish"
+  },
+  "statusMeta": {
+    "application": {
+      "new": "Yangi",
+      "reviewing": "Ko'rilmoqda",
+      "shortlisted": "Tanlangan",
+      "interview": "Suhbat",
+      "rejected": "Rad etilgan",
+      "withdrawn": "Qaytarib olingan"
+    },
+    "analysis": {
+      "new": "Tahlil qilinmagan",
+      "pending": "Navbatda",
+      "analyzing": "Tahlil qilinmoqda",
+      "completed": "Tahlil qilingan",
+      "failed": "Tahlil bajarilmadi"
+    },
+    "hiring": {
+      "strong_hire": "Kuchli nomzod",
+      "hire": "Yollash",
+      "weak_hire": "Kuchsiz nomzod",
+      "do_not_hire": "Yollamaslik"
+    },
+    "interview": {
+      "in_process": "Jarayonda",
+      "completed": "Yakunlangan",
+      "not_completed": "Yakunlanmagan"
+    },
+    "interviewFilter": {
+      "upcoming": "Kutilayotgan",
+      "completed": "Yakunlangan",
+      "cancelled": "Bekor qilingan"
+    }
+  },
+  "table": {
+    "empty": "Yozuvlar yo'q."
+  },
+  "pages": {
+    "createJob": "Vakansiya yaratish",
+    "editJob": "Vakansiyani tahrirlash",
+    "jobDetails": "Vakansiya tafsilotlari",
+    "applicationDetails": "Ariza tafsilotlari",
+    "candidateDetails": "Nomzod tafsilotlari",
+    "interviewDetails": "Suhbat tafsilotlari"
+  }
+}

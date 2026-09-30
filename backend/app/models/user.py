@@ -4,7 +4,9 @@ Initial structure only. Relationships reference other models by name and
 will be resolved once those models are finalized.
 """
 
-from sqlalchemy import Boolean, String
+from datetime import datetime
+
+from sqlalchemy import Boolean, DateTime, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -30,6 +32,16 @@ class User(Base):
     profile_image: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     is_superuser: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    # Registration time. Accounts that existed before this column was added
+    # carry the migration's timestamp instead (the real date was never stored).
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), index=True
+    )
+    # Last successful sign-in (password, Google, reset link or token refresh).
+    # Shown to admins as "last activity"; None until the user signs in again.
+    last_login_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     @property
     def has_password(self) -> bool:

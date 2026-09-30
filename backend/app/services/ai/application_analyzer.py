@@ -200,6 +200,7 @@ async def analyze_application(
     job_requirements: str,
     form_answers: str,
     resume_text: str = "",
+    cfg: dict[str, Any] | None = None,
 ) -> ApplicationAnalysis:
     """Analyse one application and return the validated structured result.
 
@@ -207,6 +208,8 @@ async def analyze_application(
         job_requirements: Text built from the job's stored fields.
         form_answers: Applicant answers rendered as ``Label: value`` lines.
         resume_text: Text extracted from the uploaded resume (may be empty).
+        cfg: Provider config from ``app.services.ai_provider.resolve_for_user``;
+            defaults to the platform provider.
 
     Returns:
         A validated :class:`ApplicationAnalysis`. ``model`` carries the
@@ -228,7 +231,8 @@ async def analyze_application(
             status_code=422,
         )
 
-    cfg = settings.ai_provider_config()
+    if cfg is None:
+        cfg = settings.ai_provider_config()
     if not cfg["api_key"]:
         logger.error(
             "AI API key not configured -- refusing to analyse the application"

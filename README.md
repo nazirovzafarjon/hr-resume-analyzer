@@ -250,6 +250,7 @@ All settings are read from real environment variables or the `.env` file
 | `RESEND_API_KEY` | *(empty)* | Resend API key (https://resend.com/api-keys). When empty, reset links are written to the server log instead of being emailed. |
 | `EMAIL_FROM` | `onboarding@resend.dev` | Verified from-address for reset emails. The sandbox `onboarding@resend.dev` sender only delivers to the address your Resend account was registered with. |
 | `DATABASE_URL` | `postgresql://postgres:postgres@localhost:5432/resume_analyzer` | SQLAlchemy database URL. |
+| `BACKEND_CORS_ORIGINS` | `http://localhost:5173,http://localhost:5174` | Comma-separated browser origins allowed to call the API: the CRM (`crm/`) and the landing site (`landing/`, for its Contact form). |
 | `SUPERUSER_EMAIL` | *(empty)* | If set, a superuser is seeded at startup when no superuser exists yet. Needed to use the admin `/api/users` endpoints. |
 | `SUPERUSER_PASSWORD` | *(empty)* | Password for the seeded superuser. |
 | `SUPERUSER_FULL_NAME` | `Administrator` | Display name for the seeded superuser. |
@@ -1113,6 +1114,31 @@ it when no image is set still succeeds (nothing to remove).
 ```
 
 **Errors:** `401`, `422`.,
+
+---
+
+### POST /api/public/contact
+**Purpose:** Store a message from the landing page's Contact Us form.
+
+**Authentication:** Not required (a bearer token, if sent, is ignored).
+
+**Request body:**
+```json
+{
+    "first_name": "Ada",
+    "last_name": "Lovelace",
+    "email": "ada@example.com",
+    "message": "Hello! I'd like a demo."
+}
+```
+All fields are required. Names are trimmed and 1–100 characters, `message` is
+trimmed and 1–5000 characters, `email` must be a valid address. The message is
+saved to the `contact_messages` table; `email` is the address the team replies to.
+
+**Success (201):** `{ "message": "Thanks for reaching out! We'll get back to you soon." }`
+
+**Errors:** `422` (validation — nothing is stored), `429` (more than 5 messages
+from one client within 10 minutes; in-process limit), `503` (database unavailable).
 
 ---
 

@@ -124,6 +124,14 @@ class TestStripJsonMarkdown:
     def test_whitespace_only(self):
         assert _strip_json_markdown("  \n  ") == ""
 
+    def test_reasoning_before_json(self):
+        text = 'We need JSON. Company: {maybe EPAM}. Final:\n{"a": {"b": 1}}\n'
+        assert _strip_json_markdown(text) == '{"a": {"b": 1}}'
+
+    def test_reasoning_without_json_is_returned_unchanged(self):
+        text = "We need to extract structured job information. company_name: EPAM"
+        assert _strip_json_markdown(text) == text
+
 
 # ---------------------------------------------------------------------------
 # Retry delay
@@ -432,6 +440,13 @@ class TestProviderSelection:
         assert "model" in payload
         assert "messages" in payload
         assert "response_format" in payload
+        assert payload["reasoning"] == {"enabled": False}
+
+    def test_groq_payload_has_no_openrouter_reasoning_flag(self):
+        cfg = _make_cfg(provider="groq")
+        from app.services.ai.job_analyzer import _build_payload, _build_prompt
+        payload = _build_payload(cfg, _build_prompt("test"))
+        assert "reasoning" not in payload
 
     def test_gemini_analyze_vacancy(self):
         fake_resp = _FakeResponse(status_code=200, json_data={"candidates": [{"content": {"parts": [{"text": json.dumps(AI_ANALYSIS_RESPONSE)}]}}]})

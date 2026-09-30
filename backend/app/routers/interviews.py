@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.crud import interview as interview_crud
 from app.crud import worker as worker_crud
+from app.dependencies.audit import get_audit_context
 from app.dependencies.auth import get_current_user
 from app.models.interview import Interview, InterviewStatus
 from app.models.user import User
@@ -21,6 +22,8 @@ from app.schemas.interview import (
     InterviewStats,
     InterviewUpdate,
 )
+from app.services import audit
+from app.services.audit import AuditAction, AuditContext, AuditResource
 
 router = APIRouter()
 
@@ -107,10 +110,20 @@ def create_interview(
     payload: InterviewCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    audit_ctx: AuditContext = Depends(get_audit_context),
 ) -> InterviewResponse:
     """Schedule a new interview for one of the current user's candidates."""
     _get_owned_worker(db, payload.candidate_id, current_user)
     interview = interview_crud.create_interview(db, payload, current_user.id)
+    audit.record(
+        db,
+        AuditAction.CREATE_INTERVIEW,
+        resource_type=AuditResource.INTERVIEW,
+        resource_id=interview.id,
+        actor=current_user,
+        details={"candidate_id": interview.candidate_id},
+        context=audit_ctx,
+    )
     return _to_response(interview)
 
 
@@ -131,6 +144,7 @@ def update_interview(
     payload: InterviewUpdate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    audit_ctx: AuditContext = Depends(get_audit_context),
 ) -> InterviewResponse:
     """Update an interview (status, notes, meeting link, time, interviewer)."""
     interview = _get_owned_interview(db, interview_id, current_user)
@@ -138,6 +152,18 @@ def update_interview(
         # Re-validate ownership when the interview is moved to another candidate.
         _get_owned_worker(db, payload.candidate_id, current_user)
     interview = interview_crud.update_interview(db, interview, payload)
+    details: dict = {"fields": audit.changed_fields(payload)}
+    if payload.status is not None:
+        details["status"] = payload.status
+    audit.record(
+        db,
+        AuditAction.UPDATE_INTERVIEW,
+        resource_type=AuditResource.INTERVIEW,
+        resource_id=interview.id,
+        actor=current_user,
+        details=details,
+        context=audit_ctx,
+    )
     return _to_response(interview)
 
 
@@ -146,8 +172,19 @@ def delete_interview(
     interview_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    audit_ctx: AuditContext = Depends(get_audit_context),
 ) -> None:
     """Delete an interview owned by the current user."""
     interview = _get_owned_interview(db, interview_id, current_user)
+    candidate_id = interview.candidate_id
     interview_crud.delete_interview(db, interview)
+    audit.record(
+        db,
+        AuditAction.DELETE_INTERVIEW,
+        resource_type=AuditResource.INTERVIEW,
+        resource_id=interview_id,
+        actor=current_user,
+        details={"candidate_id": candidate_id},
+        context=audit_ctx,
+    )
     return None

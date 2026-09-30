@@ -1,0 +1,222 @@
+/* ============================================================================
+   Resume Analyzer landing — design tokens
+   ----------------------------------------------------------------------------
+   Mirrors sections 1–3 (light tokens, shared scales, dark tokens) of the CRM's
+   crm/src/index.css so both apps share one visual identity. The landing
+   is deployed independently, so the tokens are copied rather than imported;
+   when the CRM palette changes, update this file to match.
+   ========================================================================== */
+
+/* ---------------------------------------------------------------------------
+   1. Tokens — Light theme (default)
+   ------------------------------------------------------------------------ */
+:root {
+  color-scheme: light;
+
+  /* Brand — a warm, confident orange, reserved for primary actions, active
+     navigation, focus rings and AI accent moments. Never a background wash. */
+  --color-primary: #f97316;
+  --color-primary-hover: #ea580c;
+  --color-primary-active: #c2410c;
+  --color-primary-subtle: #fff4ec;
+  --color-primary-light: #fff4ec; /* legacy alias used by older rules */
+  --color-primary-border: #fed7aa;
+  --color-primary-text: #b8480d; /* accessible orange text on neutral bg */
+  --color-primary-ring: rgb(249 115 22 / 0.28);
+  --color-on-primary: #431407; /* dark brown on orange → ~8:1 contrast */
+  --color-link: #b8480d;
+
+  /* Neutral surfaces */
+  --color-background: #fafaf9;
+  --color-surface: #ffffff;
+  --color-surface-raised: #ffffff;
+  --color-surface-sunken: #f5f5f4;
+  --color-surface-hover: #f7f7f6;
+  --color-text: #18181b;
+  --color-text-secondary: #3f3f46;
+  --color-text-muted: #71717a;
+  --color-text-subtle: #a1a1aa;
+  --color-border: #e4e4e7;
+  --color-border-strong: #d4d4d8;
+  --color-border-subtle: #f1f1f2;
+  --color-overlay: rgb(24 24 27 / 0.42);
+
+  /* Semantic feedback */
+  --color-error: #dc2626;
+  --color-error-text: #b91c1c;
+  --color-error-bg: #fef2f2;
+  --color-error-border: #fecaca;
+  --color-success: #16a34a;
+  --color-success-text: #15803d;
+  --color-success-bg: #f0fdf4;
+  --color-success-border: #bbf7d0;
+  --color-warning: #d97706;
+  --color-warning-text: #b45309;
+  --color-warning-bg: #fffbeb;
+  --color-warning-border: #fde68a;
+  --color-info: #0284c7;
+  --color-info-text: #0369a1;
+  --color-info-bg: #f0f9ff;
+  --color-info-border: #bae6fd;
+  --color-danger: #b91c1c;
+  --color-neutral: #52525b;
+  --color-neutral-bg: #f5f5f4;
+  --color-neutral-border: #e4e4e7;
+}
+/* ---------------------------------------------------------------------------
+   2. Tokens — shared scales (spacing, type, shape, depth, motion, layering)
+   ------------------------------------------------------------------------ */
+:root {
+  /* Spacing — 4px base. Named tokens are canonical. */
+  --space-2xs: 2px;
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 12px;
+  --space-lg: 16px;
+  --space-xl: 24px;
+  --space-2xl: 32px;
+  --space-3xl: 48px;
+  --space-4xl: 64px;
+
+  /* Typography */
+  --font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+    "Liberation Mono", monospace;
+
+  --font-size-xs: 11px;
+  --font-size-sm: 13px;
+  --font-size-base: 15px;
+  --font-size-lg: 17px;
+  --font-size-xl: 20px;
+  --font-size-2xl: 24px;
+  --font-size-3xl: 30px;
+
+  --text-2xs: 11px;
+  --text-xs: 12px;
+  --text-sm: 13px;
+  --text-base: 14px;
+  --text-md: 15px;
+  --text-lg: 17px;
+  --text-xl: 20px;
+  --text-2xl: 24px;
+  --text-3xl: 30px;
+
+  --leading-tight: 1.25;
+  --leading-snug: 1.4;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.65;
+
+  --font-normal: 400;
+  --font-medium: 500;
+  --font-semibold: 600;
+  --font-bold: 700;
+
+  --tracking-tight: -0.011em;
+  --tracking-wide: 0.04em;
+
+  /* Shape */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-full: 9999px;
+
+  /* Depth — restrained: separation comes from borders, not heavy shadows. */
+  --shadow-xs: 0 1px 2px rgb(24 24 27 / 0.05);
+  --shadow-sm: 0 1px 2px rgb(24 24 27 / 0.06);
+  --shadow-md: 0 1px 3px rgb(24 24 27 / 0.07), 0 1px 2px rgb(24 24 27 / 0.04);
+  --shadow-lg: 0 4px 12px -2px rgb(24 24 27 / 0.08), 0 2px 6px -2px rgb(24 24 27 / 0.05);
+  --shadow-xl: 0 12px 32px -8px rgb(24 24 27 / 0.14), 0 4px 12px -4px rgb(24 24 27 / 0.08);
+  --shadow-card: 0 1px 2px rgb(24 24 27 / 0.04);
+  --shadow-dropdown: 0 8px 28px -8px rgb(24 24 27 / 0.18), 0 2px 8px -2px rgb(24 24 27 / 0.08);
+  --shadow-modal: 0 24px 48px -12px rgb(24 24 27 / 0.22), 0 8px 20px -8px rgb(24 24 27 / 0.12);
+
+  /* Motion */
+  --transition-fast: 120ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-base: 180ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 240ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition: var(--transition-base); /* legacy alias */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* Layering */
+  --z-sticky: 20;
+  --z-sidebar: 100;
+  --z-backdrop: 200;
+  --z-dropdown: 300;
+  --z-modal: 400;
+  --z-palette: 500;
+  --z-toast: 600;
+
+  /* App shell */
+  --sidebar-width: 250px;
+  --sidebar-width-collapsed: 72px;
+  --header-height: 60px;
+  --max-content-width: 1280px;
+
+  /* Score ring default so the conic-gradient degrades gracefully. */
+  --score: 0deg;
+}
+/* ---------------------------------------------------------------------------
+   3. Tokens — Dark theme (a designed hierarchy, not inverted black)
+   ------------------------------------------------------------------------ */
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --color-primary: #f97316;
+  --color-primary-hover: #fb8a3c;
+  --color-primary-active: #ea580c;
+  --color-primary-subtle: rgb(249 115 22 / 0.12);
+  --color-primary-light: rgb(249 115 22 / 0.12);
+  --color-primary-border: rgb(249 115 22 / 0.34);
+  --color-primary-text: #fdba74;
+  --color-primary-ring: rgb(249 115 22 / 0.36);
+  --color-on-primary: #2a1403;
+  --color-link: #fdba74;
+
+  --color-background: #0b0b0d;
+  --color-surface: #131316;
+  --color-surface-raised: #1b1b1f;
+  --color-surface-sunken: #0f0f11;
+  --color-surface-hover: #1f1f24;
+  --color-text: #f4f4f5;
+  --color-text-secondary: #c9c9d1;
+  --color-text-muted: #9c9ca8;
+  --color-text-subtle: #71717a;
+  --color-border: #26262b;
+  --color-border-strong: #3a3a42;
+  --color-border-subtle: #1d1d21;
+  --color-overlay: rgb(0 0 0 / 0.62);
+
+  --color-error: #f87171;
+  --color-error-text: #fca5a5;
+  --color-error-bg: #2a1415;
+  --color-error-border: #5c2426;
+  --color-success: #4ade80;
+  --color-success-text: #86efac;
+  --color-success-bg: #101f17;
+  --color-success-border: #1f4830;
+  --color-warning: #fbbf24;
+  --color-warning-text: #fcd34d;
+  --color-warning-bg: #241a09;
+  --color-warning-border: #573a12;
+  --color-info: #38bdf8;
+  --color-info-text: #7dd3fc;
+  --color-info-bg: #0c1c28;
+  --color-info-border: #1b4055;
+  --color-danger: #f87171;
+  --color-neutral: #a1a1aa;
+  --color-neutral-bg: #1f1f24;
+  --color-neutral-border: #303038;
+
+  --shadow-xs: 0 1px 2px rgb(0 0 0 / 0.4);
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.45);
+  --shadow-md: 0 1px 3px rgb(0 0 0 / 0.5);
+  --shadow-lg: 0 8px 20px -6px rgb(0 0 0 / 0.6);
+  --shadow-xl: 0 16px 40px -12px rgb(0 0 0 / 0.7);
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.35);
+  --shadow-dropdown: 0 12px 32px -10px rgb(0 0 0 / 0.7), 0 2px 8px -2px rgb(0 0 0 / 0.5);
+  --shadow-modal: 0 28px 56px -16px rgb(0 0 0 / 0.8), 0 8px 24px -12px rgb(0 0 0 / 0.6);
+}
+

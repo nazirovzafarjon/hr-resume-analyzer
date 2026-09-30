@@ -1,0 +1,132 @@
+{
+  "shell": {
+    "toggleNavigation": "Показать/скрыть меню",
+    "closeNavigation": "Закрыть меню",
+    "collapseSidebar": "Свернуть панель",
+    "expandSidebar": "Развернуть панель",
+    "backToHome": "На главную",
+    "skipToContent": "Перейти к содержимому",
+    "accountMenu": "Аккаунт",
+    "profile": "Профиль",
+    "fallbackName": "HR-специалист",
+    "selectLanguage": "Выбрать язык",
+    "mainNavigation": "Основная навигация",
+    "navGroup": {
+      "recruitment": "Найм",
+      "insights": "Аналитика",
+      "system": "Система"
+    }
+  },
+  "appearance": {
+    "title": "Тема",
+    "light": "Светлая",
+    "dark": "Тёмная",
+    "system": "Как в системе"
+  },
+  "palette": {
+    "title": "Поиск и команды",
+    "placeholder": "Найти или перейти…",
+    "noResults": "Совпадений не найдено",
+    "groupNavigation": "Навигация",
+    "groupAppearance": "Оформление",
+    "groupLanguage": "Язык",
+    "hintNavigate": "перемещение",
+    "hintSelect": "выбор"
+  },
+  "labels": {
+    "actions": "Действия",
+    "all": "Все",
+    "close": "Закрыть",
+    "refresh": "Обновить",
+    "optional": "Необязательно",
+    "required": "Обязательно",
+    "status": "Статус",
+    "somethingWentWrong": "Что-то пошло не так",
+    "notFoundTitle": "Не найдено",
+    "results": "{count} результатов",
+    "of": "из",
+    "nothing": "—"
+  },
+  "empty": {
+    "jobsTitle": "Вакансий пока нет",
+    "jobsMessage": "Создайте первую вакансию, чтобы получать отклики.",
+    "noMatchingTitle": "Совпадений не найдено",
+    "noMatchingMessage": "Попробуйте изменить поиск или фильтры.",
+    "applicationsTitle": "Откликов пока нет",
+    "applicationsMessage": "Отклики, отправленные по публичным ссылкам, появятся здесь.",
+    "candidatesTitle": "Кандидатов пока нет",
+    "candidatesMessage": "Кандидаты появятся здесь после получения откликов.",
+    "interviewsTitle": "Интервью не запланированы",
+    "interviewsMessage": "Запланируйте интервью для отобранных кандидатов из их профиля.",
+    "genericTitle": "Пока пусто",
+    "genericMessage": "Данные появятся здесь, как только станут доступны."
+  },
+  "errors": {
+    "loadTitle": "Не удалось загрузить раздел",
+    "loadMessage": "Проверьте подключение и попробуйте снова.",
+    "notFoundMessage": "Возможно, запись была удалена или перемещена."
+  },
+  "toast": {
+    "loggedOut": "Вы вышли из системы",
+    "copied": "Ссылка скопирована",
+    "copyFailed": "Не удалось скопировать ссылку",
+    "jobCreated": "Вакансия создана",
+    "jobUpdated": "Вакансия обновлена",
+    "jobDeleted": "Вакансия удалена",
+    "deleteFailed": "Не удалось удалить",
+    "profileSaved": "Профиль обновлён",
+    "passwordChanged": "Пароль изменён",
+    "settingsSaved": "Настройки сохранены",
+    "analysisStarted": "ИИ-анализ запущен",
+    "analysisComplete": "ИИ-анализ завершён",
+    "analysisFailed": "ИИ-анализ не выполнен",
+    "statusUpdated": "Статус обновлён",
+    "loginFailed": "Ошибка входа",
+    "saveFailed": "Не удалось сохранить изменения",
+    "dismiss": "Скрыть уведомление"
+  },
+  "statusMeta": {
+    "application": {
+      "new": "Новый",
+      "reviewing": "На рассмотрении",
+      "shortlisted": "В шорт-листе",
+      "interview": "Интервью",
+      "rejected": "Отклонён",
+      "withdrawn": "Отозван"
+    },
+    "analysis": {
+      "new": "Не проанализировано",
+      "pending": "В очереди",
+      "analyzing": "Анализируется",
+      "completed": "Проанализировано",
+      "failed": "Ошибка анализа"
+    },
+    "hiring": {
+      "strong_hire": "Сильный кандидат",
+      "hire": "Нанимать",
+      "weak_hire": "Слабый кандидат",
+      "do_not_hire": "Не нанимать"
+    },
+    "interview": {
+      "in_process": "В процессе",
+      "completed": "Завершено",
+      "not_completed": "Не завершено"
+    },
+    "interviewFilter": {
+      "upcoming": "Предстоящие",
+      "completed": "Завершённые",
+      "cancelled": "Отменённые"
+    }
+  },
+  "table": {
+    "empty": "Нет записей."
+  },
+  "pages": {
+    "createJob": "Создать вакансию",
+    "editJob": "Редактировать вакансию",
+    "jobDetails": "О вакансии",
+    "applicationDetails": "Детали отклика",
+    "candidateDetails": "Профиль кандидата",
+    "interviewDetails": "Детали интервью"
+  }
+}

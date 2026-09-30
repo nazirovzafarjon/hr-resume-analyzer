@@ -1,0 +1,54 @@
+{
+  "interviews": {
+    "title": "Suhbatlar",
+    "description": "Suhbatlarni rejalashtirish va boshqarish",
+    "createInterview": "Suhbat rejalashtirish",
+    "noInterviews": "Hali suhbatlar yo'q",
+    "noInterviewsDescription": "Nomzodlar uchun suhbatlarni rejalashtiring.",
+    "noMatchingInterviews": "Mos keluvchi suhbat topilmadi",
+    "candidate": "Nomzod",
+    "job": "Ish",
+    "interviewer": "Suhbat o'tkazuvchi",
+    "scheduled": "Rejalashtirilgan vaqt",
+    "duration": "Davomiyligi",
+    "status": {
+      "in_process": "Jarayonda",
+      "completed": "Yakunlangan",
+      "not_completed": "Yakunlanmagan"
+    },
+    "actions": "Amallar",
+    "view": "Ko'rish",
+    "schedule": "Rejalashtirish",
+    "loading": "Suhbatlar yuklanmoqda...",
+    "error": "Suhbatlarni yuklab bo'lmadi",
+    "filters": {
+      "all": "Barcha suhbatlar",
+      "upcoming": "Kutilayotgan",
+      "completed": "Yakunlangan",
+      "cancelled": "Bekor qilingan"
+    },
+    "deleteTitle": "Ushbu suhbat o'chirilsinmi?",
+    "deleteMessage": "{name} bilan suhbat butunlay o'chiriladi. Bu amalni bekor qilib bo'lmaydi.",
+    "errors": {
+      "dateRequired": "Sana va vaqtni tanlang.",
+      "interviewerRequired": "Suhbatdosh ismini kiriting."
+    },
+    "meeting": "Uchrashuv",
+    "meetingLink": "Uchrashuv havolasi",
+    "noCandidatesOption": "Hali nomzodlar yo'q",
+    "selectCandidate": "Nomzodni tanlang",
+    "noNotes": "Hali izohlar yo'q",
+    "searchPlaceholder": "Nomzod, ish yoki suhbatdosh bo'yicha qidirish…"
+  },
+  "stats": {
+    "total": "Suhbatlar",
+    "totalHint": "jami",
+    "upcoming": "Kutilayotgan",
+    "upcomingHint": "rejalashtirilgan",
+    "completed": "Yakunlangan",
+    "completedHint": "fikr kutilmoqda",
+    "cancelled": "Bekor qilingan",
+    "cancelledHint": "o'tkazilmagan"
+  },
+  "searchPlaceholder": "Nomzod, vakansiya yoki suhbat o'tkazuvchi bo'yicha qidirish…"
+}

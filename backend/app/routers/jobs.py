@@ -1,11 +1,14 @@
 """Job CRUD API endpoints."""
 
+import time
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.crud import job as job_crud
 from app.crud import application_form as application_form_crud
+from app.dependencies.audit import get_audit_context
 from app.dependencies.auth import get_current_user
 from app.models.job import Job
 from app.models.user import User
@@ -22,7 +25,11 @@ from app.schemas.job import (
     JobResponse,
     JobUpdate,
 )
+from app.services import ai_monitoring
+from app.services import ai_provider as ai_provider_service
 from app.services import application_form as application_form_service
+from app.services import audit
+from app.services.audit import AuditAction, AuditContext, AuditResource
 from app.services.ai.job_analyzer import (
     AIProviderAuthError,
     AIProviderUnavailableError,
@@ -31,6 +38,7 @@ from app.services.ai.job_analyzer import (
     analyze_vacancy,
     close_ai_client,
 )
+
 
 router = APIRouter()
 
@@ -69,6 +77,7 @@ def create_job(
     payload: JobCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    audit_ctx: AuditContext = Depends(get_audit_context),
 ) -> Job:
     """Create a new job owned by the current user.
 
@@ -93,6 +102,15 @@ def create_job(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=exc.message
             ) from exc
     db.refresh(job)
+    audit.record(
+        db,
+        AuditAction.CREATE_JOB,
+        resource_type=AuditResource.JOB,
+        resource_id=job.id,
+        actor=current_user,
+        details={"position": job.position, "company": job.company_name},
+        context=audit_ctx,
+    )
     return job
 
 
@@ -112,10 +130,21 @@ def update_job(
     payload: JobUpdate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    audit_ctx: AuditContext = Depends(get_audit_context),
 ) -> Job:
     """Update a job owned by the current user."""
     job = _get_owned_job(db, job_id, current_user)
-    return job_crud.update_job(db, job, payload)
+    job = job_crud.update_job(db, job, payload)
+    audit.record(
+        db,
+        AuditAction.UPDATE_JOB,
+        resource_type=AuditResource.JOB,
+        resource_id=job.id,
+        actor=current_user,
+        details={"fields": audit.changed_fields(payload)},
+        context=audit_ctx,
+    )
+    return job
 
 
 @router.delete("/{job_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -123,10 +152,21 @@ def delete_job(
     job_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    audit_ctx: AuditContext = Depends(get_audit_context),
 ) -> None:
     """Delete a job owned by the current user."""
-    _get_owned_job(db, job_id, current_user)
+    job = _get_owned_job(db, job_id, current_user)
+    details = {"position": job.position, "company": job.company_name}
     job_crud.delete_job(db, job_id)
+    audit.record(
+        db,
+        AuditAction.DELETE_JOB,
+        resource_type=AuditResource.JOB,
+        resource_id=job_id,
+        actor=current_user,
+        details=details,
+        context=audit_ctx,
+    )
     return None
 
 
@@ -209,6 +249,7 @@ def reset_application_form(
 @router.post("/analyze", response_model=JobAIAnalysisResult)
 async def analyze_job(
     payload: JobAnalyzeRequest,
+    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> JobAIAnalysisResult:
     """Analyze a vacancy using AI and return structured job information.
@@ -219,8 +260,29 @@ async def analyze_job(
     This endpoint does not create a job - it only returns the AI analysis
     for the user to review and optionally use when creating a job.
     """
+    cfg: dict = {}
+    started = time.monotonic()
+
+    def record(error: AIServiceError | None = None) -> None:
+        ai_monitoring.record_run(
+            db,
+            kind=ai_monitoring.KIND_VACANCY,
+            cfg=cfg,
+            duration_ms=round((time.monotonic() - started) * 1000),
+            owner_id=current_user.id,
+            error=error,
+        )
+
     try:
-        result = await analyze_vacancy(payload.content)
+        # The user's own provider when configured, else the platform's.
+        cfg = ai_provider_service.resolve_for_user(db, current_user.id)
+        result = await analyze_vacancy(payload.content, cfg=cfg)
     except AIServiceError as exc:
+        # 422 = the vacancy text itself was rejected before any provider call,
+        # so it is not an AI attempt worth monitoring.
+        if exc.status_code != status.HTTP_422_UNPROCESSABLE_ENTITY:
+            record(exc)
+        exc = ai_provider_service.safe_error_for(cfg, exc)
         raise HTTPException(status_code=exc.status_code, detail=exc.message)
+    record()
     return result

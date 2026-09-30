@@ -1,0 +1,41 @@
+{
+  "common": {
+    "search": "Search",
+    "filter": "Filter",
+    "sort": "Sort",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "view": "View",
+    "create": "Create",
+    "update": "Update",
+    "confirm": "Confirm",
+    "back": "Back",
+    "next": "Next",
+    "loading": "Loading...",
+    "error": "Something went wrong",
+    "errorDescription": "Please try again later",
+    "retry": "Try Again",
+    "noData": "No data available",
+    "copied": "Copied!",
+    "copy": "Copy",
+    "filters": "Clear filters",
+    "clearFilters": "Clear filters",
+    "minutes": "{count} min",
+    "yes": "Yes",
+    "no": "No",
+    "pagination": {
+      "label": "Pagination",
+      "range": "Showing {from}–{to} of {total}",
+      "previous": "Previous",
+      "next": "Next"
+    }
+  },
+  "notifications": {
+    "success": "Success",
+    "error": "Error",
+    "warning": "Warning",
+    "info": "Info"
+  }
+}

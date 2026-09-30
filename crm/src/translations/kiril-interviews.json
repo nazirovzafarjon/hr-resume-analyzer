@@ -1,0 +1,54 @@
+{
+  "interviews": {
+    "title": "Суҳбатлар",
+    "description": "Суҳбатларни режалаштириш ва бошқариш",
+    "createInterview": "Суҳбат режалаштириш",
+    "noInterviews": "Ҳали суҳбатлар йўқ",
+    "noInterviewsDescription": "Номзодлар учун суҳбатларни режалаштиринг.",
+    "noMatchingInterviews": "Мос келувчи суҳбат топилмади",
+    "candidate": "Номзод",
+    "job": "Иш",
+    "interviewer": "Суҳбат ўтказувчи",
+    "scheduled": "Режалаштирилган вақт",
+    "duration": "Давомийлиги",
+    "status": {
+      "in_process": "Жараёнда",
+      "completed": "Якунланган",
+      "not_completed": "Якунланмаган"
+    },
+    "actions": "Амаллар",
+    "view": "Кўриш",
+    "schedule": "Режалаштириш",
+    "loading": "Суҳбатлар юкланмоқда...",
+    "error": "Суҳбатларни юклаб бўлмади",
+    "filters": {
+      "all": "Барча суҳбатлар",
+      "upcoming": "Кутилаётган",
+      "completed": "Якунланган",
+      "cancelled": "Бекор қилинган"
+    },
+    "deleteTitle": "Ушбу суҳбат ўчирилсинми?",
+    "deleteMessage": "{name} билан суҳбат бутунлай ўчирилади. Бу амални бекор қилиб бўлмайди.",
+    "errors": {
+      "dateRequired": "Сана ва вақтни танланг.",
+      "interviewerRequired": "Суҳбатдош исмини киритинг."
+    },
+    "meeting": "Учрашув",
+    "meetingLink": "Учрашув ҳаволаси",
+    "noCandidatesOption": "Ҳали номзодлар йўқ",
+    "selectCandidate": "Номзодни танланг",
+    "noNotes": "Ҳали изоҳлар йўқ",
+    "searchPlaceholder": "Номзод, иш ёки суҳбатдош бўйича қидириш…"
+  },
+  "stats": {
+    "total": "Суҳбатлар",
+    "totalHint": "жами",
+    "upcoming": "Кутилаётган",
+    "upcomingHint": "режалаштирилган",
+    "completed": "Якунланган",
+    "completedHint": "фикр кутилмоқда",
+    "cancelled": "Бекор қилинган",
+    "cancelledHint": "ўтказилмаган"
+  },
+  "searchPlaceholder": "Номзод, вакансия ёки суҳбат ўтказувчи бўйича қидириш…"
+}

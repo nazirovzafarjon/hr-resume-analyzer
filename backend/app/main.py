@@ -9,14 +9,19 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, Request
+from fastapi.exception_handlers import http_exception_handler
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.exc import SQLAlchemyError
+from starlette.concurrency import run_in_threadpool
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.core.config import settings
 from app.core.database import Base, SessionLocal, engine
-from app.routers import auth, dashboard, interviews, jobs, public, users, workers
+from app.core.request_context import REQUEST_ID_HEADER, RequestContextMiddleware, request_id_from_scope
+from app.routers import admin, auth, dashboard, interviews, jobs, public, users, workers
+from app.services import error_monitor
 from app.services.ai.job_analyzer import close_ai_client
 
 logger = logging.getLogger(__name__)
@@ -37,6 +42,21 @@ if settings.DEBUG:
 _DATABASE_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 
+def _record_error(request: Request, status_code: int, exc: BaseException, message: str) -> str | None:
+    """Store a 5xx for the admin System Errors page; returns the request id."""
+    request_id = request_id_from_scope(request.scope)
+    error_monitor.record_error(
+        method=request.method,
+        path=request.url.path,
+        status_code=status_code,
+        error_type=type(exc).__name__,
+        message=message,
+        request_id=request_id,
+        user_id=error_monitor.user_id_from_authorization(request.headers.get("authorization")),
+    )
+    return request_id
+
+
 def _handle_db_error(request: Request, exc: Exception) -> JSONResponse:
     """Return a clean 503 for database connectivity / operational failures.
 
@@ -46,9 +66,42 @@ def _handle_db_error(request: Request, exc: Exception) -> JSONResponse:
     the response must never leak ORM/DB internals.
     """
     logger.error("Database connectivity/operational error on %s", request.url, exc_info=exc)
+    # The recorded message is the exception class only: SQLAlchemy messages
+    # quote SQL and bound parameters, which may contain user data.
+    _record_error(request, 503, exc, "Database error")
     return JSONResponse(
         status_code=503,
         content={"detail": "The service is temporarily unavailable. Try again later."},
+    )
+
+
+async def _handle_http_exception(request: Request, exc: StarletteHTTPException) -> JSONResponse:
+    """Record deliberate 5xx responses (e.g. AI provider outages), then answer as usual."""
+    if exc.status_code >= 500:
+        # Sync DB write: keep it off the event loop.
+        await run_in_threadpool(_record_error, request, exc.status_code, exc, str(exc.detail))
+    return await http_exception_handler(request, exc)
+
+
+def _report_unhandled_error(scope: dict, exc: Exception) -> None:
+    """Store an unhandled exception (called by RequestContextMiddleware)."""
+    _record_error(Request(scope), 500, exc, str(exc))
+
+
+def _handle_unexpected_error(request: Request, exc: Exception) -> JSONResponse:
+    """Last-resort response for unhandled exceptions (non-DEBUG mode).
+
+    The traceback goes to the server log only; the client gets a generic
+    message plus the request id to quote when reporting the problem. The error
+    itself was already recorded by RequestContextMiddleware. Starlette
+    re-raises the exception after this response, so it is still logged by the
+    server (and surfaced by the test client).
+    """
+    request_id = request_id_from_scope(request.scope)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error", "request_id": request_id},
+        headers={REQUEST_ID_HEADER: request_id} if request_id else None,
     )
 
 
@@ -102,27 +155,26 @@ def _ensure_database() -> None:
 
 
 def _create_tables_and_seed_superuser() -> None:
-    """Create missing tables and seed the first superuser if configured."""
+    """Create missing tables and make sure the configured superuser exists.
+
+    See ``user_admin.ensure_configured_superuser`` for exactly what the
+    ``SUPERUSER_*`` settings do.
+    """
     Base.metadata.create_all(bind=engine)
 
-    from app.crud.user import create_user, has_superuser
-    from app.schemas.user import UserCreate
-
-    if not settings.SUPERUSER_EMAIL or not settings.SUPERUSER_PASSWORD:
+    if not settings.SUPERUSER_EMAIL:
         return
+
+    from app.services.user_admin import ensure_configured_superuser
+
     db = SessionLocal()
     try:
-        if not has_superuser(db):
-            create_user(
-                db,
-                UserCreate(
-                    email=settings.SUPERUSER_EMAIL,
-                    full_name=settings.SUPERUSER_FULL_NAME,
-                    password=settings.SUPERUSER_PASSWORD,
-                ),
-                is_superuser=True,
-            )
-            logger.info("Seeded superuser %s", settings.SUPERUSER_EMAIL)
+        ensure_configured_superuser(
+            db,
+            email=settings.SUPERUSER_EMAIL,
+            password=settings.SUPERUSER_PASSWORD,
+            full_name=settings.SUPERUSER_FULL_NAME,
+        )
     finally:
         db.close()
 
@@ -159,12 +211,20 @@ def create_app() -> FastAPI:
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
+        # Lets the frontend read the id it can show next to an error message.
+        expose_headers=["X-Request-ID"],
     )
 
     # Turn database connectivity/operational failures into a clean 503
     # (with the exception still logged server-side) instead of a 500 that
     # leaks a stack trace / connection internals.
     app.add_exception_handler(SQLAlchemyError, _handle_db_error)
+    app.add_exception_handler(StarletteHTTPException, _handle_http_exception)
+    app.add_exception_handler(Exception, _handle_unexpected_error)
+
+    # Added last so it wraps everything above: every response (including
+    # CORS preflights and errors) carries an X-Request-ID.
+    app.add_middleware(RequestContextMiddleware, on_unhandled_error=_report_unhandled_error)
 
     app.include_router(auth.router, prefix=f"{settings.API_PREFIX}/auth", tags=["auth"])
     app.include_router(users.router, prefix=f"{settings.API_PREFIX}/users", tags=["users"])
@@ -185,13 +245,20 @@ def create_app() -> FastAPI:
         prefix=f"{settings.API_PREFIX}/interviews",
         tags=["interviews"],
     )
+    app.include_router(
+        admin.router,
+        prefix=f"{settings.API_PREFIX}/admin",
+        tags=["admin (superuser only)"],
+    )
 
-    # Serve stored profile images (written under settings.UPLOAD_DIR by the
-    # settings service) as plain static files. The directory is created on
+    # Serve stored profile images (UPLOAD_DIR/profile, written by the settings
+    # service) as plain static files. Only that sub-directory is public:
+    # candidates' CVs (UPLOAD_DIR/resumes) are served exclusively through the
+    # authenticated GET /api/workers/{id}/resume. The directory is created on
     # startup so the mount always has a valid target.
-    uploads_dir = Path(settings.UPLOAD_DIR)
-    uploads_dir.mkdir(parents=True, exist_ok=True)
-    app.mount("/uploads", StaticFiles(directory=uploads_dir), name="uploads")
+    profile_dir = Path(settings.UPLOAD_DIR) / "profile"
+    profile_dir.mkdir(parents=True, exist_ok=True)
+    app.mount("/uploads/profile", StaticFiles(directory=profile_dir), name="uploads")
 
     @app.get("/health", tags=["health"])
     def health_check() -> dict:

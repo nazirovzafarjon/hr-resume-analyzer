@@ -20,9 +20,20 @@ class AdminUserUpdate(BaseModel):
     # All fields optional.
 
 
-    full_name: str | None = None
+    full_name: str | None = Field(default=None, max_length=255)
     is_active: bool | None = None
     is_superuser: bool | None = None
+
+    @field_validator("full_name")
+    @classmethod
+    def _trim_full_name(cls, value: str | None) -> str | None:
+        """Reject blank names (the column is NOT NULL and shown everywhere)."""
+        if value is None:
+            return None
+        value = value.strip()
+        if not value:
+            raise ValueError("Full name cannot be empty")
+        return value
 
 
 class UserResponse(UserBase):
@@ -49,6 +60,12 @@ class UserProfileResponse(BaseModel):
     # accounts, which cannot use the password-change flow). Mirrors the
     # existing ``ResetTokenInfo.has_password`` convention.
     has_password: bool
+    # The caller's own role, so the frontend can show/guard the admin panel.
+    # Purely a UX hint: every admin endpoint re-checks it server-side.
+    is_superuser: bool = False
+    #: Workspaces this account may use, and the one this session is in.
+    available_roles: list[str] = ["user"]
+    active_role: str = "user"
 
     model_config = ConfigDict(from_attributes=True)
 

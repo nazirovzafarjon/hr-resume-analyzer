@@ -1,4 +1,5 @@
-"""Public API endpoints for candidate applications (no authentication required)."""
+"""Public API endpoints (no authentication required): candidate applications
+and the landing page's Contact Us form."""
 
 import json
 import re
@@ -13,9 +14,12 @@ from app.crud import worker as worker_crud
 from app.crud import application_form as application_form_crud
 from app.models.job import Job
 from app.schemas.application_form import PublicApplicationResponse, PublicSubmissionResult
+from app.schemas.contact_message import ContactMessageCreate, ContactMessageResult
 from app.schemas.job import PublicJobSummary
 from app.schemas.worker import WorkerResponse
 from app.services import application_form as application_form_service
+from app.services import audit
+from app.services import contact_message as contact_message_service
 from app.services import job as job_service
 
 router = APIRouter(prefix="/public", tags=["public"])
@@ -133,8 +137,24 @@ async def public_apply(
 
     # Increment job leads count
     job_service.increment_leads_count(db, job.id)
+    _audit_received(db, worker.id, job)
 
     return worker
+
+
+def _audit_received(db: Session, worker_id: int, job: Job) -> None:
+    """Audit an incoming public application.
+
+    There is no actor (the applicant has no account) and deliberately no IP /
+    user agent: the applicant is a private person, not a platform user.
+    """
+    audit.record(
+        db,
+        audit.AuditAction.APPLICATION_RECEIVED,
+        resource_type=audit.AuditResource.APPLICATION,
+        resource_id=worker_id,
+        details={"job_id": job.id, "owner_id": job.owner_id},
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -223,7 +243,9 @@ async def public_submit_application(
         files[key] = (part.filename or "", part.content_type or "", content)
 
     try:
-        application_form_service.submit_public_application(db, job, form, values, files)
+        worker_id = application_form_service.submit_public_application(
+            db, job, form, values, files
+        )
     except application_form_service.SubmissionValidationError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=exc.message
@@ -233,4 +255,38 @@ async def public_submit_application(
             status_code=status.HTTP_409_CONFLICT, detail=exc.message
         ) from exc
 
+    _audit_received(db, worker_id, job)
     return PublicSubmissionResult()
+
+
+# ---------------------------------------------------------------------------
+# Contact Us (landing page)
+# ---------------------------------------------------------------------------
+
+
+@router.post(
+    "/contact",
+    response_model=ContactMessageResult,
+    status_code=status.HTTP_201_CREATED,
+)
+def public_contact(
+    payload: ContactMessageCreate,
+    request: Request,
+    db: Session = Depends(get_db),
+) -> ContactMessageResult:
+    """Store a Contact Us message from the landing page (no auth).
+
+    The body is validated by :class:`ContactMessageCreate` (required, trimmed
+    names and message, a real email address); invalid input gets the usual
+    422 and is never stored. Signed-in visitors use the same endpoint — no
+    token is read. Database failures surface as the app-wide 503 and are
+    logged server-side, never echoed to the visitor.
+    """
+    client_key = request.client.host if request.client else "unknown"
+    try:
+        contact_message_service.submit_contact_message(db, payload, client_key)
+    except contact_message_service.ContactRateLimitError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=exc.message
+        ) from exc
+    return ContactMessageResult()
