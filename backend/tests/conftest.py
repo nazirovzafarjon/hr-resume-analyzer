@@ -42,7 +42,7 @@ from app.core.database import Base, SessionLocal, engine
 from app.core.security import create_access_token, decode_access_token
 from app.core.token_registry import reset_registry
 from app.crud.user import create_user
-from app.main import _create_tables_and_seed_superuser, _ensure_database, create_app
+from app.main import _prepare_schema_and_seed_superuser, _ensure_database, create_app
 from app.models import Interview, Job, User, Application  # noqa: F401  (register models)
 from app.schemas.user import UserCreate
 
@@ -59,7 +59,7 @@ from tests.payloads import JOB_PAYLOAD, APPLICATION_PAYLOAD  # noqa: E402 (share
 def _prepare_database():
     """Create the test database (if needed) and all tables once per session."""
     _ensure_database()
-    _create_tables_and_seed_superuser()
+    _prepare_schema_and_seed_superuser()
     yield
     Base.metadata.drop_all(bind=engine)
     engine.dispose()

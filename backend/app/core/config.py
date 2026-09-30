@@ -67,6 +67,10 @@ class Settings(BaseSettings):
     DATABASE_URL: str = (
         "postgresql://postgres:postgres@localhost:5432/resume_analyzer"
     )
+    # Apply pending Alembic migrations at startup (under an advisory lock, so
+    # several API processes cannot race). When False, the API refuses to
+    # start on an out-of-date schema and asks for `alembic upgrade head`.
+    DB_AUTO_MIGRATE: bool = True
 
     # CORS - comma-separated list of browser origins allowed to call this API.
     # Both Vite dev servers must be listed: the CRM (http://localhost:5173) and

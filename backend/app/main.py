@@ -18,7 +18,8 @@ from starlette.concurrency import run_in_threadpool
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.core.config import settings
-from app.core.database import Base, SessionLocal, engine
+from app.core.database import SessionLocal, engine
+from app.core.migrations import prepare_schema
 from app.core.request_context import REQUEST_ID_HEADER, RequestContextMiddleware, request_id_from_scope
 from app.routers import admin, applications, auth, dashboard, interviews, jobs, public, users
 from app.services.admin import errors as error_monitor
@@ -154,13 +155,15 @@ def _ensure_database() -> None:
         ) from exc
 
 
-def _create_tables_and_seed_superuser() -> None:
-    """Create missing tables and make sure the configured superuser exists.
+def _prepare_schema_and_seed_superuser() -> None:
+    """Bring the schema to this code's revision, then ensure the configured superuser.
 
-    See ``app.services.admin.users.ensure_configured_superuser`` for exactly what the
-    ``SUPERUSER_*`` settings do.
+    ``prepare_schema`` creates a fresh database or applies pending Alembic
+    migrations (see ``app.core.migrations`` for why a bare ``create_all`` is
+    not enough). See ``app.services.admin.users.ensure_configured_superuser``
+    for exactly what the ``SUPERUSER_*`` settings do.
     """
-    Base.metadata.create_all(bind=engine)
+    prepare_schema(engine, auto_migrate=settings.DB_AUTO_MIGRATE)
 
     if not settings.SUPERUSER_EMAIL:
         return
@@ -185,7 +188,7 @@ def create_app() -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         _ensure_database()
-        _create_tables_and_seed_superuser()
+        _prepare_schema_and_seed_superuser()
         yield
         await close_ai_client()
 

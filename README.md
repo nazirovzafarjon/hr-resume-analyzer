@@ -128,8 +128,8 @@ content action is job moderation (delete), which is audited.
 * **email-validator** — email format validation
 * **python-jose** — JWT encode/decode
 * **bcrypt** — password hashing
-* **Alembic** — migrations (scaffolded; the app currently auto-creates schema,
-  see “Database” below)
+* **Alembic** — migrations, applied automatically at startup (see “Migrations”
+  below)
 * **pytest** + **FastAPI TestClient** — testing
 ## Project Structure
 
@@ -258,24 +258,33 @@ uvicorn app.main:app --reload
 Visit http://localhost:8000/docs (Swagger UI) or
 http://localhost:8000/redoc (ReDoc).
 
-### 4. (Optional) Alembic
-Alembic is scaffolded (`alembic.ini`, `alembic/env.py`)and wired to the same
-`Base.metadata`, so migrations can be introduced later:
+### 4. Database schema and migrations
+Nothing to run by hand: at startup the API brings the schema to the revision
+the code expects (`app/core/migrations.py`), under a PostgreSQL advisory lock
+so several API processes cannot race:
+
+| Database state | What startup does |
+|---|---|
+| Empty (fresh install) | Creates every table from the models and stamps the Alembic head |
+| Behind the code's revision | Applies the pending migrations (`alembic upgrade head`) |
+| At the code's revision | Nothing to migrate |
+| Has tables but no Alembic revision | Refuses to start and explains how to stamp it |
+
+Set `DB_AUTO_MIGRATE=false` to apply migrations yourself (e.g. as a separate
+deploy step); the API then refuses to start on an out-of-date schema and names
+the command to run. Changing the schema means adding a migration:
 
 ```bash
-alembic revision --autogenerate -m "initial schema"
+alembic revision --autogenerate -m "describe the change"
 alembic upgrade head
 ```
 
-Today the app uses `Base.metadata.create_all()` at startup instead, so an empty
-database works out of the box.,
-
-> **Upgrading an existing database:** `create_all()` only creates missing
-> tables; it never renames or alters existing ones. When pulling changes that
-> add a migration, run `alembic upgrade head` **before** starting the API.
-> For example, revision `2cb0c8660dbf` renames the `workers` table to
-> `applications` (and `worker_id` columns to `application_id`); it keeps all
-> data and also recovers if the API was started first by mistake.
+> **Why not just `create_all()`?** It only creates *missing* tables and never
+> renames or alters existing ones. Before startup ran migrations, starting new
+> code on an unmigrated database created an empty `applications` table next to
+> `workers` and split the data. Revision `2cb0c8660dbf` also repairs that state
+> (stray rows are copied over and the stray table is kept as
+> `applications_orphaned`).
 
 ---
 
@@ -298,6 +307,7 @@ All settings are read from real environment variables or the `.env` file
 | `RESEND_API_KEY` | *(empty)* | Resend API key (https://resend.com/api-keys). When empty, reset links are written to the server log instead of being emailed. |
 | `EMAIL_FROM` | `onboarding@resend.dev` | Verified from-address for reset emails. The sandbox `onboarding@resend.dev` sender only delivers to the address your Resend account was registered with. |
 | `DATABASE_URL` | `postgresql://postgres:postgres@localhost:5432/resume_analyzer` | SQLAlchemy database URL. |
+| `DB_AUTO_MIGRATE` | `true` | Apply pending Alembic migrations at startup. `false`: refuse to start on an out-of-date schema and ask for `alembic upgrade head`. |
 | `BACKEND_CORS_ORIGINS` | `http://localhost:5173,http://localhost:5174` | Comma-separated browser origins allowed to call the API: the CRM (`crm/`) and the landing site (`landing/`, for its Contact form). |
 | `SUPERUSER_EMAIL` | *(empty)* | If set, a superuser is seeded at startup when no superuser exists yet. Needed to use the admin `/api/users` endpoints. |
 | `SUPERUSER_PASSWORD` | *(empty)* | Password for the seeded superuser. |
@@ -397,10 +407,10 @@ Enum columns use SQLAlchemy `Enum` with Python `enum.Enum` values:
 * `InterviewStatus`: `in_process`, `completed`, `not_completed` (default `not_completed`)
 
 ### Migrations
-Alembic is scaffolded and wired to `Base.metadata` out of the box. The MVP does not
-require migrations — at startup the app calls `_ensure_database()` (creates the
-database if missing)and `Base.metadata.create_all()` (creates missing tables)and
-optionally seeds the first superuser.,
+At startup the app calls `_ensure_database()` (creates the database if
+missing), then `prepare_schema()` (creates a fresh schema or applies pending
+Alembic migrations; see “Database schema and migrations” above) and optionally
+seeds the first superuser.
 
 ### Test database strategy
 Tests never touch the development/production database. `tests/conftest.py` sets

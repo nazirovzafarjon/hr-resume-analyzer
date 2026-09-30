@@ -11,11 +11,16 @@ bookkeeping columns now say so:
 * ``analysis_batches.worker_ids`` / ``current_worker_id`` ->
   ``application_ids`` / ``current_application_id``
 
-Pure renames: no data is copied or changed. Idempotent like the previous
-revisions. If the API was started on the new code before this migration ran,
-its startup ``create_all`` made an empty ``applications`` table next to
-``workers``; that empty table is dropped first. If both tables hold rows the
-migration stops instead of guessing.
+Renames only; existing data is not changed. Idempotent like the previous
+revisions.
+
+Recovery: before startup ran migrations, starting the API on the new code
+made ``create_all`` create an ``applications`` table next to ``workers``, and
+new submissions landed there. If that stray table is empty it is dropped. If
+it has rows they are copied into ``workers`` (fresh ids; nothing can
+reference them, since every foreign key still pointed at ``workers``), the
+copy is verified, and the stray table is kept as ``applications_orphaned``
+for inspection instead of being deleted.
 
 Revision ID: 2cb0c8660dbf
 Revises: e8a3c6f1b2d9
@@ -113,20 +118,59 @@ def _rename_all(forward: bool) -> None:
         op.execute(f'ALTER SEQUENCE IF EXISTS "{source}" RENAME TO "{target}"')
 
 
+def _free_name(base: str) -> str:
+    """``base``, or ``base_2``, ``base_3``... if a relation already has that name."""
+    bind = op.get_bind()
+    name, n = base, 1
+    while bind.execute(sa.text("SELECT to_regclass(:n)"), {"n": name}).scalar() is not None:
+        n += 1
+        name = f"{base}_{n}"
+    return name
+
+
+def _adopt_stray_applications() -> None:
+    """Copy rows from a stray ``applications`` table into ``workers``, then set it aside."""
+    bind = op.get_bind()
+    worker_cols = [c for c in _ordered_columns("workers") if c != "id"]
+    stray_cols = set(_ordered_columns("applications"))
+    cols = ", ".join(f'"{c}"' for c in worker_cols if c in stray_cols)
+
+    expected = bind.execute(sa.text("SELECT count(*) FROM applications")).scalar()
+    copied = bind.execute(
+        sa.text(f"INSERT INTO workers ({cols}) SELECT {cols} FROM applications ORDER BY id")
+    ).rowcount
+    if copied != expected:
+        raise RuntimeError(f"Copied {copied} of {expected} stray applications; aborting.")
+
+    target = _free_name("applications_orphaned")
+    op.rename_table("applications", target)
+    # Move its key/index/sequence names out of the way of the rename below.
+    for name in _constraint_names(target):
+        if name.startswith("applications_"):
+            new = target + name[len("applications"):]
+            op.execute(f'ALTER TABLE "{target}" RENAME CONSTRAINT "{name}" TO "{new}"')
+    op.execute(f'ALTER INDEX IF EXISTS "ix_applications_job_id" RENAME TO "ix_{target}_job_id"')
+    op.execute(f'ALTER SEQUENCE IF EXISTS "applications_id_seq" RENAME TO "{target}_id_seq"')
+    print(
+        f"  Copied {copied} application(s) that were stored in a stray 'applications' "
+        f"table into the renamed table; the original rows are kept in '{target}'."
+    )
+
+
+def _ordered_columns(table: str) -> list[str]:
+    return [c["name"] for c in sa.inspect(op.get_bind()).get_columns(table)]
+
+
 def upgrade() -> None:
     bind = op.get_bind()
     tables = set(sa.inspect(bind).get_table_names())
 
     if "workers" in tables:
         if "applications" in tables:
-            rows = bind.execute(sa.text("SELECT count(*) FROM applications")).scalar()
-            if rows:
-                raise RuntimeError(
-                    "Both 'workers' and 'applications' contain rows. The API probably ran on "
-                    "the new code before this migration and accepted new applications; merge "
-                    "them by hand, then re-run the migration."
-                )
-            op.drop_table("applications")
+            if bind.execute(sa.text("SELECT count(*) FROM applications")).scalar():
+                _adopt_stray_applications()
+            else:
+                op.drop_table("applications")
         op.rename_table("workers", "applications")
 
     _rename_all(forward=True)
