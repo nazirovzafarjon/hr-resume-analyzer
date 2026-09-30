@@ -35,10 +35,13 @@ function GoogleOAuthGate({ children }: { children: ReactNode }) {
  */
 function AppRoutes() {
   const [searchParams] = useSearchParams();
+  // Hooks run unconditionally (same order every render); the element is only
+  // used when this is not an OAuth redirect.
+  const routeElement = useRoutes(routes);
   if (searchParams.get("code") || searchParams.get("error")) {
     return <GoogleAuthCallback />;
   }
-  return useRoutes(routes);
+  return routeElement;
 }
 
 /**

@@ -26,6 +26,7 @@ import { Skeleton, SkeletonText } from "../../components/ui/Skeleton";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { useNotify } from "../../contexts/ToastContext";
 import type {
+  AIRecommendationType,
   CandidateDetail,
   ApplicationStatus,
 } from "../../types/worker";
@@ -384,7 +385,7 @@ export default function ApplicationDetailsPage() {
                 style={{ marginTop: "1rem", marginBottom: "1.5rem" }}
               >
                 <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-                  <StatusBadge kind="hiring" value={analysis.ai_recommendation as any} />
+                  <StatusBadge kind="hiring" value={analysis.ai_recommendation as AIRecommendationType} />
                   <div>
                     <strong>AI Recommendation: {aiRec.label}</strong>
                     <div style={{ fontSize: "0.875rem", color: "var(--color-text-secondary)" }}>

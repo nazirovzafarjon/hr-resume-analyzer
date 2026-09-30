@@ -63,6 +63,9 @@ function buildPalette(): ChartPalette {
 /** Reads the current theme's chart colors; recomputed whenever the resolved theme flips. */
 export function useChartPalette(): ChartPalette {
   const { resolvedTheme } = useTheme();
+  // `resolvedTheme` is the recompute trigger: buildPalette reads CSS variables
+  // that change with the theme, which the linter cannot see.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   return useMemo(() => buildPalette(), [resolvedTheme]);
 }
 
