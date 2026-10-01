@@ -25,6 +25,8 @@ import ConfirmDialog from "../../components/ui/ConfirmDialog";
 import StatusBadge from "../../components/ui/StatusBadge";
 import Dropdown, { DropdownItem, DropdownSeparator } from "../../components/ui/Dropdown";
 import Table, { type TableColumn } from "../../components/ui/Table";
+import { ExportButton } from "../../components/exports/ExportButton";
+import { ExportModal } from "../../components/exports/ExportModal";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { useNotify } from "../../contexts/ToastContext";
 import { getErrorMessage } from "../../utils/apiError";
@@ -55,6 +57,7 @@ export default function JobListPage() {
   const [sortKey, setSortKey] = useState<SortKey>("newest");
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [exportModalOpen, setExportModalOpen] = useState(false);
 
   function loadJobs() {
     let cancelled = false;
@@ -295,6 +298,8 @@ export default function JobListPage() {
               <option value="company">{t("jobs.companyAZ")}</option>
             </select>
           </label>
+
+          <ExportButton onClick={() => setExportModalOpen(true)} disabled={jobs.length === 0} />
         </FilterBar>
 
         <Table
@@ -357,6 +362,16 @@ export default function JobListPage() {
         onCancel={() => setDeleteTarget(null)}
         disabled={deleting}
         loading={deleting}
+      />
+
+      <ExportModal
+        open={exportModalOpen}
+        onClose={() => setExportModalOpen(false)}
+        resource="jobs"
+        companies={companies}
+        defaultFilters={{
+          company: companyFilter !== "all" ? companyFilter : undefined,
+        }}
       />
     </div>
   );

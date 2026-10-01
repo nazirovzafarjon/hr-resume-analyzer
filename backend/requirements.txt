@@ -25,3 +25,8 @@ python-multipart
 
 # Testing
 pytest
+
+# Export generation
+openpyxl
+reportlab
+python-docx
