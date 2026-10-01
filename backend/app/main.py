@@ -21,7 +21,7 @@ from app.core.config import settings
 from app.core.database import SessionLocal, engine
 from app.core.migrations import prepare_schema
 from app.core.request_context import REQUEST_ID_HEADER, RequestContextMiddleware, request_id_from_scope
-from app.routers import admin, applications, auth, candidate, dashboard, interviews, jobs, public, users
+from app.routers import admin, applications, auth, candidate, dashboard, exports, interviews, jobs, public, users
 from app.services.admin import errors as error_monitor
 from app.services.ai.job_analyzer import close_ai_client
 
@@ -247,6 +247,11 @@ def create_app() -> FastAPI:
         interviews.router,
         prefix=f"{settings.API_PREFIX}/interviews",
         tags=["interviews"],
+    )
+    app.include_router(
+        exports.router,
+        prefix=f"{settings.API_PREFIX}",
+        tags=["exports"],
     )
     # Candidate Portal: separate identity and tokens (see routers/candidate.py).
     app.include_router(
