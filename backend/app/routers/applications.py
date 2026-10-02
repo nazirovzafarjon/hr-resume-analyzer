@@ -48,6 +48,7 @@ from app.schemas.application import (
 )
 from app.services import application_analysis as analysis_service
 from app.services import audit
+from app.services import candidate_comparison as comparison_service
 from app.services.audit import AuditAction, AuditContext, AuditResource
 from app.services.ai import batch as auto_analyze_service
 from app.services.ai import provider as ai_provider_service
@@ -666,3 +667,95 @@ def cancel_auto_analyze(
         created_at=batch.created_at,
         finished_at=batch.finished_at,
     )
+
+
+# ---------------------------------------------------------------------------
+# Candidate Comparison Endpoints
+# ---------------------------------------------------------------------------
+
+
+@router.get(
+    "/{application_id}/comparison",
+    status_code=status.HTTP_200_OK,
+)
+def get_application_comparison(
+    application_id: int,
+    db: Session = Depends(get_db),
+    scope: AccessScope = Depends(get_access_scope),
+) -> dict:
+    """Get relative competitiveness metrics for one application.
+
+    Returns comparative statistics showing how this candidate ranks relative to
+    other analyzed candidates for the same job. Returns null if the application
+    has not been analyzed yet.
+
+    The comparison includes:
+    - Requirements fit score (independent AI analysis)
+    - Relative percentile (compared to other candidates for this job)
+    - Comparison pool size (number of analyzed candidates)
+    - Rank within the pool
+
+    Important: Comparison is ONLY within the same job and ONLY includes
+    candidates whose analysis has completed.
+    """
+    application = _get_owned_application(db, application_id, scope)
+
+    try:
+        comparison = comparison_service.calculate_candidate_comparison(
+            db,
+            application_id=application_id,
+            job_id=application.job_id,
+            hr_user_id=scope.owner_id,
+        )
+
+        if comparison is None:
+            return {
+                "application_id": application_id,
+                "job_id": application.job_id,
+                "has_comparison": False,
+                "reason": "Application has not been analyzed yet",
+            }
+
+        return {
+            "has_comparison": True,
+            **comparison.to_dict(),
+        }
+
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+
+
+@router.get(
+    "/jobs/{job_id}/comparisons",
+    status_code=status.HTTP_200_OK,
+)
+def get_job_comparisons(
+    job_id: int,
+    db: Session = Depends(get_db),
+    scope: AccessScope = Depends(get_access_scope),
+) -> dict:
+    """Get comparative analysis for all candidates in a job.
+
+    Returns relative competitiveness metrics for every analyzed application
+    in the specified job. Useful for displaying a ranked list or
+    understanding the overall candidate pool quality.
+
+    Only includes applications with completed AI analysis.
+    """
+    # Verify job ownership
+    _get_owned_job(db, job_id, scope)
+
+    comparisons = comparison_service.calculate_job_comparisons(
+        db,
+        job_id=job_id,
+        hr_user_id=scope.owner_id,
+    )
+
+    return {
+        "job_id": job_id,
+        "total_analyzed": len(comparisons),
+        "comparisons": [comp.to_dict() for comp in comparisons],
+    }
