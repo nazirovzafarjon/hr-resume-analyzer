@@ -212,3 +212,53 @@ export async function cancelAutoAnalyze(
     { method: "POST", auth: true },
   );
 }
+
+// ---------------------------------------------------------------------------
+// Candidate Comparison API
+// ---------------------------------------------------------------------------
+
+export type CandidateComparison = {
+  application_id: number;
+  job_id: number;
+  requirements_fit_score: number;
+  relative_percentile: number;
+  comparison_pool_size: number;
+  rank: number;
+  comparison_scope: string;
+};
+
+export type ApplicationComparisonResponse = {
+  has_comparison: boolean;
+  reason?: string;
+  application_id?: number;
+  job_id?: number;
+  requirements_fit_score?: number;
+  relative_percentile?: number;
+  comparison_pool_size?: number;
+  rank?: number;
+  comparison_scope?: string;
+};
+
+export type JobComparisonsResponse = {
+  job_id: number;
+  total_analyzed: number;
+  comparisons: CandidateComparison[];
+};
+
+/** Get comparative analysis for one application. */
+export async function getApplicationComparison(
+  applicationId: number,
+): Promise<ApplicationComparisonResponse> {
+  return apiRequest<ApplicationComparisonResponse>(
+    `/applications/${applicationId}/comparison`,
+    { auth: true },
+  );
+}
+
+/** Get comparative analysis for all candidates in a job. */
+export async function getJobComparisons(jobId: number): Promise<JobComparisonsResponse> {
+  return apiRequest<JobComparisonsResponse>(
+    `/applications/jobs/${jobId}/comparisons`,
+    { auth: true },
+  );
+}

@@ -21,6 +21,7 @@ import StatusBadge from "../../components/ui/StatusBadge";
 import Select from "../../components/forms/Select";
 import ApplicationAnswers from "../../components/applications/ApplicationAnswers";
 import ResumeActions from "../../components/applications/ResumeActions";
+import ComparativeAnalysis from "../../components/applications/ComparativeAnalysis";
 import ConfirmDialog from "../../components/ui/ConfirmDialog";
 import { Skeleton, SkeletonText } from "../../components/ui/Skeleton";
 import { useLanguage } from "../../contexts/LanguageContext";
@@ -536,6 +537,14 @@ export default function ApplicationDetailsPage() {
           </div>
         )}
       </Card>
+
+      {/* Comparative Analysis - Two Dimensions */}
+      <ComparativeAnalysis
+        applicationId={application.id}
+        jobId={application.job_id}
+        requirementsFitScore={matchPercentage}
+        isAnalyzed={application.analysis_status === "completed"}
+      />
 
       {/* Resume File Card */}
       <Card
