@@ -12,6 +12,10 @@ export type CandidateProfile = {
   phone: string | null;
   profile_image: string | null;
   created_at: string;
+  /** False for Google-only accounts, which have no local password. */
+  has_password: boolean;
+  /** False until the candidate confirms the registered email. */
+  is_email_verified: boolean;
 };
 
 export type CandidateTokens = {

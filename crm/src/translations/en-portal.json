@@ -186,7 +186,9 @@
       "currentPassword": "Current password",
       "newPassword": "New password",
       "changePassword": "Change password",
-      "passwordChanged": "Password changed"
+      "passwordChanged": "Password changed",
+      "googleOnlyTitle": "Sign-in is linked to Google",
+      "googleOnlyNotice": "You signed up with Google, so there is no password to change. Use “Forgot password” on the sign-in page to add a password if you want a second way to sign in. Your Google button keeps working either way."
     },
     "auth": {
       "loginTitle": "Candidate sign in",

@@ -22,6 +22,7 @@ const base: Status = {
   can_save: true,
   required: false,
   supported_providers: ["openrouter", "groq", "gemini"],
+  base_url: null,
 };
 
 function renderWith(status: Partial<Status>) {

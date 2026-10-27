@@ -482,7 +482,15 @@ export default function SettingsPage() {
         </Card>
       )}
 
-      {activeTab === "security" && (
+      {activeTab === "security" && !profile.has_password && (
+        <Card title={t("settings.password") || "Security"} subtitle={t("auth.addPasswordTitle")}>
+          <p className="auth-subtitle" style={{ margin: 0 }}>
+            {t("auth.googleOnlyAccountNotice")}
+          </p>
+        </Card>
+      )}
+
+      {activeTab === "security" && profile.has_password && (
         <Card title={t("settings.password") || "Security"} subtitle="Update your account password.">
           <form
             onSubmit={(e) => {

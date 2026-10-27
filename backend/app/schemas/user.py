@@ -60,6 +60,10 @@ class UserProfileResponse(BaseModel):
     # accounts, which cannot use the password-change flow). Mirrors the
     # existing ``ResetTokenInfo.has_password`` convention.
     has_password: bool
+    #: False until the account confirms its email address. The frontend needs
+    #: it to decide whether the panel can be used; the panel endpoints enforce
+    #: it server-side regardless.
+    is_email_verified: bool = True
     # The caller's own role, so the frontend can show/guard the admin panel.
     # Purely a UX hint: every admin endpoint re-checks it server-side.
     is_superuser: bool = False

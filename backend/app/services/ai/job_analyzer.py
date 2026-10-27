@@ -36,12 +36,10 @@ _RETRYABLE_STATUS_CODES = {429, 502, 503, 504}
 # Permanent status codes that should fail immediately.
 _PERMANENT_STATUS_CODES = {400, 401, 403, 404}
 
-# Provider-specific base URLs.
-_PROVIDER_BASE_URLS = {
-    "openrouter": "https://openrouter.ai/api/v1",
-    "groq": "https://api.groq.com/openai/v1",
-    "gemini": "https://generativelanguage.googleapis.com/v1beta/models",
-}
+# Provider-specific base URLs (default; Generic provider uses user-supplied URL).
+from app.core.config import AI_PROVIDER_BASE_URLS
+
+_PROVIDER_BASE_URLS = AI_PROVIDER_BASE_URLS
 
 # OpenAI-compatible chat endpoint suffix.
 _OPENAI_CHAT_ENDPOINT = "/chat/completions"
@@ -401,6 +399,12 @@ def _is_permanent_status(status_code: int) -> bool:
 def _build_headers(cfg: dict[str, Any]) -> dict[str, str]:
     """Build HTTP headers for the AI provider request."""
     provider = cfg["provider"]
+    if provider == "anthropic":
+        return {
+            "x-api-key": cfg["api_key"],
+            "anthropic-version": "2023-06-01",
+            "Content-Type": "application/json",
+        }
     headers: dict[str, str] = {
         "Authorization": f"Bearer {cfg['api_key']}",
         "Content-Type": "application/json",
@@ -442,7 +446,17 @@ def _build_payload(
             },
         }
 
-    # OpenAI-compatible providers (OpenRouter, Groq)
+    if provider == "anthropic":
+        # Anthropic Messages API: system is top-level; messages have user/assistant.
+        return {
+            "model": model,
+            "max_tokens": max_tokens,
+            "system": system_prompt,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.1,
+        }
+
+    # OpenAI-compatible providers (OpenRouter, Groq, OpenAI, DeepSeek, Generic)
     payload: dict[str, Any] = {
         "model": model,
         "messages": [
@@ -454,22 +468,27 @@ def _build_payload(
         "response_format": {"type": "json_object"},
     }
     if provider == "openrouter":
-        # Hybrid reasoning models (e.g. deepseek/deepseek-v4.1-flash) think by
-        # default, and some upstreams (Together) stream that thinking into
-        # ``content``: it eats the whole ``max_tokens`` budget and no JSON is
-        # ever produced. These are extraction tasks, so turn thinking off.
-        # OpenRouter ignores the flag for models that cannot disable it.
         payload["reasoning"] = {"enabled": False}
     return payload
 
 
 def _build_endpoint_url(cfg: dict[str, Any]) -> str:
-    """Return the chat-completions URL for the configured provider."""
-    base_url = cfg["base_url"].rstrip("/")
-    if cfg["provider"] == "gemini":
+    """Return the provider-specific endpoint URL."""
+    provider = cfg["provider"]
+    if provider == "gemini":
         # Gemini native API: base_url/model:generateContent
+        base_url = cfg["base_url"].rstrip("/")
         return f"{base_url}/{cfg['model']}{_GEMINI_CHAT_ENDPOINT}"
-    # OpenAI-compatible providers.
+    if provider == "anthropic":
+        # Anthropic native Messages API: base_url/v1/messages
+        base_url = cfg["base_url"].rstrip("/")
+        return f"{base_url}/v1/messages"
+    # OpenAI-compatible providers (OpenRouter, Groq, OpenAI, DeepSeek, Generic).
+    base_url = cfg["base_url"].rstrip("/")
+    if base_url.endswith(_OPENAI_CHAT_ENDPOINT):
+        return base_url
+    if not (base_url.endswith("/v1") or "/v1/" in base_url):
+        return f"{base_url}/v1{_OPENAI_CHAT_ENDPOINT}"
     return f"{base_url}{_OPENAI_CHAT_ENDPOINT}"
 
 
@@ -510,7 +529,24 @@ def _parse_response(response: httpx.Response, cfg: dict[str, Any]) -> str:
             raise AIEmptyResponseError(cfg.get("model"))
         return text
 
-    # OpenAI-compatible providers (OpenRouter, Groq)
+    if provider == "anthropic":
+        try:
+            content_blocks = response_data.get("content")
+            if not content_blocks or not isinstance(content_blocks, list):
+                raise AIInvalidResponseError()
+            text = ""
+            for block in content_blocks:
+                if isinstance(block, dict) and block.get("type") == "text":
+                    text += block.get("text", "")
+            if not isinstance(text, str) or not text.strip():
+                logger.warning("Anthropic returned empty message content: model=%s", cfg.get("model"))
+                raise AIEmptyResponseError(cfg.get("model"))
+        except (KeyError, IndexError, TypeError) as exc:
+            logger.error("Anthropic response missing expected shape: %s", json.dumps(response_data, ensure_ascii=False)[:300])
+            raise AIInvalidResponseError() from exc
+        return text
+
+    # OpenAI-compatible providers (OpenRouter, Groq, OpenAI, DeepSeek, Generic)
     try:
         content = response_data["choices"][0]["message"]["content"]
     except (KeyError, IndexError, TypeError):
@@ -616,6 +652,7 @@ async def _make_request_with_retry(
                 url,
                 json=json,
                 headers=headers,
+                follow_redirects=False,
             )
         except httpx.TimeoutException:
             logger.warning("AI provider request timed out (provider=%s)", provider)

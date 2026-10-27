@@ -35,6 +35,7 @@ class UserAIProviderConfig(Base):
     api_key_encrypted: Mapped[str] = mapped_column(Text)
     api_key_last4: Mapped[str] = mapped_column(String(4))
     model_id: Mapped[str] = mapped_column(String(200))
+    base_url: Mapped[str | None] = mapped_column(String(500), nullable=True, default=None)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow, server_default=func.now()

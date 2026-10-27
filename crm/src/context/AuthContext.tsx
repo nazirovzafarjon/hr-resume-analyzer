@@ -13,7 +13,7 @@ import {
   saveTokens,
   syncSessionHint,
 } from "../auth/tokenStorage";
-import { roleFromToken } from "../auth/sessionRole";
+import { emailVerifiedFromToken, roleFromToken } from "../auth/sessionRole";
 import {
   SESSION_ROLES,
   type AuthResponse,
@@ -41,6 +41,11 @@ type AuthContextValue = {
    * Only decides what the UI shows; the backend enforces it on every request.
    */
   activeRole: SessionRole | null;
+  /**
+   * Email-verification state of the current session, read from the token.
+   * UI-only: the backend re-checks the flag on every panel request.
+   */
+  isEmailVerified: boolean;
   /** Set between a multi-role sign-in and the workspace choice. */
   pendingSelection: PendingRoleSelection | null;
   /**
@@ -164,6 +169,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       value={{
         isAuthenticated: token !== null,
         activeRole: token ? roleFromToken(token) : null,
+        isEmailVerified: token ? emailVerifiedFromToken(token) : false,
         pendingSelection,
         completeSignIn,
         signIn,

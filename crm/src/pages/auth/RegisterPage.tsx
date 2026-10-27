@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useState, useEffect, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import AuthLayout from "../../components/auth/AuthLayout";
 import PageMeta from "../../components/seo/PageMeta";
@@ -7,12 +7,13 @@ import AuthInput from "../../components/auth/AuthInput";
 import PasswordInput from "../../components/auth/PasswordInput";
 import AuthButton from "../../components/auth/AuthButton";
 import AuthMessage from "../../components/auth/AuthMessage";
+import GoogleAuthButton from "../../components/auth/GoogleAuthButton";
 import PasswordRequirements from "../../components/auth/PasswordRequirements";
+import Modal from "../../components/ui/Modal";
 import { getPasswordError, isValidEmail } from "../../utils/validate";
-import { register } from "../../services/authService";
-import { useAuth } from "../../context/AuthContext";
+import { register, resendVerification } from "../../services/authService";
 import { useLanguage } from "../../contexts/LanguageContext";
-import { getErrorMessage } from "../../utils/apiError";
+import { ApiError, getErrorMessage } from "../../utils/apiError";
 
 type FormErrors = {
   fullName?: string;
@@ -21,11 +22,12 @@ type FormErrors = {
   confirmPassword?: string;
 };
 
-/** /register — create an HR account, store the token and go to the dashboard. */
+const RESEND_COOLDOWN_SECONDS = 60;
+
+/** /register — initiate two-phase HR registration. */
 export default function RegisterPage() {
   const { t } = useLanguage();
   const navigate = useNavigate();
-  const { completeSignIn } = useAuth();
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -33,6 +35,22 @@ export default function RegisterPage() {
   const [errors, setErrors] = useState<FormErrors>({});
   const [serverError, setServerError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  // Two-phase verification modal state
+  const [showVerifyModal, setShowVerifyModal] = useState(false);
+  const [registeredEmail, setRegisteredEmail] = useState("");
+  const [resending, setResending] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const [resendNotice, setResendNotice] = useState<string | null>(null);
+  const [resendError, setResendError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = window.setInterval(() => {
+      setResendCooldown((prev) => (prev <= 1 ? 0 : prev - 1));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [resendCooldown]);
 
   function validate(): FormErrors {
     const nextErrors: FormErrors = {};
@@ -71,12 +89,46 @@ export default function RegisterPage() {
         email: email.trim(),
         password,
       });
-      // Straight into the workspace, or to the workspace choice.
-      navigate(completeSignIn(response));
+
+      // Two-phase registration: zero tokens issued, open verification modal.
+      // When the provider rejected the message the backend reports
+      // verification_email_sent=false, so we must not claim it was sent.
+      setRegisteredEmail(response.email || email.trim());
+      setResendError(
+        response.verification_email_sent === false
+          ? response.email_delivery_error ||
+              t("auth.emailDeliveryFailed") ||
+              "We couldn't send the verification email. Use Resend Email to try again."
+          : null,
+      );
+      setShowVerifyModal(true);
+      setResendCooldown(RESEND_COOLDOWN_SECONDS);
     } catch (error) {
-      setServerError(getErrorMessage(error));
+      setServerError(
+        error instanceof ApiError && error.message
+          ? error.message
+          : getErrorMessage(error)
+      );
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleResendFromModal() {
+    if (!registeredEmail) return;
+    setResending(true);
+    setResendNotice(null);
+    setResendError(null);
+    try {
+      await resendVerification(registeredEmail);
+      setResendNotice(t("auth.codeSent") || "A fresh verification email has been sent.");
+      setResendCooldown(RESEND_COOLDOWN_SECONDS);
+    } catch (err) {
+      setResendError(
+        err instanceof ApiError && err.message ? err.message : getErrorMessage(err)
+      );
+    } finally {
+      setResending(false);
     }
   }
 
@@ -96,6 +148,8 @@ export default function RegisterPage() {
         }
       >
         {serverError && <AuthMessage type="error">{serverError}</AuthMessage>}
+
+        <GoogleAuthButton disabled={loading} />
 
         <form className="auth-form" onSubmit={handleSubmit} noValidate>
           <AuthInput
@@ -163,6 +217,69 @@ export default function RegisterPage() {
           </AuthButton>
         </form>
       </AuthCard>
+
+      {/* Two-Phase Registration Verification Modal */}
+      <Modal
+        open={showVerifyModal}
+        title={t("auth.verifyEmailTitle") || "Verify Your Email"}
+        onClose={() => setShowVerifyModal(false)}
+        size="md"
+      >
+        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-md)" }}>
+          {resendNotice && <AuthMessage type="success">{resendNotice}</AuthMessage>}
+          {resendError && <AuthMessage type="error">{resendError}</AuthMessage>}
+
+          <p style={{ color: "var(--color-text-secondary)", lineHeight: 1.6, margin: 0 }}>
+            {resendError ? (
+              <>
+                We couldn't send a verification link to{" "}
+                <strong>{registeredEmail}</strong> yet. Use Resend Email below to
+                request it again.
+              </>
+            ) : (
+              <>
+                We've sent a verification link to{" "}
+                <strong>{registeredEmail}</strong>. Please check your inbox and
+                click the verification link to confirm that it's you and activate
+                your account.
+              </>
+            )}
+          </p>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-sm)", marginTop: "var(--space-sm)" }}>
+            <AuthButton
+              type="button"
+              variant="secondary"
+              fullWidth
+              loading={resending}
+              disabled={resendCooldown > 0 || resending}
+              onClick={handleResendFromModal}
+            >
+              {resendCooldown > 0
+                ? `${t("auth.resendCode") || "Resend Email"} (${resendCooldown}s)`
+                : t("auth.resendCode") || "Resend Email"}
+            </AuthButton>
+
+            <AuthButton
+              type="button"
+              variant="secondary"
+              fullWidth
+              onClick={() => {
+                setShowVerifyModal(false);
+                navigate("/verify-email", { state: { email: registeredEmail } });
+              }}
+            >
+              {t("auth.manualVerifyOption") || "Enter 6-Digit Code Manually"}
+            </AuthButton>
+
+            <p style={{ textAlign: "center", margin: "var(--space-xs) 0 0", fontSize: "14px" }}>
+              <Link className="auth-link" to="/login">
+                {t("auth.backToSignIn") || "Back to sign in"}
+              </Link>
+            </p>
+          </div>
+        </div>
+      </Modal>
     </AuthLayout>
   );
 }

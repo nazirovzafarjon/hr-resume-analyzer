@@ -35,7 +35,9 @@ from typing import Any
 from sqlalchemy import and_
 from sqlalchemy.orm import Session
 
+from app.crud.query_utils import owner_filter
 from app.models.application import AnalysisStatus, Application
+from app.models.job import Job
 
 logger = logging.getLogger(__name__)
 
@@ -93,7 +95,8 @@ def calculate_candidate_comparison(
         db: Database session.
         application_id: The target application to compare.
         job_id: Job ID (verified for ownership).
-        hr_user_id: HR user ID for ownership filtering.
+        hr_user_id: Owning HR user's id; ``None`` is an admin session's
+            organisation-wide scope (see ``dependencies.auth.AccessScope``).
 
     Returns:
         CandidateComparison if the application has been analyzed, None otherwise.
@@ -110,7 +113,7 @@ def calculate_candidate_comparison(
             and_(
                 Application.id == application_id,
                 Application.job_id == job_id,
-                Application.job.has(user_id=hr_user_id),
+                owner_filter(Job.owner_id, hr_user_id),
             )
         )
         .first()
@@ -137,7 +140,7 @@ def calculate_candidate_comparison(
                 Application.job_id == job_id,
                 Application.analysis_status == AnalysisStatus.COMPLETED,
                 Application.ai_score.isnot(None),
-                Application.job.has(user_id=hr_user_id),
+                owner_filter(Job.owner_id, hr_user_id),
             )
         )
         .order_by(Application.ai_score.desc())
@@ -186,7 +189,8 @@ def calculate_job_comparisons(
     Args:
         db: Database session.
         job_id: Job ID to analyze.
-        hr_user_id: HR user ID for ownership filtering.
+        hr_user_id: Owning HR user's id; ``None`` is an admin session's
+            organisation-wide scope (see ``dependencies.auth.AccessScope``).
 
     Returns:
         List of CandidateComparison objects, one per analyzed application.
@@ -200,7 +204,7 @@ def calculate_job_comparisons(
                 Application.job_id == job_id,
                 Application.analysis_status == AnalysisStatus.COMPLETED,
                 Application.ai_score.isnot(None),
-                Application.job.has(user_id=hr_user_id),
+                owner_filter(Job.owner_id, hr_user_id),
             )
         )
         .order_by(Application.ai_score.desc())

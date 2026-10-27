@@ -13,6 +13,7 @@ import pytest
 from app.core.security import (
     TOKEN_PURPOSE_CANDIDATE_RESET,
     create_access_token,
+    create_candidate_email_verification_token,
     create_candidate_token,
 )
 from app.crud import candidate_account as candidate_crud
@@ -47,11 +48,27 @@ def _bearer(token):
     return {"Authorization": f"Bearer {token}"}
 
 
-def _register(client, email, name="Jane Candidate", password="CandidatePass1"):
+def _register_raw(client, email, name="Jane Candidate", password="CandidatePass1"):
+    """Create a candidate account without confirming its email."""
     return client.post(
         "/api/candidate/auth/register",
         json={"email": email, "full_name": name, "password": password},
     )
+
+
+def _verify_candidate(client, response):
+    """Confirm a just-registered candidate's email (test helper on the real endpoint)."""
+    if response.status_code != 201:
+        return response
+    candidate_id = response.json()["candidate"]["id"]
+    token = create_candidate_email_verification_token(candidate_id)
+    client.post("/api/candidate/auth/verify-email", json={"token": token})
+    return response
+
+
+def _register(client, email, name="Jane Candidate", password="CandidatePass1"):
+    """Register a candidate and confirm the email so the portal is usable."""
+    return _verify_candidate(client, _register_raw(client, email, name=name, password=password))
 
 
 @pytest.fixture
@@ -155,6 +172,151 @@ class TestCandidateAccounts:
         )
         assert login.status_code == 401
         assert client.get("/api/candidate/profile", headers=candidate["headers"]).status_code == 401
+
+    def test_candidate_random_credentials_fails(self, client):
+        """Random credentials must be rejected by candidate login."""
+        res = client.post(
+            "/api/candidate/auth/login", json={"email": "random123@example.com", "password": "randomPassword123"}
+        )
+        assert res.status_code == 401
+        assert res.json()["detail"] == "Incorrect email or password."
+
+    def test_candidate_google_login_flow(self, client, monkeypatch):
+        """Candidate can register and login via Google OAuth."""
+        from app.services.google_auth import GoogleUserProfile
+        from app.services import candidate_auth
+
+        async def fake_authenticate(code, redirect_uri=None):  # noqa: ARG001
+            return GoogleUserProfile(
+                google_id="cand-google-12345",
+                email="candidate.google@example.com",
+                full_name="Google Candidate",
+                picture="https://example.com/cand.jpg",
+            )
+
+        monkeypatch.setattr(candidate_auth, "authenticate_with_google", fake_authenticate)
+        res = client.post("/api/candidate/auth/google", json={"code": "cand-auth-code-123"})
+        assert res.status_code == 200
+        data = res.json()
+        assert data["candidate"]["email"] == "candidate.google@example.com"
+        assert data["candidate"]["full_name"] == "Google Candidate"
+        assert "access_token" in data and "refresh_token" in data
+
+    def test_candidate_google_login_links_existing_candidate(self, client, monkeypatch):
+        """Candidate Google login links an existing password account by email."""
+        from app.services.google_auth import GoogleUserProfile
+        from app.services import candidate_auth
+
+        _register(client, "existing.cand@example.com", name="Original Name")
+
+        async def fake_authenticate(code, redirect_uri=None):  # noqa: ARG001
+            return GoogleUserProfile(
+                google_id="cand-google-linked-123",
+                email="existing.cand@example.com",
+                full_name="Original Name",
+                picture="https://example.com/avatar.jpg",
+            )
+
+        monkeypatch.setattr(candidate_auth, "authenticate_with_google", fake_authenticate)
+        res = client.post("/api/candidate/auth/google", json={"code": "cand-auth-code-456"})
+        assert res.status_code == 200
+
+    def test_candidate_google_only_account_rejects_password_login(self, client, db_session):
+        """A candidate who signed in via Google only (no password) cannot use password login."""
+        candidate_crud.get_or_create_google_candidate(
+            db_session,
+            google_id="google-only-cand-id",
+            email="google.candidate@example.com",
+            full_name="Google Cand",
+            picture=None,
+        )
+        res = client.post(
+            "/api/candidate/auth/login",
+            json={"email": "google.candidate@example.com", "password": "arbitraryPassword123"},
+        )
+        assert res.status_code == 401
+
+    def test_password_account_profile_reports_has_password(self, client):
+        body = _register(client, "haspass@example.com").json()
+        assert body["candidate"]["has_password"] is True
+        profile = client.get("/api/candidate/profile", headers=_bearer(body["access_token"]))
+        assert profile.status_code == 200
+        assert profile.json()["has_password"] is True
+
+    def test_google_only_candidate_cannot_change_password(self, client, monkeypatch):
+        """A Google-only candidate must get a clean 400 (never a bcrypt-on-NULL 500)."""
+        from app.services.google_auth import GoogleUserProfile
+        from app.services import candidate_auth
+
+        async def fake_authenticate(code, redirect_uri=None):  # noqa: ARG001
+            return GoogleUserProfile(
+                google_id="cand-google-only-change",
+                email="google.only.change@example.com",
+                full_name="Google Only",
+                picture=None,
+            )
+
+        monkeypatch.setattr(candidate_auth, "authenticate_with_google", fake_authenticate)
+        login = client.post("/api/candidate/auth/google", json={"code": "cand-code"})
+        assert login.status_code == 200
+        token = login.json()["access_token"]
+        assert login.json()["candidate"]["has_password"] is False
+
+        res = client.patch(
+            "/api/candidate/profile/password",
+            json={"current_password": "whatever", "new_password": "BrandNewPass1"},
+            headers=_bearer(token),
+        )
+        assert res.status_code == 400
+        assert "does not have a password" in res.json()["detail"]
+
+    def test_candidate_google_unverified_email_is_rejected(self, client, monkeypatch):
+        """An unverified Google email must not be used to link/create an account."""
+        from app.services.google_auth import GoogleUserProfile
+        from app.services import candidate_auth
+
+        async def fake_authenticate(code, redirect_uri=None):  # noqa: ARG001
+            return GoogleUserProfile(
+                google_id="cand-google-unverified",
+                email="unverified.cand@example.com",
+                full_name="Unverified",
+                picture=None,
+                email_verified=False,
+            )
+
+        monkeypatch.setattr(candidate_auth, "authenticate_with_google", fake_authenticate)
+        res = client.post("/api/candidate/auth/google", json={"code": "cand-code"})
+        assert res.status_code == 400
+        assert "not verified" in res.json()["detail"]
+
+    def test_cross_role_account_isolation_with_same_email(self, client, user_factory, monkeypatch):
+        """HR User and Candidate with the same email retain strict separate role identities."""
+        from app.services.google_auth import GoogleUserProfile
+        from app.services import candidate_auth
+
+        # Register HR user
+        hr_res = user_factory(email="shared@example.com", password="StrongPassword123")
+        assert hr_res.status_code == 201
+
+        # Candidate Google OAuth with same email
+        async def fake_authenticate(code, redirect_uri=None):  # noqa: ARG001
+            return GoogleUserProfile(
+                google_id="cand-google-shared",
+                email="shared@example.com",
+                full_name="Shared Candidate",
+                picture=None,
+            )
+
+        monkeypatch.setattr(candidate_auth, "authenticate_with_google", fake_authenticate)
+        cand_res = client.post("/api/candidate/auth/google", json={"code": "cand-code"})
+        assert cand_res.status_code == 200
+        cand_token = cand_res.json()["access_token"]
+
+        # Candidate token is rejected on HR endpoints
+        assert client.get("/api/jobs", headers=_bearer(cand_token)).status_code == 401
+        # HR token is rejected on Candidate endpoints
+        hr_token = hr_res.json()["access_token"]
+        assert client.get("/api/candidate/profile", headers=_bearer(hr_token)).status_code == 401
 
     def test_invalid_and_missing_tokens(self, client):
         assert client.get("/api/candidate/dashboard").status_code == 401

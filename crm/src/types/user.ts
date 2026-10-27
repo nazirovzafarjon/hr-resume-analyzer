@@ -15,6 +15,8 @@ export type UserProfile = {
   profile_image: string | null;
   /** False for Google-only accounts, which have no password to change. */
   has_password: boolean;
+  /** False until the account confirms its email; the panel is gated until then. */
+  is_email_verified: boolean;
   /**
    * Platform administrator. Only used to show/guard the admin panel in the
    * UI; the backend re-checks it on every admin request.
@@ -38,11 +40,19 @@ export type ChangePasswordInput = {
 };
 
 /** AI providers a user can connect (mirrors the backend's supported set). */
-export type AIProviderName = "openrouter" | "groq" | "gemini";
+export type AIProviderName =
+  | "openrouter"
+  | "groq"
+  | "gemini"
+  | "openai"
+  | "deepseek"
+  | "anthropic"
+  | "generic";
 
 /**
  * GET /api/auth/me/ai-provider — which provider the user's analyses use.
  * Never contains the API key, only a masked hint of its last characters.
+ * ``base_url`` is shown for ``generic`` provider.
  */
 export type AIProviderSettings = {
   configured: boolean;
@@ -56,6 +66,8 @@ export type AIProviderSettings = {
   /** True when AI features need the user's own provider (no platform fallback). */
   required: boolean;
   supported_providers: AIProviderName[];
+  /** Base URL used for the provider's API (user-supplied for generic). */
+  base_url: string | null;
 };
 
 export type AIProviderInput = {
@@ -63,6 +75,8 @@ export type AIProviderInput = {
   model_id: string;
   /** Omit to keep the saved key (same provider only). */
   api_key?: string;
+  /** Required for ``generic`` provider; must be HTTPS and pass SSRF checks. */
+  base_url?: string;
 };
 
 export type AIProviderTestResult = {

@@ -10,10 +10,13 @@
 /** Raised by the API client whenever a request does not succeed. */
 export class ApiError extends Error {
   readonly status: number;
+  /** Optional machine-readable code from the backend (e.g. EMAIL_VERIFICATION_REQUIRED). */
+  readonly code?: string;
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, code?: string) {
     super(message);
     this.status = status;
+    this.code = code;
   }
 }
 

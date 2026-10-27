@@ -15,6 +15,7 @@ to the test database instead of the development/production one.
 
 import os
 import tempfile
+from datetime import datetime, timedelta, timezone
 
 # Must happen before importing the app modules below.
 os.environ["DATABASE_URL"] = (
@@ -27,6 +28,13 @@ os.environ["SUPERUSER_PASSWORD"] = ""
 # the live email API, and pin the sender for deterministic mailer assertions.
 os.environ["RESEND_API_KEY"] = ""
 os.environ["EMAIL_FROM"] = "onboarding@resend.dev"
+# Blank the display name / reply-to from backend/.env so mailer assertions on
+# the exact `from` value stay deterministic.
+os.environ["EMAIL_FROM_NAME"] = ""
+os.environ["EMAIL_REPLY_TO"] = ""
+# Retry without sleeping during tests; the retry policy itself is exercised by
+# tests/test_email.py (which asserts how many times the provider is called).
+os.environ["EMAIL_RETRY_BASE_DELAY"] = "0"
 # Throwaway Fernet key so custom AI provider keys can be encrypted in tests
 # (backend/.env's real key, if any, is never used by the suite).
 # Existing tests exercise the platform-fallback provider; the tests for the
@@ -42,9 +50,12 @@ from fastapi.testclient import TestClient
 from sqlalchemy import text
 
 from app.core.database import Base, SessionLocal, engine
-from app.core.security import create_access_token, decode_access_token
+from app.core.security import create_access_token, decode_access_token, hash_password
 from app.core.token_registry import reset_registry
-from app.crud.user import create_user
+from app.crud import email_verification as email_verification_crud
+from app.crud.user import create_user, get_user_by_email
+from app.services import auth as auth_service
+from app.services import candidate_auth as candidate_auth_service
 from app.main import _prepare_schema_and_seed_superuser, _ensure_database, create_app
 from app.models import Interview, Job, User, Application  # noqa: F401  (register models)
 from app.schemas.user import UserCreate
@@ -77,7 +88,8 @@ def _clean_tables(_prepare_database):
                 "TRUNCATE application_responses, application_forms, interviews, "
                 "applications, jobs, users, contact_messages, audit_logs, system_errors, "
                 "ai_analysis_runs, platform_settings, revoked_tokens, session_cutoffs, "
-                "candidate_accounts, application_status_history "
+                "candidate_accounts, application_status_history, email_verifications, "
+                "pending_registrations "
                 "RESTART IDENTITY CASCADE"
             )
         )
@@ -93,8 +105,24 @@ def _reset_token_registry(_clean_tables):
     token freshly issued to the next one.
     """
     reset_registry()
+    auth_service.reset_verification_throttle()
+    candidate_auth_service.reset_verification_throttle()
     yield
     reset_registry()
+    auth_service.reset_verification_throttle()
+    candidate_auth_service.reset_verification_throttle()
+
+
+@pytest.fixture(autouse=True)
+def _mock_resend_email(monkeypatch):
+    """Mock outbound email delivery at the service boundary across the test suite."""
+    from app.services.email import EmailDeliveryResult
+
+    def fake_send(email: str, token: str, code: str | None = None, path: str = "/verify-email") -> EmailDeliveryResult:
+        return EmailDeliveryResult(success=True, message_id="fake_msg_id")
+
+    monkeypatch.setattr("app.services.auth.send_hr_registration_email", fake_send)
+    monkeypatch.setattr("app.services.email_verification.send_verification_code_email", lambda e, c: EmailDeliveryResult(success=True, message_id="fake_msg_id"))
 
 
 @pytest.fixture(scope="session")
@@ -126,23 +154,74 @@ def _register(client, email=TEST_USER_EMAIL, full_name="HR User", password=TEST_
     )
 
 
+#: Deterministic code the fixtures plant so registration helpers can verify the
+#: account through the real endpoint (the emailed code is random and hashed).
+TEST_VERIFICATION_CODE = "123456"
+
+
+def plant_verification_code(db, user_id: int, code: str = TEST_VERIFICATION_CODE) -> None:
+    """Invalidate existing codes and store a known one for a user."""
+    now = datetime.now(timezone.utc)
+    email_verification_crud.invalidate_active(db, user_id, now)
+    email_verification_crud.create(
+        db,
+        user_id=user_id,
+        code_hash=hash_password(code),
+        expires_at=now + timedelta(minutes=10),
+    )
+
+
+def verify_registered_user(client, response, email):
+    """Mark a just-registered HR account's email verified (test helper).
+
+    New registrations are unverified and cannot use panel endpoints. Shared
+    fixtures confirm the email through the real endpoint so pre-existing tests
+    keep a usable session. A non-201 response (e.g. duplicate email) is
+    returned untouched.
+    """
+    if response.status_code != 201:
+        return response
+    db = SessionLocal()
+    try:
+        from app.crud import pending_registration as pending_crud
+        pending = pending_crud.get_by_email(db, email)
+        if pending is not None:
+            pending.code_hash = hash_password(TEST_VERIFICATION_CODE)
+            db.commit()
+        else:
+            user = get_user_by_email(db, email)
+            if user is not None:
+                plant_verification_code(db, user.id)
+    finally:
+        db.close()
+    verify_res = client.post(
+        "/api/auth/verify-email",
+        json={"email": email, "code": TEST_VERIFICATION_CODE},
+    )
+    if verify_res.status_code == 200:
+        verify_res.status_code = 201
+        return verify_res
+    return response
+
+
 @pytest.fixture
 def user_factory(client):
-    """Factory that registers a user through the API and returns the response."""
+    """Factory that registers a verified user through the API."""
 
     def _register(email=TEST_USER_EMAIL, full_name="HR User", password=TEST_USER_PASSWORD):
-        return client.post(
+        response = client.post(
             "/api/auth/register",
             json={"email": email, "full_name": full_name, "password": password},
         )
+        return verify_registered_user(client, response, email)
 
     return _register
 
 
 @pytest.fixture
 def user(client):
-    """Register an HR user and return their id plus Authorization headers."""
-    response = _register(client)
+    """Register a verified HR user and return their id plus Authorization headers."""
+    response = verify_registered_user(client, _register(client), TEST_USER_EMAIL)
     assert response.status_code == 201, response.text
     token = response.json()["access_token"]
     user_id = int(decode_access_token(token)["sub"])
@@ -151,8 +230,10 @@ def user(client):
 
 @pytest.fixture
 def other_user(client):
-    """Register a second HR user (used to test ownership rules)."""
-    response = _register(client, email="other@example.com", full_name="Other HR")
+    """Register a second verified HR user (used to test ownership rules)."""
+    response = verify_registered_user(
+        client, _register(client, email="other@example.com", full_name="Other HR"), "other@example.com"
+    )
     assert response.status_code == 201, response.text
     token = response.json()["access_token"]
     user_id = int(decode_access_token(token)["sub"])

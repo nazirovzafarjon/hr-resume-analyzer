@@ -13,15 +13,25 @@ from app.schemas.user import UserCreate
 logger = logging.getLogger(__name__)
 
 
-def create_user(db: Session, payload: UserCreate, is_superuser: bool = False) -> User:
+def create_user(
+    db: Session,
+    payload: UserCreate,
+    is_superuser: bool = False,
+    is_email_verified: bool = True,
+) -> User:
     # Create and return a new user with a hashed password.
     # Raises ValueError on duplicate email.
+    #
+    # ``is_email_verified`` defaults to True so programmatic creation (the
+    # seeded superuser, admin-created accounts) is trusted. The public
+    # registration path explicitly passes False.
 
     user = User(
-        email=payload.email,
-        full_name=payload.full_name,
+        email=payload.email.strip().lower(),
+        full_name=payload.full_name.strip(),
         hashed_password=hash_password(payload.password),
         is_superuser=is_superuser,
+        is_email_verified=is_email_verified,
     )
     db.add(user)
     try:
@@ -66,7 +76,11 @@ def get_user_by_email(db: Session, email: str) -> User | None:
     # Return the user with the given email, or None if it does not exist.#
 
 
-    return db.query(User).filter(User.email == email).first()
+    return (
+        db.query(User)
+        .filter(func.lower(User.email) == email.strip().lower())
+        .first()
+    )
 
 
 def get_user_by_google_id(db: Session, google_id: str) -> User | None:
@@ -84,25 +98,9 @@ def get_or_create_google_user(
     full_name: str,
     picture: str | None,
 ) -> User:
-    """Resolve (find or create) a user authenticated via Google.
-
-    Lookup strategy:
-    * Prefer the Google ``sub`` id — the most robust key.
-    * Fall back to the verified email. This lets a user who first registered
-      with a password sign in with Google later: the existing record is found
-      by email and the ``google_id`` is attached, linking both sign-in paths.
-    * If the profile data (name / avatar) changed on Google's side, keep the
-      stored columns up to date.
-
-    When no match exists a new account is created (with ``is_active=True`` and
-    no password hash) — an unknown Google user is never an error. If a
-    concurrent request creates the same account between the SELECT and the
-    COMMIT, the lookup is retried and the account linked instead of failing.
-
-    Raises:
-        ValueError: Only when a commit-race leaves no resolvable user
-            (should not happen in practice since Google verifies email).
-    """
+    """Resolve (find or create) a user authenticated via Google."""
+    email = email.strip().lower()
+    full_name = full_name.strip()
     user = get_user_by_google_id(db, google_id)
     if user is None:
         user = get_user_by_email(db, email)
@@ -128,6 +126,9 @@ def get_or_create_google_user(
         picture=picture,
         google_id=google_id,
         is_active=True,
+        # Google has already verified this address (enforced by the caller via
+        # the email_verified claim), so the account needs no extra step.
+        is_email_verified=True,
     )
     db.add(user)
     try:
@@ -170,6 +171,11 @@ def _link_and_refresh_google_profile(
     changed = False
     if user.google_id is None:
         user.google_id = google_id
+        changed = True
+    # Signing in with a (verified) Google address proves the email is real, so
+    # linking it satisfies the verification gate too.
+    if not user.is_email_verified:
+        user.is_email_verified = True
         changed = True
     if full_name and user.full_name != full_name:
         user.full_name = full_name

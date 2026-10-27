@@ -40,12 +40,31 @@ class CandidateAccount(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
-    hashed_password: Mapped[str] = mapped_column(String(255))
+    # Nullable: candidates who sign in with Google never have an initial password.
+    hashed_password: Mapped[str | None] = mapped_column(String(255), nullable=True)
     full_name: Mapped[str] = mapped_column(String(255))
     phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    # Google OAuth profile info (present only for Google sign-in accounts).
+    google_id: Mapped[str | None] = mapped_column(
+        String(255), unique=True, index=True, nullable=True
+    )
+    picture: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     # Server-relative URL of the uploaded profile image, or None.
     profile_image: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
+    # Email verification gate (same rule as HR users): a new candidate must
+    # confirm the registered address before the Candidate Portal is usable.
+    is_email_verified: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="false"
+    )
+    email_verification_issued_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+    @property
+    def has_password(self) -> bool:
+        """True when the candidate account has a local password."""
+        return self.hashed_password is not None
     # Tokens issued before this instant are rejected ("sign out everywhere"
     # after a password change or reset).
     password_changed_at: Mapped[datetime | None] = mapped_column(

@@ -45,10 +45,19 @@ def _login(client, email=EMAIL, password=PASSWORD):
 
 
 def _register(client, email=EMAIL, password=PASSWORD):
-    return client.post(
+    """Register and confirm the email so the panel is reachable.
+
+    Registration alone leaves the account unverified; these tests exercise the
+    reset/refresh flows and their resulting sessions, so they confirm the email
+    first (the verification flow itself is covered in test_email_verification).
+    """
+    from tests.conftest import verify_registered_user
+
+    response = client.post(
         "/api/auth/register",
         json={"email": email, "full_name": "HR User", "password": password},
     )
+    return verify_registered_user(client, response, email)
 
 
 def _create_service_user(db_session, email="service@example.com", password="ServicePass123"):

@@ -14,6 +14,15 @@ export type AuthResponse = {
   /** Workspace this session was signed for (the token's signed claim is authoritative). */
   active_role?: SessionRole;
   requires_role_selection?: false;
+  /**
+   * False until the account confirms its email. Panel endpoints answer 403
+   * `EMAIL_VERIFICATION_REQUIRED` until then, so the UI must show the
+   * verification screen instead of the dashboard.
+   */
+  is_email_verified?: boolean;
+  requires_email_verification?: boolean;
+  verification_email_sent?: boolean;
+  email_delivery_error?: string | null;
 };
 
 /**
@@ -35,8 +44,16 @@ export type RoleSelectionRequired = {
   expires_in: number;
 };
 
-/** What login, Google sign-in, registration and password reset return. */
+/** What login, Google sign-in and password reset return. */
 export type SignInResult = AuthResponse | RoleSelectionRequired;
+
+export type RegisterResponse = {
+  message: string;
+  email: string;
+  requires_verification: true;
+  verification_email_sent?: boolean;
+  email_delivery_error?: string | null;
+};
 
 export type RegisterInput = {
   email: string;

@@ -48,6 +48,10 @@ class TestPasswordHashing:
         # A corrupt/stale hash must not crash the login flow.
         assert verify_password("SuperSecret123", "not-a-bcrypt-hash") is False
 
+    def test_verify_password_rejects_missing_hash(self):
+        # Google-only accounts have no hash; verification must never raise.
+        assert verify_password("SuperSecret123", None) is False
+
     def test_passwords_longer_than_72_bytes_are_truncated(self):
         # bcrypt only reads the first 72 bytes; a suffix beyond that is ignored.
         hashed = hash_password("a" * 100)

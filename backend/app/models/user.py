@@ -32,6 +32,12 @@ class User(Base):
     profile_image: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     is_superuser: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    # Email verification gate. New password registrations start unverified and
+    # cannot use the HR/admin panel until they confirm their address; accounts
+    # created before this column existed are grandfathered as verified.
+    is_email_verified: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="false"
+    )
     # Registration time. Accounts that existed before this column was added
     # carry the migration's timestamp instead (the real date was never stored).
     created_at: Mapped[datetime] = mapped_column(

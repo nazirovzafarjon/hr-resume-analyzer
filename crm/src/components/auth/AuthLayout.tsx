@@ -2,6 +2,8 @@ import type { ReactNode } from "react";
 import "../../styles/auth.css";
 import ThemeToggle from "../ui/ThemeToggle";
 import LanguageSelector from "../ui/LanguageSelector";
+import { Link } from "react-router-dom";
+import { LANDING_URL } from "../../config";
 import { useLanguage } from "../../contexts/LanguageContext";
 
 type AuthLayoutProps = {
@@ -19,7 +21,7 @@ export default function AuthLayout({ children }: AuthLayoutProps) {
   return (
     <div className="auth-page">
       <div className="auth-topbar">
-        <div className="auth-brand">
+        <Link to={LANDING_URL} className="auth-brand" aria-label="Home">
           <span className="auth-brand-mark" aria-hidden="true">
             RA
           </span>
@@ -27,7 +29,7 @@ export default function AuthLayout({ children }: AuthLayoutProps) {
             <span className="auth-brand-name">{t("app.name")}</span>
             <span className="auth-brand-tag">{t("app.tagline")}</span>
           </span>
-        </div>
+        </Link>
 
         <div className="auth-toolbar">
           <ThemeToggle />

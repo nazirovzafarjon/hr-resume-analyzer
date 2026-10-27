@@ -42,6 +42,7 @@ from app.core.encryption import (
     encrypt_secret,
     encryption_available,
 )
+from app.core.url_security import UnsafeURLError, validate_base_url
 from app.crud import ai_provider_config as config_crud
 from app.models.ai_provider_config import UserAIProviderConfig
 from app.schemas.ai_provider import (
@@ -103,7 +104,9 @@ class AIProviderSettingsError(Exception):
         super().__init__(message)
 
 
-def _custom_config(provider: str, api_key: str, model_id: str) -> dict[str, Any]:
+def _custom_config(
+    provider: str, api_key: str, model_id: str, base_url: str | None = None
+) -> dict[str, Any]:
     """Provider config for a user's credentials, on top of platform defaults.
 
     Only provider, key, model and base URL come from the user; retries,
@@ -114,8 +117,11 @@ def _custom_config(provider: str, api_key: str, model_id: str) -> dict[str, Any]
         provider=provider,
         api_key=api_key,
         model=model_id,
-        base_url=AI_PROVIDER_BASE_URLS[provider],
     )
+    if provider == "generic":
+        cfg["base_url"] = (base_url or "").rstrip("/")
+    else:
+        cfg["base_url"] = AI_PROVIDER_BASE_URLS.get(provider, "")
     return cfg
 
 
@@ -146,7 +152,21 @@ def resolve_for_user(db: Session, user_id: int) -> dict[str, Any]:
         )
         raise AIServiceError(CUSTOM_KEY_UNREADABLE, status_code=502) from None
 
-    cfg = _custom_config(config.provider, api_key, config.model_id)
+    if config.provider == "generic":
+        if not config.base_url or not config.base_url.strip():
+            logger.error("Generic AI provider has no base_url: user_id=%s", user_id)
+            raise AIServiceError("Custom AI provider base URL is missing.", status_code=502)
+        try:
+            validate_base_url(config.base_url, for_save=False)
+        except UnsafeURLError as exc:
+            logger.error(
+                "Custom AI provider base URL failed validation at request time: user_id=%s error=%s",
+                user_id,
+                exc,
+            )
+            raise AIServiceError(f"Configured AI provider base URL is unsafe or unreachable: {exc}", status_code=502)
+
+    cfg = _custom_config(config.provider, api_key, config.model_id, config.base_url)
     cfg["source"] = "custom"
     logger.debug(
         "Using custom AI provider: user_id=%s provider=%s model=%s",
@@ -187,6 +207,7 @@ def get_status(db: Session, user_id: int) -> AIProviderConfigResponse:
         can_save=encryption_available(),
         required=settings.REQUIRE_USER_AI_CONFIG,
         supported_providers=list(AI_PROVIDER_BASE_URLS),
+        base_url=config.base_url if config else None,
     )
 
 
@@ -205,6 +226,20 @@ def save_config(
         )
 
     existing = config_crud.get_config(db, user_id)
+    if payload.provider == "generic":
+        base_url_to_save = payload.base_url
+        if base_url_to_save is None and existing and existing.provider == "generic":
+            base_url_to_save = existing.base_url
+        if not base_url_to_save or not base_url_to_save.strip():
+            raise AIProviderSettingsError("A base URL is required for the Generic provider.", status_code=422)
+        try:
+            payload.base_url = validate_base_url(base_url_to_save, for_save=True)
+        except UnsafeURLError as exc:
+            raise AIProviderSettingsError(str(exc), status_code=422)
+    else:
+        # Switching/saving a standard provider clears any previous custom base_url.
+        payload.base_url = ""
+
     if payload.api_key is None and (existing is None or existing.provider != payload.provider):
         # A key belongs to one provider: switching provider needs a new key.
         raise AIProviderSettingsError("Enter the API key for this provider.")
@@ -221,6 +256,7 @@ def save_config(
         model_id=payload.model_id,
         api_key_encrypted=encrypted,
         api_key_last4=last4,
+        base_url=payload.base_url,
     )
     logger.info(
         "Custom AI provider saved: user_id=%s provider=%s model=%s key_changed=%s",
@@ -247,6 +283,21 @@ async def test_connection(
     Without ``api_key`` the saved key is used (same provider only). Provider
     errors are reduced to a safe message; details are logged without secrets.
     """
+    # Resolve / validate base_url for generic provider.
+    base_url = payload.base_url
+    if payload.provider == "generic":
+        existing = config_crud.get_config(db, user_id)
+        if base_url is None and existing and existing.provider == "generic":
+            base_url = existing.base_url
+        if not base_url or not base_url.strip():
+            raise AIProviderSettingsError("Enter a base URL for this provider.", status_code=422)
+        try:
+            base_url = validate_base_url(base_url, for_save=True)
+        except UnsafeURLError as exc:
+            raise AIProviderSettingsError(str(exc), status_code=422)
+    else:
+        base_url = None
+
     api_key = payload.api_key
     if api_key is None:
         existing = config_crud.get_config(db, user_id)
@@ -257,7 +308,7 @@ async def test_connection(
         except (DecryptionError, EncryptionUnavailableError):
             return AIProviderTestResult(ok=False, message=CUSTOM_KEY_UNREADABLE)
 
-    cfg = _custom_config(payload.provider, api_key, payload.model_id)
+    cfg = _custom_config(payload.provider, api_key, payload.model_id, base_url)
     cfg["max_retries"] = 0  # a test should answer quickly, not back off
     request_payload = _build_payload(
         cfg,

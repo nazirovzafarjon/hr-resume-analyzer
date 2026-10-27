@@ -57,9 +57,24 @@ export default function LoginPage() {
     setServerError(null);
     try {
       const response = await login({ email: email.trim(), password });
+      const path = completeSignIn(response);
+      // Unverified accounts must confirm their email before the panel works.
+      if (!("requires_role_selection" in response) && response.is_email_verified === false) {
+        navigate("/verify-email", { state: { email: email.trim() } });
+        return;
+      }
       // Straight into the workspace, or to the workspace choice.
-      navigate(completeSignIn(response));
+      navigate(path);
     } catch (error) {
+      if (
+        error instanceof ApiError &&
+        error.status === 403 &&
+        error.code === "EMAIL_VERIFICATION_REQUIRED"
+      ) {
+        // The account exists but the email is not confirmed yet.
+        navigate("/verify-email", { state: { email: email.trim() } });
+        return;
+      }
       if (error instanceof ApiError && error.status === 401) {
         setServerError(t("auth.invalidCredentials") || "Invalid email or password.");
       } else {

@@ -31,6 +31,34 @@ export function loginCandidate(payload: { email: string; password: string }): Pr
   return apiRequest("/candidate/auth/login", { method: "POST", body: payload });
 }
 
+export function loginCandidateWithGoogle(code: string, redirectUri?: string): Promise<CandidateAuthResult> {
+  return apiRequest("/candidate/auth/google", {
+    method: "POST",
+    body: { code, redirect_uri: redirectUri },
+  });
+}
+
+/** POST /api/candidate/auth/refresh — rotate the candidate refresh token. */
+export function refreshCandidateTokens(refreshToken: string): Promise<CandidateTokens> {
+  return apiRequest("/candidate/auth/refresh", {
+    method: "POST",
+    body: { refresh_token: refreshToken },
+  });
+}
+
+/** POST /api/candidate/auth/verify-email — confirm the candidate email. */
+export function verifyCandidateEmail(token: string): Promise<CandidateAuthResult> {
+  return apiRequest("/candidate/auth/verify-email", { method: "POST", body: { token } });
+}
+
+/** POST /api/candidate/auth/resend-verification — email a fresh link (throttled). */
+export function resendCandidateVerification(email: string): Promise<{ message: string }> {
+  return apiRequest("/candidate/auth/resend-verification", {
+    method: "POST",
+    body: { email },
+  });
+}
+
 export function logoutCandidate(refreshToken: string | null): Promise<void> {
   return apiRequest("/candidate/auth/logout", {
     ...candidate,
