@@ -25,10 +25,13 @@ def upsert_config(
     model_id: str,
     api_key_encrypted: str | None,
     api_key_last4: str | None,
+    base_url: str | None = None,
 ) -> UserAIProviderConfig:
     """Create or update the user's configuration.
 
     ``api_key_encrypted``/``api_key_last4`` of ``None`` keep the saved key.
+    ``base_url`` of ``None`` keeps the existing value; set to empty string
+    to clear a custom URL.
     """
     config = get_config(db, user_id)
     if config is None:
@@ -40,6 +43,8 @@ def upsert_config(
     if api_key_encrypted is not None:
         config.api_key_encrypted = api_key_encrypted
         config.api_key_last4 = api_key_last4 or ""
+    if base_url is not None:
+        config.base_url = base_url.strip() or None
     db.commit()
     db.refresh(config)
     return config

@@ -12,10 +12,16 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 #: Default API base URL of every supported AI provider. Also the list of
 #: providers an HR user may pick for their own key in Settings.
+#: ``generic`` has no default base URL: the user must supply one (validated
+#: for SSRF safety) when configuring that provider.
 AI_PROVIDER_BASE_URLS: dict[str, str] = {
     "openrouter": "https://openrouter.ai/api/v1",
     "groq": "https://api.groq.com/openai/v1",
     "gemini": "https://generativelanguage.googleapis.com/v1beta/models",
+    "openai": "https://api.openai.com/v1",
+    "deepseek": "https://api.deepseek.com/v1",
+    "anthropic": "https://api.anthropic.com",
+    "generic": "",
 }
 
 

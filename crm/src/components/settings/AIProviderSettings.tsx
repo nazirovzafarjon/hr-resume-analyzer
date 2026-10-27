@@ -25,9 +25,13 @@ const PROVIDER_LABELS: Record<AIProviderName, string> = {
   openrouter: "OpenRouter",
   groq: "Groq",
   gemini: "Google Gemini",
+  openai: "OpenAI",
+  deepseek: "DeepSeek",
+  anthropic: "Anthropic Claude",
+  generic: "Generic OpenAI-compatible",
 };
 
-type Errors = Partial<Record<"provider" | "apiKey" | "modelId", string>>;
+type Errors = Partial<Record<"provider" | "apiKey" | "modelId" | "baseUrl", string>>;
 
 /**
  * Settings -> "Connect your provider and API key".
@@ -44,6 +48,7 @@ export default function AIProviderSettings() {
   const [provider, setProvider] = useState<AIProviderName | "">("");
   const [apiKey, setApiKey] = useState("");
   const [modelId, setModelId] = useState("");
+  const [baseUrl, setBaseUrl] = useState("");
   const [errors, setErrors] = useState<Errors>({});
   const [busy, setBusy] = useState<"save" | "test" | "remove" | null>(null);
   const [feedback, setFeedback] = useState<{ kind: "success" | "error"; text: string } | null>(null);
@@ -53,6 +58,7 @@ export default function AIProviderSettings() {
     setStatus(next);
     setProvider(next.provider ?? "");
     setModelId(next.model_id ?? "");
+    setBaseUrl(next.base_url ?? "");
     setApiKey("");
     setErrors({});
   }
@@ -93,9 +99,16 @@ export default function AIProviderSettings() {
     else if (key && key.length < 8) next.apiKey = s("keyTooShort");
     if (!model) next.modelId = s("modelRequired");
     else if (/\s/.test(model)) next.modelId = s("noSpaces");
+    if (provider === "generic") {
+      const url = baseUrl.trim();
+      if (!url) next.baseUrl = "Base URL is required.";
+      else if (!/^https:\/\//.test(url)) next.baseUrl = "Use https://";
+    }
     setErrors(next);
     if (Object.keys(next).length > 0 || !provider) return null;
-    return { provider, model_id: model, ...(key ? { api_key: key } : {}) };
+    const input: AIProviderInput = { provider, model_id: model, ...(key ? { api_key: key } : {}) };
+    if (provider === "generic") input.base_url = baseUrl.trim();
+    return input;
   }
 
   async function handleSave() {
@@ -209,6 +222,19 @@ export default function AIProviderSettings() {
           autoComplete="off"
           required
         />
+
+        {provider === "generic" && (
+          <TextInput
+            label={s("baseUrl") || "Base URL (required)"}
+            value={baseUrl || ""}
+            onChange={(v) => setBaseUrl(v)}
+            placeholder="https://api.example.com/v1"
+            hint="HTTPS endpoint for the OpenAI-compatible API."
+            error={errors.baseUrl}
+            autoComplete="off"
+            required
+          />
+        )}
 
         {feedback && <AuthMessage type={feedback.kind}>{feedback.text}</AuthMessage>}
 

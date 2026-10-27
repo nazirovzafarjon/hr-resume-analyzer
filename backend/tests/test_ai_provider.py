@@ -1,16 +1,23 @@
 """Settings -> "Connect your provider and API key", and provider resolution."""
 
 import asyncio
+import socket
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.core.config import settings
-from app.core.encryption import decrypt_secret
+from app.core.config import AI_PROVIDER_BASE_URLS, settings
+from app.core.encryption import decrypt_secret, encrypt_secret
 from app.models.ai_provider_config import UserAIProviderConfig
 from app.schemas.application_analysis import ApplicationAnalysis
 from app.services.ai import provider as service
-from app.services.ai.job_analyzer import AIProviderAuthError, AIServiceError
+from app.services.ai.job_analyzer import (
+    AIProviderAuthError,
+    AIServiceError,
+    _build_endpoint_url,
+    _get_client,
+    close_ai_client,
+)
 from tests.test_auto_analyze_filters import ANALYSIS
 
 URL = "/api/auth/me/ai-provider"
@@ -40,7 +47,9 @@ class TestSettingsEndpoints:
         assert body["source"] == "default"
         assert body["provider"] is None and body["masked_api_key"] is None
         assert body["can_save"] is True
-        assert set(body["supported_providers"]) == {"openrouter", "groq", "gemini"}
+        assert set(body["supported_providers"]) == {
+            "openrouter", "groq", "gemini", "openai", "deepseek", "anthropic", "generic"
+        }
 
     def test_save_returns_metadata_but_never_the_key(self, client, user):
         response = _save(client, user["headers"])
@@ -101,7 +110,7 @@ class TestSettingsEndpoints:
     @pytest.mark.parametrize(
         "overrides",
         [
-            {"provider": "openai"},
+            {"provider": "unsupported_provider"},
             {"provider": ""},
             {"model_id": ""},
             {"model_id": "has spaces"},
@@ -538,3 +547,298 @@ class TestAnalyzersCannotBypassResolution:
 
         with pytest.raises(TypeError):
             asyncio.run(analyze_application(job_requirements="x", form_answers="y"))
+
+
+class TestProviderEndpointConstruction:
+    """The client only ever builds a chat/generate URL — never ``/models``.
+
+    This pins down the source of the observed ``GET /v1/models`` 404: this
+    application never requests a models-list endpoint (see the module docstring
+    of ``app.services.ai.job_analyzer``), so such a request comes from outside
+    the backend.
+    """
+
+    def _cfg(self, provider: str) -> dict:
+        cfg = settings.ai_provider_config()
+        cfg.update(provider=provider, model="test/model", api_key="x", base_url=AI_PROVIDER_BASE_URLS[provider])
+        return cfg
+
+    def test_openrouter_url_is_chat_completions(self):
+        url = _build_endpoint_url(self._cfg("openrouter"))
+        assert url == "https://openrouter.ai/api/v1/chat/completions"
+        assert not url.endswith("/models")
+        assert "/models" not in url
+
+    def test_groq_url_is_chat_completions(self):
+        assert (
+            _build_endpoint_url(self._cfg("groq"))
+            == "https://api.groq.com/openai/v1/chat/completions"
+        )
+
+    def test_gemini_url_is_generate_content(self):
+        assert (
+            _build_endpoint_url(self._cfg("gemini"))
+            == "https://generativelanguage.googleapis.com/v1beta/models/test/model:generateContent"
+        )
+
+    def test_base_url_already_contains_v1_without_duplication(self):
+        cfg = self._cfg("openrouter")
+        assert cfg["base_url"].endswith("/api/v1")
+        # The chat suffix is appended once; no second "/v1" is introduced.
+        assert _build_endpoint_url(cfg).count("/v1") == 1
+
+    def test_shared_client_uses_the_configured_timeout(self):
+        client = _get_client()
+        assert float(client.timeout.read) == float(settings.AI_REQUEST_TIMEOUT)
+        # Never leaks a client between tests/shutdowns.
+        asyncio.run(close_ai_client())
+
+    def test_openai_and_deepseek_endpoint_construction(self):
+        url_openai = _build_endpoint_url(self._cfg("openai"))
+        assert url_openai == "https://api.openai.com/v1/chat/completions"
+        assert url_openai.count("/v1") == 1
+
+        url_deepseek = _build_endpoint_url(self._cfg("deepseek"))
+        assert url_deepseek == "https://api.deepseek.com/v1/chat/completions"
+        assert url_deepseek.count("/v1") == 1
+
+    def test_anthropic_endpoint_construction(self):
+        url_anthropic = _build_endpoint_url(self._cfg("anthropic"))
+        assert url_anthropic == "https://api.anthropic.com/v1/messages"
+
+    def test_generic_endpoint_construction_without_v1_duplication(self):
+        # User provides base_url ending with /v1
+        cfg1 = {"provider": "generic", "base_url": "https://api.custom-ai.com/v1", "model": "m1"}
+        assert _build_endpoint_url(cfg1) == "https://api.custom-ai.com/v1/chat/completions"
+        assert _build_endpoint_url(cfg1).count("/v1") == 1
+
+        # User provides base_url without /v1
+        cfg2 = {"provider": "generic", "base_url": "https://api.custom-ai.com", "model": "m1"}
+        assert _build_endpoint_url(cfg2) == "https://api.custom-ai.com/v1/chat/completions"
+        assert _build_endpoint_url(cfg2).count("/v1") == 1
+
+        # User provides base_url ending with /v1/chat/completions
+        cfg3 = {"provider": "generic", "base_url": "https://api.custom-ai.com/v1/chat/completions", "model": "m1"}
+        assert _build_endpoint_url(cfg3) == "https://api.custom-ai.com/v1/chat/completions"
+
+
+class TestProviderPayloadAndResponseParsing:
+    """Verify request headers, payloads, and response parsing across all providers."""
+
+    def test_anthropic_headers_and_payload(self):
+        from app.services.ai.job_analyzer import _build_headers, _build_payload, _parse_response
+        cfg = {"provider": "anthropic", "api_key": "sk-ant-test", "model": "claude-3-opus"}
+        headers = _build_headers(cfg)
+        assert headers["x-api-key"] == "sk-ant-test"
+        assert headers["anthropic-version"] == "2023-06-01"
+        assert "Authorization" not in headers
+
+        payload = _build_payload(cfg, "Hello", system_prompt="Sys", max_tokens=1000)
+        assert payload["model"] == "claude-3-opus"
+        assert payload["max_tokens"] == 1000
+        assert payload["system"] == "Sys"
+        assert payload["messages"] == [{"role": "user", "content": "Hello"}]
+
+        # Normal response
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {
+            "content": [{"type": "text", "text": '{"result": "success"}'}]
+        }
+        parsed = _parse_response(mock_resp, cfg)
+        assert parsed == '{"result": "success"}'
+
+    def test_anthropic_empty_and_malformed_response_handling(self):
+        from app.services.ai.job_analyzer import (
+            AIEmptyResponseError,
+            AIInvalidResponseError,
+            _parse_response,
+        )
+        cfg = {"provider": "anthropic", "api_key": "x", "model": "claude"}
+
+        # Empty content
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {"content": []}
+        with pytest.raises(AIInvalidResponseError):
+            _parse_response(mock_resp, cfg)
+
+        mock_resp.json.return_value = {"content": [{"type": "text", "text": "   "}]}
+        with pytest.raises(AIEmptyResponseError):
+            _parse_response(mock_resp, cfg)
+
+        # Missing content key
+        mock_resp.json.return_value = {"unexpected": 123}
+        with pytest.raises(AIInvalidResponseError):
+            _parse_response(mock_resp, cfg)
+
+    def test_openai_and_deepseek_headers_and_payload(self):
+        from app.services.ai.job_analyzer import _build_headers, _build_payload, _parse_response
+        for p in ("openai", "deepseek", "generic"):
+            cfg = {"provider": p, "api_key": "sk-test", "model": "test-model"}
+            headers = _build_headers(cfg)
+            assert headers["Authorization"] == "Bearer sk-test"
+
+            payload = _build_payload(cfg, "Prompt", system_prompt="System", max_tokens=500)
+            assert payload["model"] == "test-model"
+            assert payload["response_format"] == {"type": "json_object"}
+            assert payload["messages"][0] == {"role": "system", "content": "System"}
+            assert payload["messages"][1] == {"role": "user", "content": "Prompt"}
+
+            mock_resp = MagicMock()
+            mock_resp.json.return_value = {
+                "choices": [{"message": {"content": '{"ok": true}'}}]
+            }
+            assert _parse_response(mock_resp, cfg) == '{"ok": true}'
+
+
+class TestSSRFProtectionSuite:
+    """Exhaustive SSRF validation for generic provider URLs."""
+
+    def test_scheme_and_port_validation(self):
+        from app.core.url_security import UnsafeURLError, validate_base_url
+        with pytest.raises(UnsafeURLError, match="must use http or https"):
+            validate_base_url("ftp://example.com/v1")
+
+        with pytest.raises(UnsafeURLError, match="Port 80 is not allowed"):
+            validate_base_url("https://example.com:80/v1")
+
+        with pytest.raises(UnsafeURLError, match="Port 8080 is not allowed"):
+            validate_base_url("https://example.com:8080/v1")
+
+    def test_blocks_internal_and_metadata_ips(self):
+        from app.core.url_security import UnsafeURLError, validate_base_url
+        blocked_ips = [
+            "127.0.0.1",
+            "10.0.0.1",
+            "172.16.0.1",
+            "192.168.1.1",
+            "169.254.169.254",
+            "0.0.0.0",
+            "[::1]",
+            "[::ffff:127.0.0.1]",
+            "[::ffff:169.254.169.254]",
+        ]
+        for ip in blocked_ips:
+            with pytest.raises(UnsafeURLError):
+                validate_base_url(f"https://{ip}/v1")
+
+    def test_blocks_credentials_and_path_traversal(self):
+        from app.core.url_security import UnsafeURLError, validate_base_url
+        with pytest.raises(UnsafeURLError, match="embedded credentials"):
+            validate_base_url("https://user:pass@example.com/v1")
+
+        with pytest.raises(UnsafeURLError, match="path traversal"):
+            validate_base_url("https://example.com/api/../v1")
+
+        with pytest.raises(UnsafeURLError, match="query string"):
+            validate_base_url("https://example.com/v1?key=val")
+
+        with pytest.raises(UnsafeURLError, match="fragment"):
+            validate_base_url("https://example.com/v1#hash")
+
+    def test_blocks_dns_resolving_to_private_ip(self):
+        from app.core.url_security import UnsafeURLError, validate_base_url
+        with patch("socket.getaddrinfo") as mock_gai:
+            mock_gai.return_value = [
+                (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("192.168.1.50", 443))
+            ]
+            with pytest.raises(UnsafeURLError, match="resolves to a private or internal address"):
+                validate_base_url("https://my-internal-host.com/v1")
+
+    def test_blocks_mixed_dns_resolving_to_public_and_private(self):
+        from app.core.url_security import UnsafeURLError, validate_base_url
+        with patch("socket.getaddrinfo") as mock_gai:
+            mock_gai.return_value = [
+                (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", 443)),
+                (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("10.0.0.5", 443)),
+            ]
+            with pytest.raises(UnsafeURLError, match="resolves to a private or internal address"):
+                validate_base_url("https://mixed-dns.com/v1")
+
+
+class TestGenericProviderLifecycleAndIsolation:
+    """Verify generic provider save, test, switch-away isolation, and request-time check."""
+
+    def test_generic_requires_base_url_on_save(self, client, user):
+        resp = _save(client, user["headers"], provider="generic", model_id="local-model")
+        assert resp.status_code == 422
+        assert "base URL" in resp.json()["detail"]
+
+    def test_generic_rejects_ssrf_url_on_save(self, client, user):
+        resp = _save(
+            client,
+            user["headers"],
+            provider="generic",
+            model_id="local-model",
+            base_url="https://127.0.0.1/v1",
+        )
+        assert resp.status_code == 422
+
+    def test_generic_saves_valid_url_and_persists(self, client, user, db_session):
+        with patch("socket.getaddrinfo") as mock_gai:
+            mock_gai.return_value = [
+                (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", 443))
+            ]
+            resp = _save(
+                client,
+                user["headers"],
+                provider="generic",
+                model_id="custom-model",
+                base_url="https://api.example.com/v1",
+            )
+            assert resp.status_code == 200
+            data = resp.json()
+            assert data["provider"] == "generic"
+            assert data["base_url"] == "https://api.example.com/v1"
+
+    def test_switching_away_from_generic_clears_base_url(self, client, user, db_session):
+        # 1. Save generic with custom base_url
+        with patch("socket.getaddrinfo") as mock_gai:
+            mock_gai.return_value = [
+                (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", 443))
+            ]
+            resp1 = _save(
+                client,
+                user["headers"],
+                provider="generic",
+                model_id="custom-model",
+                base_url="https://api.example.com/v1",
+            )
+            assert resp1.status_code == 200
+
+        # 2. Switch to openai
+        resp2 = _save(
+            client,
+            user["headers"],
+            provider="openai",
+            model_id="gpt-4o",
+            api_key="sk-openai-new-key-12345678",
+        )
+        assert resp2.status_code == 200
+        assert resp2.json()["provider"] == "openai"
+        assert resp2.json()["base_url"] is None
+
+        # Verify resolution uses official OpenAI base URL, NOT custom endpoint
+        cfg = service.resolve_for_user(db_session, user["id"])
+        assert cfg["provider"] == "openai"
+        assert cfg["base_url"] == "https://api.openai.com/v1"
+
+    def test_resolve_for_user_validates_generic_url_at_request_time(self, db_session, user):
+        from app.crud.ai_provider_config import upsert_config
+        from app.services.ai.job_analyzer import AIServiceError
+
+        # Manually create generic config with an internal IP that bypassed save
+        upsert_config(
+            db_session,
+            user["id"],
+            provider="generic",
+            model_id="m1",
+            api_key_encrypted=encrypt_secret("valid-key-123"),
+            api_key_last4="123",
+            base_url="https://192.168.1.1/v1",
+        )
+
+        with pytest.raises(AIServiceError) as exc_info:
+            service.resolve_for_user(db_session, user["id"])
+        assert exc_info.value.status_code == 502
+        assert "unsafe or unreachable" in str(exc_info.value)
+

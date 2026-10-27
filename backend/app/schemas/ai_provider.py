@@ -12,7 +12,9 @@ from pydantic import BaseModel, StringConstraints
 from app.core.config import AI_PROVIDER_BASE_URLS
 
 #: Providers a user may configure (same set the platform supports).
-AIProviderName = Literal["openrouter", "groq", "gemini"]
+AIProviderName = Literal[
+    "openrouter", "groq", "gemini", "openai", "deepseek", "anthropic", "generic"
+]
 assert set(AIProviderName.__args__) == set(AI_PROVIDER_BASE_URLS)  # keep in sync
 
 ApiKeyStr = Annotated[
@@ -28,22 +30,26 @@ class AIProviderConfigUpdate(BaseModel):
 
     ``api_key`` may be omitted when a key is already saved (e.g. to change only
     the model); it is required the first time.
+    ``base_url`` is required only for ``generic`` and validated for SSRF.
     """
 
     provider: AIProviderName
     model_id: ModelIdStr
     api_key: ApiKeyStr | None = None
+    base_url: str | None = None
 
 
 class AIProviderTestRequest(BaseModel):
     """Try a configuration without saving it.
 
     Without ``api_key`` the saved key is used, provided the provider matches.
+    ``base_url`` is validated for SSRF when ``provider`` is ``generic``.
     """
 
     provider: AIProviderName
     model_id: ModelIdStr
     api_key: ApiKeyStr | None = None
+    base_url: str | None = None
 
 
 class AIProviderTestResult(BaseModel):
@@ -69,3 +75,4 @@ class AIProviderConfigResponse(BaseModel):
     #: fallback; ``REQUIRE_USER_AI_CONFIG``).
     required: bool = False
     supported_providers: list[str]
+    base_url: str | None = None
