@@ -8,11 +8,15 @@ import { useCandidateAuth } from "../../context/CandidateAuthContext";
  * count. This is UX only; every /api/candidate endpoint checks the token.
  */
 export default function RequireCandidate({ children }: { children: ReactNode }) {
-  const { isAuthenticated } = useCandidateAuth();
+  const { isAuthenticated, isEmailVerified } = useCandidateAuth();
   const location = useLocation();
   if (!isAuthenticated) {
     const next = encodeURIComponent(location.pathname + location.search);
     return <Navigate to={`/candidate/login?next=${next}`} replace />;
+  }
+  // The portal needs a confirmed email (backend enforces it too).
+  if (!isEmailVerified) {
+    return <Navigate to="/candidate/verify-email" replace />;
   }
   return <>{children}</>;
 }

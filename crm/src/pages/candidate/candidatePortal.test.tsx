@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 
 vi.mock("../../services/candidatePortalService", () => ({
   loginCandidate: vi.fn(),
+  loginCandidateWithGoogle: vi.fn(),
   registerCandidate: vi.fn(),
   logoutCandidate: vi.fn(),
   fetchCandidateProfile: vi.fn(),
@@ -47,6 +48,8 @@ const PROFILE: CandidateProfile = {
   phone: "+998 90 000 00 00",
   profile_image: null,
   created_at: "2026-09-01T10:00:00Z",
+  has_password: true,
+  is_email_verified: true,
 };
 
 const SUMMARY = {
@@ -335,5 +338,14 @@ describe("Candidate profile", () => {
         phone: "+998 90 000 00 00",
       }),
     );
+  });
+
+  it("hides the change-password form for a Google-only account", async () => {
+    saveCandidateTokens("candidate-access", "candidate-refresh");
+    mocked.fetchCandidateProfile.mockResolvedValue({ ...PROFILE, has_password: false });
+    render(<CandidateProfilePage />, "/candidate/profile");
+    // The "no local password" notice replaces the form; the Change button is gone.
+    expect(await screen.findByText(/signed up with Google/i)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Change password" })).toBeNull();
   });
 });

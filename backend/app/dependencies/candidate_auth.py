@@ -14,6 +14,7 @@ from jose import JWTError
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.errors import EmailVerificationRequiredError
 from app.core.security import TOKEN_PURPOSE_CANDIDATE_ACCESS, decode_token_for_purpose
 from app.core.token_registry import is_token_revoked
 from app.crud import candidate_account as candidate_crud
@@ -57,7 +58,12 @@ def get_current_candidate(
             detail="Not authenticated",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    return candidate_from_token(db, credentials.credentials)
+    candidate = candidate_from_token(db, credentials.credentials)
+    # The Candidate Portal is the candidate's panel: it cannot be used until the
+    # registered email is confirmed.
+    if not candidate.is_email_verified:
+        raise EmailVerificationRequiredError()
+    return candidate
 
 
 def get_optional_candidate(

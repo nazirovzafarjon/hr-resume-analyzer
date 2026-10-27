@@ -28,6 +28,8 @@ Applying goes through the existing public form
 token, the application is linked to the account.
 """
 
+import logging
+
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -40,6 +42,7 @@ from app.core.security import TOKEN_PURPOSE_CANDIDATE_ACCESS, decode_token_for_p
 from app.crud import candidate_account as candidate_crud
 from app.dependencies.candidate_auth import get_current_candidate
 from app.models.candidate_account import CandidateAccount
+from app.schemas.auth import GoogleAuthRequest, VerifyEmailTokenRequest
 from app.schemas.candidate import (
     CandidateApplicationDetail,
     CandidateApplicationSummary,
@@ -61,6 +64,9 @@ from app.services import candidate_auth
 from app.services import candidate_portal
 from app.services import profile as profile_service
 from app.services import resume_file as resume_file_service
+from app.services.google_auth import GoogleAuthError
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -75,6 +81,8 @@ def _profile(candidate: CandidateAccount) -> CandidateProfile:
         phone=candidate.phone,
         profile_image=candidate.profile_image,
         created_at=candidate.created_at,
+        has_password=candidate.has_password,
+        is_email_verified=candidate.is_email_verified,
     )
 
 
@@ -111,6 +119,60 @@ def login(payload: CandidateLoginRequest, db: Session = Depends(get_db)) -> Cand
     except candidate_auth.CandidateAuthError as exc:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)) from exc
     return _auth_result(candidate, candidate_auth.issue_tokens(candidate))
+
+
+@router.post("/auth/google", response_model=CandidateAuthResult)
+async def google_login(
+    payload: GoogleAuthRequest,
+    db: Session = Depends(get_db),
+) -> CandidateAuthResult:
+    """Sign in or register a candidate with a Google authorization ``code``."""
+    try:
+        candidate = await candidate_auth.login_with_google(
+            db, payload.code, redirect_uri=payload.redirect_uri
+        )
+        return _auth_result(candidate, candidate_auth.issue_tokens(candidate))
+    except GoogleAuthError as exc:
+        logger.warning("Candidate Google sign-in failed: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+        ) from exc
+    except candidate_auth.CandidateAuthError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+        ) from exc
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+        ) from exc
+    except Exception as exc:
+        logger.exception("Unexpected failure in POST /candidate/auth/google")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Google sign-in failed unexpectedly. Please try again.",
+        ) from exc
+
+
+@router.post("/auth/verify-email", response_model=CandidateAuthResult)
+def verify_email(payload: VerifyEmailTokenRequest, db: Session = Depends(get_db)) -> CandidateAuthResult:
+    """Confirm a candidate email from the verification link and sign them in."""
+    try:
+        candidate = candidate_auth.verify_email(db, payload.token)
+    except candidate_auth.CandidateAuthError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    return _auth_result(candidate, candidate_auth.issue_tokens(candidate))
+
+
+@router.post("/auth/resend-verification")
+def resend_verification(payload: CandidateForgotPasswordRequest, db: Session = Depends(get_db)) -> dict:
+    """Email a fresh candidate verification link (generic, throttled)."""
+    try:
+        candidate_auth.resend_verification_email(db, str(payload.email))
+    except candidate_auth.ResendThrottledError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=exc.message
+        ) from exc
+    return {"message": candidate_auth.EMAIL_VERIFICATION_SENT_MESSAGE}
 
 
 @router.post("/auth/refresh", response_model=CandidateTokens)

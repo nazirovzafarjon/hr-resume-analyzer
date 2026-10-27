@@ -200,28 +200,34 @@ export default function CandidateProfilePage() {
           </form>
         </Card>
 
-        <Card title={t("portal.profile.password")} subtitle={t("portal.profile.passwordHint")}>
-          <form className="portal-form" onSubmit={handlePassword} noValidate>
-            <PasswordInput
-              label={t("portal.profile.currentPassword")}
-              value={currentPassword}
-              onChange={setCurrentPassword}
-              autoComplete="current-password"
-            />
-            <PasswordInput
-              label={t("portal.profile.newPassword")}
-              value={newPassword}
-              onChange={setNewPassword}
-              autoComplete="new-password"
-              error={passwordError ?? undefined}
-            />
-            <div className="portal-form-actions">
-              <Button type="submit" loading={savingPassword}>
-                {t("portal.profile.changePassword")}
-              </Button>
-            </div>
-          </form>
-        </Card>
+        {profile.has_password ? (
+          <Card title={t("portal.profile.password")} subtitle={t("portal.profile.passwordHint")}>
+            <form className="portal-form" onSubmit={handlePassword} noValidate>
+              <PasswordInput
+                label={t("portal.profile.currentPassword")}
+                value={currentPassword}
+                onChange={setCurrentPassword}
+                autoComplete="current-password"
+              />
+              <PasswordInput
+                label={t("portal.profile.newPassword")}
+                value={newPassword}
+                onChange={setNewPassword}
+                autoComplete="new-password"
+                error={passwordError ?? undefined}
+              />
+              <div className="portal-form-actions">
+                <Button type="submit" loading={savingPassword}>
+                  {t("portal.profile.changePassword")}
+                </Button>
+              </div>
+            </form>
+          </Card>
+        ) : (
+          <Card title={t("portal.profile.googleOnlyTitle")}>
+            <p className="portal-muted">{t("portal.profile.googleOnlyNotice")}</p>
+          </Card>
+        )}
       </div>
     </div>
   );

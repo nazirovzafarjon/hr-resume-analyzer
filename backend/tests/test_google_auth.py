@@ -427,6 +427,24 @@ class TestLoginWithGoogle:
         with pytest.raises(ValueError, match="deactivated"):
             await auth_service.login_with_google(db_session, "code")
 
+    @pytest.mark.anyio
+    async def test_unverified_google_email_is_rejected(self, db_session, monkeypatch):
+        """An unverified Google email must not be used to create/link an account."""
+
+        async def fake_authenticate(code, redirect_uri=None):  # noqa: ARG001
+            return GoogleUserProfile(
+                google_id=GOOGLE_ID,
+                email=GOOGLE_EMAIL,
+                full_name=GOOGLE_NAME,
+                picture=None,
+                email_verified=False,
+            )
+
+        monkeypatch.setattr(auth_service, "authenticate_with_google", fake_authenticate)
+        with pytest.raises(GoogleAuthError, match="not verified"):
+            await auth_service.login_with_google(db_session, "code")
+        assert get_user_by_email(db_session, GOOGLE_EMAIL) is None
+
 
 # ---------------------------------------------------------------------------
 # HTTP endpoint: POST /api/auth/google

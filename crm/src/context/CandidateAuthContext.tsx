@@ -6,12 +6,15 @@ import {
   getCandidateToken,
   saveCandidateTokens,
 } from "../auth/tokenStorage";
+import { emailVerifiedFromToken } from "../auth/sessionRole";
 import { fetchCandidateProfile, logoutCandidate } from "../services/candidatePortalService";
 import type { CandidateProfile, CandidateTokens } from "../types/candidatePortal";
 
 type CandidateAuthValue = {
   /** True when a Candidate Portal session is stored. */
   isAuthenticated: boolean;
+  /** Email-verification state read from the candidate token (UI-only). */
+  isEmailVerified: boolean;
   /** The signed-in candidate's profile (null while loading or signed out). */
   profile: CandidateProfile | null;
   /** Store a new session (register, login, reset, password change). */
@@ -87,7 +90,14 @@ export function CandidateAuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <CandidateAuthContext.Provider
-      value={{ isAuthenticated: token !== null, profile, signIn, setProfile, signOut }}
+      value={{
+        isAuthenticated: token !== null,
+        isEmailVerified: token ? emailVerifiedFromToken(token) : false,
+        profile,
+        signIn,
+        setProfile,
+        signOut,
+      }}
     >
       {children}
     </CandidateAuthContext.Provider>

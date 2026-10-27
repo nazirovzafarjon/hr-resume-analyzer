@@ -2,10 +2,13 @@ import { useGoogleLogin } from "@react-oauth/google";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { loginWithGoogle } from "../../services/authService";
+import { loginCandidateWithGoogle } from "../../services/candidatePortalService";
 import { useAuth } from "../../context/AuthContext";
+import { useCandidateAuth } from "../../context/CandidateAuthContext";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { getErrorMessage } from "../../utils/apiError";
 import AuthMessage from "./AuthMessage";
+import { safeNext } from "../candidate/safeNext";
 import {
   GOOGLE_AUTH_ENABLED,
   GOOGLE_AUTH_SCOPES,
@@ -15,25 +18,29 @@ import {
 type GoogleAuthButtonProps = {
   /** Disabled while the email/password form is submitting. */
   disabled?: boolean;
+  /** Role/portal target for this authentication flow (defaults to "hr"). */
+  target?: "hr" | "candidate";
+  /** Optional return URL for candidate login redirect. */
+  next?: string | null;
 };
 
 /**
  * "Continue with Google" button (OAuth 2.0 authorization-code flow).
  *
- * Renders nothing when Google is not configured - the auth UI degrades cleanly
- * to email/password instead of touching Google's scripts. When configured,
- * clicking starts Google's redirect flow; the browser lands back on
- * /oauth/callback with a one-time ``code`` that GoogleAuthCallback exchanges
- * server-side.
+ * Supports both HR/Admin and Candidate Portal authentication.
  */
-export default function GoogleAuthButton({ disabled = false }: GoogleAuthButtonProps) {
+export default function GoogleAuthButton({
+  disabled = false,
+  target = "hr",
+  next,
+}: GoogleAuthButtonProps) {
   const { t } = useLanguage();
   if (!GOOGLE_AUTH_ENABLED) {
     return null;
   }
   return (
     <>
-      <GoogleSignInButton disabled={disabled} />
+      <GoogleSignInButton disabled={disabled} target={target} next={next} />
       <div className="auth-divider" role="separator">
         {t("auth.orSignInWithEmail")}
       </div>
@@ -41,38 +48,41 @@ export default function GoogleAuthButton({ disabled = false }: GoogleAuthButtonP
   );
 }
 
-/**
- * Inner component that owns the OAuth hook. Kept separate so the hook is only
- * ever called while GoogleOAuthProvider is actually mounted (GoogleOAuthGate
- * in App.tsx mounts it iff GOOGLE_AUTH_ENABLED).
- *
- * Popup UX (the default): Google's JS client binds the authorization code to
- * the special redirect_uri "postmessage" (the `redirect_uri` option below is
- * ignored for popups), so the code is sent to the backend together with
- * POPUP_FLOW_REDIRECT_URI so the server-side exchange matches exactly — a
- * mismatch makes Google fail the exchange with invalid_grant.
- */
-function GoogleSignInButton({ disabled }: { disabled: boolean }) {
+function GoogleSignInButton({
+  disabled,
+  target = "hr",
+  next,
+}: {
+  disabled: boolean;
+  target?: "hr" | "candidate";
+  next?: string | null;
+}) {
   const navigate = useNavigate();
-  const { completeSignIn } = useAuth();
+  const hrAuth = useAuth();
+  const candidateAuth = useCandidateAuth();
   const { t } = useLanguage();
   const [error, setError] = useState<string | null>(null);
 
   const googleLogin = useGoogleLogin({
     flow: "auth-code",
-    // Explicitly request the identity scopes so the backend receives
-    // sub / email / name / picture from the userinfo endpoint (see
-    // GOOGLE_AUTH_SCOPES in auth/googleConfig.ts).
     scope: GOOGLE_AUTH_SCOPES,
     overrideScope: true,
     onSuccess: async (response) => {
       try {
-        const tokens = await loginWithGoogle(
-          response.code,
-          POPUP_FLOW_REDIRECT_URI,
-        );
-        // Straight into the workspace, or to the workspace choice.
-        navigate(completeSignIn(tokens));
+        if (target === "candidate") {
+          const result = await loginCandidateWithGoogle(
+            response.code,
+            POPUP_FLOW_REDIRECT_URI,
+          );
+          candidateAuth.signIn(result, result.candidate);
+          navigate(safeNext(next ?? null), { replace: true });
+        } else {
+          const tokens = await loginWithGoogle(
+            response.code,
+            POPUP_FLOW_REDIRECT_URI,
+          );
+          navigate(hrAuth.completeSignIn(tokens));
+        }
       } catch (err) {
         setError(getErrorMessage(err));
       }

@@ -6,6 +6,7 @@ import AuthInput from "../../../components/auth/AuthInput";
 import PasswordInput from "../../../components/auth/PasswordInput";
 import AuthButton from "../../../components/auth/AuthButton";
 import AuthMessage from "../../../components/auth/AuthMessage";
+import GoogleAuthButton from "../../../components/auth/GoogleAuthButton";
 import PageMeta from "../../../components/seo/PageMeta";
 import { safeNext } from "../../../components/candidate/safeNext";
 import { useCandidateAuth } from "../../../context/CandidateAuthContext";
@@ -42,6 +43,14 @@ export default function CandidateLoginPage() {
     try {
       const result = await loginCandidate({ email: email.trim(), password });
       signIn(result, result.candidate);
+      // Unverified candidates must confirm their email before the portal works.
+      if (result.candidate.is_email_verified === false) {
+        navigate("/candidate/verify-email", {
+          replace: true,
+          state: { email: email.trim() },
+        });
+        return;
+      }
       navigate(safeNext(next), { replace: true });
     } catch (error) {
       setServerError(
@@ -75,6 +84,9 @@ export default function CandidateLoginPage() {
       >
         {searchParams.get("expired") === "1" && <AuthMessage type="error">{t("auth.sessionExpired")}</AuthMessage>}
         {serverError && <AuthMessage type="error">{serverError}</AuthMessage>}
+
+        <GoogleAuthButton target="candidate" next={next} disabled={loading} />
+
         <form className="auth-form" onSubmit={handleSubmit} noValidate>
           <AuthInput
             label={t("auth.email")}

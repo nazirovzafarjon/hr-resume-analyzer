@@ -47,6 +47,10 @@ class GoogleUserProfile:
     email: str
     full_name: str
     picture: str | None
+    #: Google's ``email_verified`` claim. Account linking by email is only safe
+    #: for a verified address, so callers must refuse an unverified identity.
+    #: Defaults to True so hand-built profiles in callers/tests are unchanged.
+    email_verified: bool = True
 
 
 class GoogleAuthService:
@@ -193,6 +197,7 @@ class GoogleAuthService:
             email=email,
             full_name=name,
             picture=picture,
+            email_verified=bool(info.get("email_verified", False)),
         )
 
 

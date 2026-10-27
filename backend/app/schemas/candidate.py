@@ -92,6 +92,13 @@ class CandidateProfile(BaseModel):
     phone: str | None = None
     profile_image: str | None = None
     created_at: datetime
+    #: False for Google-only accounts, which have no local password. Lets the
+    #: profile page hide the change-password form instead of calling it and
+    #: getting a 400.
+    has_password: bool = True
+    #: False until the candidate confirms their email; the Candidate Portal is
+    #: gated until then.
+    is_email_verified: bool = True
 
 
 class CandidateProfileUpdate(BaseModel):
