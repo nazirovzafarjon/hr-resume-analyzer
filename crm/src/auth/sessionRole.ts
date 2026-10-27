@@ -20,3 +20,21 @@ export function roleFromToken(token: string): SessionRole {
     return SESSION_ROLES.USER;
   }
 }
+
+/**
+ * Read the email-verification hint from an access token.
+ *
+ * A UI convenience only: the backend re-reads the flag from the database on
+ * every panel request and answers 403 `EMAIL_VERIFICATION_REQUIRED` when it is
+ * false. Tokens minted before this claim existed are treated as verified.
+ */
+export function emailVerifiedFromToken(token: string): boolean {
+  try {
+    const payload = token.split(".")[1];
+    if (!payload) return true;
+    const json = atob(payload.replace(/-/g, "+").replace(/_/g, "/"));
+    return (JSON.parse(json) as { email_verified?: unknown }).email_verified !== false;
+  } catch {
+    return true;
+  }
+}

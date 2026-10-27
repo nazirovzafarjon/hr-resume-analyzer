@@ -1,3 +1,4 @@
+import { Check } from "lucide-react";
 import { PASSWORD_MAX_LENGTH } from "../../utils/validate";
 
 type PasswordRequirementsProps = {
@@ -20,34 +21,25 @@ export default function PasswordRequirements({ password }: PasswordRequirementsP
   ];
 
   return (
-    <ul className="requirements" aria-label="Password requirements">
-      {requirements.map((requirement) => (
-        <li
-          key={requirement.label}
-          className={requirement.met ? "is-met" : undefined}
-        >
-          <CheckIcon />
-          {requirement.label}
-        </li>
-      ))}
-    </ul>
+    <div className="requirements-container">
+      <ul className="requirements" aria-label="Password requirements">
+        {requirements.map((requirement) => (
+          <li
+            key={requirement.label}
+            className={requirement.met ? "is-met" : undefined}
+          >
+            <span className="requirement-icon" aria-hidden="true">
+              {requirement.met ? (
+                <Check size={10} strokeWidth={3.2} />
+              ) : (
+                <span style={{ width: "4px", height: "4px", borderRadius: "50%", backgroundColor: "currentColor" }} />
+              )}
+            </span>
+            {requirement.label}
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
-function CheckIcon() {
-  return (
-    <svg
-      width="12"
-      height="12"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="3"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <polyline points="20 6 9 17 4 12" />
-    </svg>
-  );
-}

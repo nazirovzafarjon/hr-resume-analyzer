@@ -14,11 +14,13 @@ type AuthMessageProps = {
 export default function AuthMessage({ type, children }: AuthMessageProps) {
   return (
     <div
-      className={`alert alert--${type}`}
+      className={`alert alert--${type} auth-message auth-message--${type}`}
       role={type === "error" ? "alert" : "status"}
     >
-      {type === "error" ? <ErrorIcon /> : <SuccessIcon />}
-      <span>{children}</span>
+      <div style={{ flexShrink: 0, display: "flex", marginTop: "2px" }}>
+        {type === "error" ? <ErrorIcon /> : <SuccessIcon />}
+      </div>
+      <span style={{ flex: 1, minWidth: 0 }}>{children}</span>
     </div>
   );
 }

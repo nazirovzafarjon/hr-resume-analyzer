@@ -1,10 +1,7 @@
-/**
- * Shared helpers for component tests: fake JWTs and a provider wrapper that
- * mirrors App.tsx (router → auth → theme → language → toasts).
- */
 import type { ReactNode } from "react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { render } from "@testing-library/react";
+import { GoogleOAuthProvider } from "@react-oauth/google";
 import { AuthProvider } from "../context/AuthContext";
 import { CandidateAuthProvider } from "../context/CandidateAuthContext";
 import { ThemeProvider } from "../contexts/ThemeContext";
@@ -35,7 +32,7 @@ export function LocationProbe() {
 }
 
 type Options = {
-  path?: string;
+  path?: string | { pathname: string; state?: unknown };
   /** Route pattern for `ui` when it needs URL params (defaults to `path`). */
   pattern?: string;
   routes?: { path: string; element: ReactNode }[];
@@ -43,25 +40,28 @@ type Options = {
 
 /** Render `ui` at `path` inside the app providers, plus extra routes. */
 export function renderWithProviders(ui: ReactNode, { path = "/", pattern, routes = [] }: Options = {}) {
+  const currentPath = typeof path === "string" ? path : path.pathname;
   return render(
     <MemoryRouter initialEntries={[path]}>
-      <AuthProvider>
-        <CandidateAuthProvider>
-          <ThemeProvider>
-            <LanguageProvider>
-              <ToastProvider>
-                <Routes>
-                  <Route path={pattern ?? path.split("?")[0]} element={ui} />
-                  {routes.map((route) => (
-                    <Route key={route.path} path={route.path} element={route.element} />
-                  ))}
-                  <Route path="*" element={<LocationProbe />} />
-                </Routes>
-              </ToastProvider>
-            </LanguageProvider>
-          </ThemeProvider>
-        </CandidateAuthProvider>
-      </AuthProvider>
+      <GoogleOAuthProvider clientId="test-client-id">
+        <AuthProvider>
+          <CandidateAuthProvider>
+            <ThemeProvider>
+              <LanguageProvider>
+                <ToastProvider>
+                  <Routes>
+                    <Route path={pattern ?? currentPath.split("?")[0]} element={ui} />
+                    {routes.map((route) => (
+                      <Route key={route.path} path={route.path} element={route.element} />
+                    ))}
+                    <Route path="*" element={<LocationProbe />} />
+                  </Routes>
+                </ToastProvider>
+              </LanguageProvider>
+            </ThemeProvider>
+          </CandidateAuthProvider>
+        </AuthProvider>
+      </GoogleOAuthProvider>
     </MemoryRouter>,
   );
 }
