@@ -42,6 +42,15 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
     # Short-lived, single-purpose token embedded in the password-reset link.
     PASSWORD_RESET_TOKEN_EXPIRE_MINUTES: int = 30
+    # Lifetime of a registered email's 6-digit verification code. A code older
+    # than this is rejected and the user must request a new one.
+    EMAIL_VERIFICATION_CODE_EXPIRE_MINUTES: int = 10
+    # Wrong-code attempts allowed per active code before it is invalidated.
+    EMAIL_VERIFICATION_MAX_ATTEMPTS: int = 5
+    # Minimum seconds between two verification codes for the same address.
+    EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS: int = 60
+    # Maximum verification codes that may be issued for one address per hour.
+    EMAIL_VERIFICATION_MAX_PER_HOUR: int = 5
     # Base URL of the frontend, used to build the absolute reset link that is
     # emailed to the user (e.g. http://localhost:5173/reset-password?token=...).
     FRONTEND_BASE_URL: str = "http://localhost:5173"
@@ -55,6 +64,24 @@ class Settings(BaseSettings):
     # with every Resend account but may only deliver to the address the account
     # was registered with; use a verified custom domain for real users.
     EMAIL_FROM: str = "onboarding@resend.dev"
+    # Delivery retry policy for the Resend REST API. Only transient failures
+    # (HTTP 429/5xx or a network error) are retried; permanent 4xx rejections
+    # (e.g. the sandbox 403 or an invalid key) fail immediately, because
+    # retrying them can never succeed and only delays the response.
+    EMAIL_MAX_RETRIES: int = 2
+    # Base delay in seconds for the bounded exponential backoff between retries.
+    EMAIL_RETRY_BASE_DELAY: float = 1.0
+    # Longest single backoff wait honoured between email retries, in seconds.
+    EMAIL_MAX_RETRY_WAIT: float = 10.0
+    # Optional friendly sender name, rendered as ``EMAIL_FROM_NAME <EMAIL_FROM>``
+    # (ignored when EMAIL_FROM already carries a display name).
+    EMAIL_FROM_NAME: str = ""
+    # Optional Reply-To address (e.g. support@…); omitted from the payload when
+    # empty so Resend falls back to the From address.
+    EMAIL_REPLY_TO: str = ""
+    # Give the Resend API this long to answer before giving up, in seconds.
+    # Kept short because registration sends synchronously inside the request.
+    EMAIL_REQUEST_TIMEOUT: int = 10
 
     # Google OAuth 2.0 (Sign in with Google)
     # Client ID/secret from the Google Cloud Console. The redirect URI is the

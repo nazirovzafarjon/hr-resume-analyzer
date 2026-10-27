@@ -5,13 +5,21 @@ issuing JWT tokens. Low-level crypto lives in ``core.security`` and
 database access in ``crud.user``.
 """
 
+import hashlib
 import logging
-from datetime import datetime, timezone
+import secrets
+from datetime import datetime, timedelta, timezone
 
 from jose import JWTError
+from sqlalchemy import update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
+from app.core.rate_limit import SlidingWindowLimiter
 from app.core.roles import SessionRole, available_roles, token_role
+from app.crud import pending_registration as pending_crud
+from app.models.pending_registration import PendingRegistration
 from app.core.security import (
     ROLE_SELECTION_TOKEN_EXPIRE_MINUTES,
     TOKEN_PURPOSE_REFRESH,
@@ -51,9 +59,21 @@ from app.schemas.auth import (
 )
 from app.schemas.user import UserCreate
 from app.services import audit
+from app.services import email_verification as email_verification_service
 from app.services import platform_settings as platform_settings_service
 from app.services.audit import AuditAction, AuditContext, AuditResource
-from app.services.email import build_reset_link, send_reset_password_email
+from app.services.email import (
+    EmailDeliveryResult,
+    build_reset_link,
+    log_development_link,
+    send_hr_registration_email,
+    send_reset_password_email,
+)
+from app.services.email_verification import (
+    EmailAlreadyVerified,
+    InvalidVerificationCode,
+    ResendThrottledError,
+)
 from app.services.google_auth import GoogleAuthError, authenticate_with_google
 
 logger = logging.getLogger(__name__)
@@ -63,6 +83,28 @@ REGISTRATION_DISABLED_MESSAGE = "Registration is currently disabled."
 
 INVALID_SELECTION_MESSAGE = "Your sign-in has expired. Please sign in again."
 ROLE_NOT_AVAILABLE_MESSAGE = "This workspace is not available for your account."
+
+#: Shown while a registration/panel can still not be used because the email is
+#: not confirmed yet.
+EMAIL_VERIFICATION_REQUIRED_MESSAGE = "Please verify your email to continue."
+
+# Resend throttling is applied to *every* address (known or not) so the response
+# cannot be used to enumerate accounts. Kept in-process, like the Contact form
+# limiter; back it with a shared store when the API is scaled out.
+_resend_cooldown = SlidingWindowLimiter(
+    max_events=1,
+    window_seconds=settings.EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS,
+)
+_resend_hourly = SlidingWindowLimiter(
+    max_events=settings.EMAIL_VERIFICATION_MAX_PER_HOUR,
+    window_seconds=60 * 60,
+)
+
+
+def reset_verification_throttle() -> None:
+    """Clear the resend limiters (used by the test suite for isolation)."""
+    _resend_cooldown.reset()
+    _resend_hourly.reset()
 
 
 class RoleNotAvailableError(Exception):
@@ -101,10 +143,77 @@ def record_sign_in(
     )
 
 
+def initiate_registration(
+    db: Session, payload: RegisterRequest, context: AuditContext | None = None
+) -> tuple[PendingRegistration, EmailDeliveryResult]:
+    """Initiate a two-phase HR registration.
+
+    Stores the pending registration in ``pending_registrations`` and emails
+    a secure verification link and code.
+    No row is created in ``users`` and zero session tokens are issued until
+    verification succeeds.
+
+    Raises:
+        RegistrationDisabledError: Registration disabled in platform settings.
+        ValueError: An account with this email already exists in users.
+
+    Delivery failure does not raise: the pending row is persisted first and the
+    returned :class:`EmailDeliveryResult` tells the caller whether the email was
+    accepted, so a provider rejection is reported honestly instead of discarding
+    the recoverable registration state.
+    """
+    if not platform_settings_service.registration_enabled(db):
+        raise RegistrationDisabledError()
+
+    norm_email = payload.email.strip().lower()
+    existing_user = get_user_by_email(db, norm_email)
+    if existing_user is not None:
+        raise ValueError("A user with this email already exists")
+
+    raw_token = secrets.token_urlsafe(32)
+    token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
+    code = email_verification_service.generate_code()
+    code_hash = hash_password(code)
+    expires_at = datetime.now(timezone.utc) + timedelta(
+        minutes=settings.EMAIL_VERIFICATION_CODE_EXPIRE_MINUTES
+    )
+    hashed_password = hash_password(payload.password)
+
+    # Persist the pending registration *before* attempting delivery. This row is
+    # the recoverable state: if the provider rejects the message, the user can
+    # request a new verification code (POST /api/auth/resend-verification-code)
+    # instead of being left with no way to finish registering. No permanent user
+    # and no session token exist until verification succeeds.
+    pending = pending_crud.create_or_update(
+        db,
+        email=norm_email,
+        full_name=payload.full_name.strip(),
+        hashed_password=hashed_password,
+        token_hash=token_hash,
+        code_hash=code_hash,
+        expires_at=expires_at,
+    )
+
+    delivery = send_hr_registration_email(norm_email, raw_token, code)
+    if not delivery.success:
+        # Delivery is best-effort here: the pending row is already durable, so
+        # the caller reports `verification_email_sent: false` (never a false
+        # success) and the user retries through the resend endpoint.
+        logger.warning(
+            "Registration email delivery failed for %s: %s (status=%s)",
+            norm_email,
+            delivery.error,
+            delivery.status_code,
+        )
+    else:
+        logger.info("Pending registration created for %s (id=%s)", norm_email, pending.id)
+    return pending, delivery
+
+
 def register_user(
     db: Session, payload: RegisterRequest, context: AuditContext | None = None
 ) -> User:
-    """Register a new HR user and return the created account.
+    """Register a new HR user directly (internal / test helper).
 
     Raises:
         RegistrationDisabledError: An admin has switched registration off.
@@ -117,7 +226,7 @@ def register_user(
         full_name=payload.full_name,
         password=payload.password,
     )
-    user = create_user(db, user_data)
+    user = create_user(db, user_data, is_email_verified=False)
     _mark_signed_in(db, user)
     audit.record(
         db,
@@ -128,7 +237,252 @@ def register_user(
         details={"method": "password"},
         context=context,
     )
+    delivery = email_verification_service.issue_code(db, user)
+    user.verification_email_sent = delivery.success
+    user.email_delivery_error = delivery.error if not delivery.success else None
     return user
+
+
+def _claim_pending_registration(db: Session, pending_id: int, when: datetime) -> bool:
+    """Atomically claim a pending registration for verification.
+
+    A conditional ``UPDATE … WHERE consumed_at IS NULL`` is the concurrency
+    guard: the database, not a Python read-then-write, decides the winner, so
+    two simultaneous confirmations (a double-click, a retried request) can never
+    both create a user. The update is *not* committed here; the caller commits
+    it together with the user insert so the two are one transaction.
+    """
+    result = db.execute(
+        update(PendingRegistration)
+        .where(
+            PendingRegistration.id == pending_id,
+            PendingRegistration.consumed_at.is_(None),
+        )
+        .values(consumed_at=when)
+    )
+    return result.rowcount == 1
+
+
+def _create_verified_user(db: Session, pending: PendingRegistration) -> User:
+    """Insert the permanent, verified user and commit the claimed pending row.
+
+    The unique-email constraint is the last line of defence: if another path
+    created the account first, the insert fails and the whole transaction
+    (including the pending claim) is rolled back, leaving the row recoverable.
+    """
+    user = User(
+        email=pending.email,
+        full_name=pending.full_name,
+        hashed_password=pending.hashed_password,
+        is_email_verified=True,
+        is_active=True,
+    )
+    db.add(user)
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise EmailAlreadyVerified() from exc
+    db.refresh(user)
+    return user
+
+
+def verify_email(
+    db: Session,
+    token: str | None = None,
+    email: str | None = None,
+    code: str | None = None,
+    audit_ctx: AuditContext | None = None,
+) -> User:
+    """Confirm an HR registration with either a verification link token or email+code.
+
+    Atomically claims the pending registration, creates the permanent user in
+    ``users`` with ``is_email_verified = True``, and returns the created user.
+
+    Raises:
+        InvalidVerificationCode: Bad, expired, already-used token/code or too many attempts.
+        EmailAlreadyVerified: The email address is already verified in users.
+    """
+    now = datetime.now(timezone.utc)
+    # -------------------------------------------------------------------------
+    # Case 1: Verification token from emailed link
+    # -------------------------------------------------------------------------
+    if token:
+        token_hash = hashlib.sha256(token.encode()).hexdigest()
+        pending = pending_crud.get_by_token_hash(db, token_hash)
+        if pending is None:
+            raise InvalidVerificationCode("Invalid or expired verification link")
+        if pending.is_consumed:
+            raise InvalidVerificationCode("This verification link has already been used")
+        if pending.is_expired:
+            raise InvalidVerificationCode("This verification link has expired")
+        if pending.attempts >= settings.EMAIL_VERIFICATION_MAX_ATTEMPTS:
+            raise InvalidVerificationCode("Too many failed attempts. This link is no longer valid.")
+
+        existing = get_user_by_email(db, pending.email)
+        if existing is not None:
+            pending_crud.mark_consumed(db, pending)
+            raise EmailAlreadyVerified()
+
+        if not _claim_pending_registration(db, pending.id, now):
+            db.rollback()
+            raise InvalidVerificationCode("This verification link has already been used")
+
+        user = _create_verified_user(db, pending)
+        _mark_signed_in(db, user)
+        audit.record(
+            db,
+            AuditAction.REGISTER,
+            resource_type=AuditResource.USER,
+            resource_id=user.id,
+            actor=user,
+            details={"method": "verification_link"},
+            context=audit_ctx,
+        )
+        logger.info("User created and verified via link token: %s (id=%s)", user.email, user.id)
+        return user
+
+    # -------------------------------------------------------------------------
+    # Case 2: Verification code (+ email)
+    # -------------------------------------------------------------------------
+    if email and code:
+        norm_email = email.strip().lower()
+        pending = pending_crud.get_by_email(db, norm_email)
+        if pending is not None:
+            if pending.is_consumed:
+                raise InvalidVerificationCode("Verification code has already been used")
+            if pending.is_expired:
+                raise InvalidVerificationCode("Verification code has expired")
+            if pending.attempts >= settings.EMAIL_VERIFICATION_MAX_ATTEMPTS:
+                raise InvalidVerificationCode("Too many failed attempts. Please request a new code.")
+
+            if not pending.code_hash or not verify_password(code, pending.code_hash):
+                pending.attempts += 1
+                db.commit()
+                raise InvalidVerificationCode()
+
+            existing = get_user_by_email(db, pending.email)
+            if existing is not None:
+                pending_crud.mark_consumed(db, pending)
+                raise EmailAlreadyVerified()
+
+            if not _claim_pending_registration(db, pending.id, now):
+                db.rollback()
+                raise InvalidVerificationCode("Verification code has already been used")
+
+            user = _create_verified_user(db, pending)
+            _mark_signed_in(db, user)
+            audit.record(
+                db,
+                AuditAction.REGISTER,
+                resource_type=AuditResource.USER,
+                resource_id=user.id,
+                actor=user,
+                details={"method": "verification_code"},
+                context=audit_ctx,
+            )
+            logger.info("User created and verified via code: %s (id=%s)", user.email, user.id)
+            return user
+
+        # Fallback for pre-existing unverified users in users table
+        user = get_user_by_email(db, norm_email)
+        if user is None or not user.is_active:
+            verify_password(code, None)
+            raise InvalidVerificationCode()
+        if user.is_email_verified:
+            raise EmailAlreadyVerified()
+
+        email_verification_service.verify_code(db, user, code)
+        user.is_email_verified = True
+        db.commit()
+        db.refresh(user)
+        logger.info("Email verified for existing user %s (id=%s)", user.email, user.id)
+        return user
+
+    raise InvalidVerificationCode("Verification token or code required")
+
+
+def prepare_resend_verification(
+    db: Session, email: str
+) -> tuple[str, str, str] | None:
+    """Regenerate verification credentials for an address, without sending.
+
+    Performs the throttling and the database writes synchronously (so the
+    caller keeps its 429 behaviour and the state is durable), and returns
+    ``(email, raw_token, code)`` for the caller to dispatch. Returns ``None``
+    when there is nothing to send (unknown or already-verified address).
+
+    The legacy pre-existing-unverified-user path cannot be split cleanly (the
+    code-issuing helper both writes and sends), so it is dispatched here and
+    reports nothing; the caller still answers generically.
+
+    Raises:
+        ResendThrottledError: too soon / too many requests.
+        EmailAlreadyVerified: the address is already confirmed.
+    """
+    key = email.strip().lower()
+    if not _resend_cooldown.check(key) or not _resend_hourly.check(key):
+        raise ResendThrottledError()
+
+    user = get_user_by_email(db, key)
+    if user is not None and user.is_email_verified:
+        raise EmailAlreadyVerified()
+
+    pending = pending_crud.get_by_email(db, key)
+    if pending is not None and not pending.is_consumed:
+        raw_token = secrets.token_urlsafe(32)
+        token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
+        code = email_verification_service.generate_code()
+        code_hash = hash_password(code)
+        expires_at = datetime.now(timezone.utc) + timedelta(
+            minutes=settings.EMAIL_VERIFICATION_CODE_EXPIRE_MINUTES
+        )
+
+        # Persist the fresh credentials before dispatch: the response no longer
+        # waits for the provider, and the old link is invalidated immediately.
+        pending.token_hash = token_hash
+        pending.code_hash = code_hash
+        pending.expires_at = expires_at
+        pending.attempts = 0
+        pending.last_sent_at = datetime.now(timezone.utc)
+        db.commit()
+        return key, raw_token, code
+
+    if user is not None and not user.is_email_verified and user.is_active:
+        # Legacy single-phase account: reuse the existing code-issuing helper.
+        delivery = email_verification_service.issue_code(db, user)
+        if not delivery.success:
+            logger.warning(
+                "Verification code email delivery failed for user id=%s: %s",
+                user.id,
+                delivery.error,
+            )
+        return None
+
+    return None
+
+
+def dispatch_registration_email(email: str, raw_token: str, code: str) -> None:
+    """Send a verification email (link + code); safe to run in the background.
+
+    Never raises: delivery failures are logged, which is what lets the public
+    resend endpoint answer generically without revealing whether an address is
+    registered.
+    """
+    delivery = send_hr_registration_email(email, raw_token, code)
+    if not delivery.success:
+        logger.warning(
+            "Verification email delivery failed for %s: %s (status=%s)",
+            email,
+            delivery.error,
+            delivery.status_code,
+        )
+
+
+def cleanup_expired_pending(db: Session, max_age_hours: int = 24) -> int:
+    """Purge pending registrations expired or consumed longer than max_age_hours ago."""
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=max_age_hours)
+    return pending_crud.delete_expired(db, cutoff)
 
 
 def authenticate_user(db: Session, email: str, password: str) -> User | None:
@@ -138,12 +492,13 @@ def authenticate_user(db: Session, email: str, password: str) -> User | None:
     no password hash and therefore cannot use the password path.
     """
     user = get_user_by_email(db, email)
-    if (
-        user is None
-        or not user.is_active
-        or user.hashed_password is None
-        or not verify_password(password, user.hashed_password)
-    ):
+    if user is None or user.hashed_password is None:
+        # Nothing to compare against (unknown email / Google-only account).
+        # Still spend one bcrypt verification so the response time cannot be
+        # used to enumerate accounts (see core.security.verify_password).
+        verify_password(password, None)
+        return None
+    if not user.is_active or not verify_password(password, user.hashed_password):
         return None
     return user
 
@@ -180,6 +535,13 @@ async def login_with_google(
         redirect_uri,
     )
     profile = await authenticate_with_google(code, redirect_uri)
+    if not profile.email_verified:
+        # Linking by an unverified address would let an attacker claim an
+        # existing local account. Google verifies consumer emails, so this only
+        # rejects genuinely unverified identities.
+        raise GoogleAuthError(
+            "Your Google email address is not verified, so it cannot be used to sign in."
+        )
     logger.info(
         "Google login: profile resolved email=%s google_id=…%s",
         profile.email,
@@ -245,9 +607,23 @@ def issue_token(
         # Defensive: a bug upstream must never mint an admin session.
         role = SessionRole.USER
     return Token(
-        access_token=create_access_token(subject=user.id, issued_at=issued_at, role=role.value),
-        refresh_token=create_refresh_token(subject=user.id, issued_at=issued_at, role=role.value),
+        access_token=create_access_token(
+            subject=user.id,
+            issued_at=issued_at,
+            role=role.value,
+            email_verified=user.is_email_verified,
+        ),
+        refresh_token=create_refresh_token(
+            subject=user.id,
+            issued_at=issued_at,
+            role=role.value,
+            email_verified=user.is_email_verified,
+        ),
         active_role=role,
+        is_email_verified=user.is_email_verified,
+        requires_email_verification=not user.is_email_verified,
+        verification_email_sent=getattr(user, "verification_email_sent", True),
+        email_delivery_error=getattr(user, "email_delivery_error", None),
     )
 
 
@@ -394,11 +770,9 @@ def send_reset_email(db: Session, email: str) -> None:
     if send_reset_password_email(user.email, token):
         logger.info("Password reset email queued for %s (id=%s)", user.email, user.id)
         return
-    logger.warning(
-        "Password reset requested for %s (google_only=%s); email delivery "
-        "unavailable, reset link: %s",
-        user.email,
-        user.hashed_password is None,
+    log_development_link(
+        f"Password reset requested for {user.email} "
+        f"(google_only={user.hashed_password is None}) but email delivery is unavailable.",
         build_reset_link(token),
     )
 

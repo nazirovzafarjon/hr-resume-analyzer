@@ -22,6 +22,13 @@ class Token(BaseModel):
     active_role: SessionRole = SessionRole.USER
     #: Always false here; lets clients tell a session from RoleSelectionRequired.
     requires_role_selection: Literal[False] = False
+    #: Whether the account's email is confirmed. When false the panel endpoints
+    #: answer 403 ``EMAIL_VERIFICATION_REQUIRED``: the UI must send the user to
+    #: the verification screen instead of the dashboard.
+    is_email_verified: bool = True
+    requires_email_verification: bool = False
+    verification_email_sent: bool = True
+    email_delivery_error: str | None = None
 
 
 class RoleSelectionRequired(BaseModel):
@@ -63,15 +70,28 @@ class LoginRequest(BaseModel):
     """Credentials for logging in."""
 
     email: EmailStr
-    password: str
+    password: str = Field(min_length=1, max_length=72)
 
 
 class RegisterRequest(BaseModel):
     """Payload for HR registration."""
 
     email: EmailStr
-    full_name: str = Field(min_length=1)
-    password: str
+    full_name: str = Field(min_length=1, max_length=255)
+    password: str = Field(min_length=8, max_length=72)
+
+
+class RegisterResponse(BaseModel):
+    """Response returned upon initiating HR registration (two-phase).
+
+    Zero access or refresh tokens are returned until email verification succeeds.
+    """
+
+    message: str = "Please verify your email to complete registration."
+    email: EmailStr
+    requires_verification: Literal[True] = True
+    verification_email_sent: bool = True
+    email_delivery_error: str | None = None
 
 
 class ForgotPasswordRequest(BaseModel):
@@ -89,7 +109,7 @@ class ResetPasswordRequest(BaseModel):
     """
 
     token: str = Field(min_length=1)
-    new_password: str
+    new_password: str = Field(min_length=8, max_length=72)
 
 
 class SkipResetRequest(BaseModel):
@@ -119,6 +139,26 @@ class ResetTokenInfo(BaseModel):
     full_name: str
     has_password: bool
     is_google_account: bool
+
+
+class EmailVerificationRequest(BaseModel):
+    """Confirm an HR email with either the emailed verification link token or 6-digit code."""
+
+    token: str | None = Field(default=None, min_length=1)
+    email: EmailStr | None = None
+    code: str | None = Field(default=None, min_length=6, max_length=6, pattern=r"^\d{6}$")
+
+
+class ResendVerificationRequest(BaseModel):
+    """Request a fresh verification code for an address (public endpoint)."""
+
+    email: EmailStr
+
+
+class VerifyEmailTokenRequest(BaseModel):
+    """Candidate Portal verification link credential (``?token=...``)."""
+
+    token: str = Field(min_length=1)
 
 
 class GoogleAuthRequest(BaseModel):

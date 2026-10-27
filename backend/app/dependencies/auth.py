@@ -25,6 +25,7 @@ from jose import JWTError
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.errors import EmailVerificationRequiredError
 from app.core.security import (
     TOKEN_PURPOSE_ACCESS,
     decode_token_for_purposes,
@@ -164,5 +165,10 @@ def get_access_scope(session: CurrentSession = Depends(get_current_session)) -> 
     immediately narrows the scope back to the caller's own data.
     """
     user = session.user
+    # Email verification is a prerequisite for creating/using the panel. This
+    # is enforced here (not just in the UI), so an unverified account cannot
+    # reach any HR panel endpoint with a token obtained before verifying.
+    if not user.is_email_verified:
+        raise EmailVerificationRequiredError()
     is_admin = user.is_superuser and session.role == SessionRole.ADMIN
     return AccessScope(user=user, owner_id=None if is_admin else user.id)

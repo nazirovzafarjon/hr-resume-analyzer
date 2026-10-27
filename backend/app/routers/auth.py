@@ -3,7 +3,7 @@
 Register, login, logout, forgot/reset password.
 """
 
-from fastapi import APIRouter, Body, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, BackgroundTasks, Body, Depends, File, HTTPException, UploadFile, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 import logging
@@ -11,17 +11,21 @@ import logging
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.errors import EmailVerificationRequiredError
 from app.dependencies.audit import get_audit_context
 from app.core.roles import available_roles
 from app.dependencies.auth import CurrentSession, get_current_session, get_current_user
 from app.models.user import User
 from app.schemas.auth import (
+    EmailVerificationRequest,
     ForgotPasswordRequest,
     GoogleAuthRequest,
     LoginRequest,
     LogoutRequest,
     RefreshTokenRequest,
     RegisterRequest,
+    RegisterResponse,
+    ResendVerificationRequest,
     ResetPasswordRequest,
     ResetTokenInfo,
     SelectRoleRequest,
@@ -43,6 +47,7 @@ from app.schemas.ai_provider import (
 from app.services.ai import provider as ai_provider_service
 from app.services import auth as auth_service
 from app.services import audit
+from app.services import email_verification as email_verification_service
 from app.services import profile as profile_service
 from app.services.audit import AuditAction, AuditContext, AuditResource
 from app.services.google_auth import GoogleAuthError
@@ -63,29 +68,49 @@ SIGN_IN_DOC = (
 
 @router.post(
     "/register",
-    response_model=SignInResult,
+    response_model=RegisterResponse,
     status_code=status.HTTP_201_CREATED,
 )
 def register(
     payload: RegisterRequest,
     db: Session = Depends(get_db),
     audit_ctx: AuditContext = Depends(get_audit_context),
-) -> SignInResult:
-    """Create a new HR account and return a fresh access token.
+) -> RegisterResponse:
+    """Initiate two-phase HR registration.
+
+    Stores the registration details in `pending_registrations` and emails a
+    secure verification link and code. No permanent account is created in
+    `users` and zero session tokens are issued until email verification succeeds.
+
+    The pending row is persisted even when the email provider rejects the
+    message, so the response reports `verification_email_sent: false` (with a
+    safe `email_delivery_error`) rather than a 502: the registration itself was
+    accepted and can be completed by requesting a new code.
 
     Errors:
     * 400 — the email is already registered
     * 403 — an administrator has switched registration off
     """
     try:
-        user = auth_service.register_user(db, payload, audit_ctx)
+        pending, delivery = auth_service.initiate_registration(db, payload, audit_ctx)
     except auth_service.RegistrationDisabledError as exc:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
         ) from exc
-    return auth_service.begin_session(user)
+
+    return RegisterResponse(
+        message=(
+            "Please check your email to complete registration."
+            if delivery.success
+            else "We couldn't send the verification email. Request a new code to try again."
+        ),
+        email=pending.email,
+        requires_verification=True,
+        verification_email_sent=delivery.success,
+        email_delivery_error=delivery.error if not delivery.success else None,
+    )
 
 
 @router.post("/login", response_model=SignInResult, description="Sign in with email and password." + SIGN_IN_DOC)
@@ -100,6 +125,12 @@ def login(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
+        )
+    # An unverified account must confirm its email before it can enter the HR
+    # panel; the frontend redirects to the verification screen.
+    if not user.is_email_verified:
+        raise EmailVerificationRequiredError(
+            "Please verify your email before logging in."
         )
     auth_service.record_sign_in(db, user, "password", audit_ctx)
     return auth_service.begin_session(user)
@@ -181,6 +212,75 @@ def logout(
         context=audit_ctx,
     )
     return None
+
+
+@router.post(
+    "/verify-email",
+    response_model=SignInResult,
+    summary="Confirm an HR email and complete registration",
+)
+def verify_email(
+    payload: EmailVerificationRequest,
+    db: Session = Depends(get_db),
+    audit_ctx: AuditContext = Depends(get_audit_context),
+) -> SignInResult:
+    """Confirm an HR registration with either the emailed link token or 6-digit code.
+
+    Atomically creates the permanent user in `users`, sets is_email_verified = True,
+    consumes the pending registration, and issues the legitimate access/refresh tokens.
+
+    Errors:
+    * 400 — invalid, expired or already-used credential
+    * 400 — the email is already verified
+    """
+    try:
+        user = auth_service.verify_email(
+            db,
+            token=payload.token,
+            email=str(payload.email) if payload.email else None,
+            code=payload.code,
+            audit_ctx=audit_ctx,
+        )
+    except email_verification_service.InvalidVerificationCode as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=exc.message
+        ) from exc
+    except email_verification_service.EmailAlreadyVerified as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=exc.message
+        ) from exc
+    auth_service.record_sign_in(db, user, "email_verification", audit_ctx)
+    return auth_service.begin_session(user)
+
+
+@router.post("/resend-verification-code")
+def resend_verification_code(
+    payload: ResendVerificationRequest,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+) -> dict[str, str]:
+    """Email a fresh 6-digit verification code.
+
+    The answer is generic for unknown/unverified addresses so it never reveals
+    account existence; already-verified addresses get a clear safe message.
+    Throttled per address (429 when asked again too soon or too often).
+
+    The credentials are regenerated synchronously, then the message is handed
+    to a FastAPI background task so the response never waits on the provider.
+    """
+    try:
+        job = auth_service.prepare_resend_verification(db, str(payload.email))
+    except email_verification_service.EmailAlreadyVerified as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=exc.message
+        ) from exc
+    except email_verification_service.ResendThrottledError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=exc.message
+        ) from exc
+    if job is not None:
+        background_tasks.add_task(auth_service.dispatch_registration_email, *job)
+    return {"message": email_verification_service.CODE_SENT_MESSAGE}
 
 
 @router.post("/forgot-password")

@@ -202,7 +202,7 @@ export async function apiRequest<T>(
       // session is gone. Drop it and let the auth context redirect to login.
       forceSignOut(kind);
     }
-    throw new ApiError(response.status, extractDetail(data));
+    throw new ApiError(response.status, extractDetail(data), extractCode(data));
   }
 
   return data as T;
@@ -218,4 +218,16 @@ function extractDetail(data: unknown): string {
     return (data as { detail: string }).detail;
   }
   return "Something went wrong. Please try again.";
+}
+
+/** Pull the backend's machine-readable `code` field when present. */
+function extractCode(data: unknown): string | undefined {
+  if (
+    data &&
+    typeof data === "object" &&
+    typeof (data as { code?: unknown }).code === "string"
+  ) {
+    return (data as { code: string }).code;
+  }
+  return undefined;
 }

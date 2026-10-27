@@ -19,6 +19,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.core.config import settings
 from app.core.database import SessionLocal, engine
+from app.core.errors import EMAIL_VERIFICATION_REQUIRED, EmailVerificationRequiredError
 from app.core.migrations import prepare_schema
 from app.core.request_context import REQUEST_ID_HEADER, RequestContextMiddleware, request_id_from_scope
 from app.routers import admin, applications, auth, candidate, dashboard, exports, interviews, jobs, public, users
@@ -82,6 +83,20 @@ async def _handle_http_exception(request: Request, exc: StarletteHTTPException) 
         # Sync DB write: keep it off the event loop.
         await run_in_threadpool(_record_error, request, exc.status_code, exc, str(exc.detail))
     return await http_exception_handler(request, exc)
+
+
+async def _handle_email_verification_required(
+    request: Request, exc: EmailVerificationRequiredError
+) -> JSONResponse:
+    """Answer a panel request from an unverified account with a coded 403.
+
+    The ``code`` lets the frontend show the "verify your email" UI instead of a
+    generic Forbidden message.
+    """
+    return JSONResponse(
+        status_code=403,
+        content={"detail": str(exc), "code": EMAIL_VERIFICATION_REQUIRED},
+    )
 
 
 def _report_unhandled_error(scope: dict, exc: Exception) -> None:
@@ -155,6 +170,62 @@ def _ensure_database() -> None:
         ) from exc
 
 
+def _warn_if_insecure_configuration() -> None:
+    """Warn (never fail) at startup about production-unsafe settings.
+
+    Only variable *names* and statuses are logged — never a secret value. A
+    missing or default signing key, or DEBUG left on, are reported so a
+    misconfigured deployment is visible in the logs immediately.
+    """
+    weak_secrets = {"", "change-me-in-production", "dev-secret-change-me"}
+    if settings.SECRET_KEY in weak_secrets or len(settings.SECRET_KEY) < 32:
+        if settings.DEBUG:
+            logger.info(
+                "SECRET_KEY is a development value; set a strong random value for production."
+            )
+        else:
+            logger.warning(
+                "SECRET_KEY is missing, default, or too short while DEBUG is off. "
+                "Set a strong random SECRET_KEY before serving production traffic."
+            )
+    if settings.DEBUG:
+        logger.info("DEBUG is enabled; disable it in production.")
+
+
+def _warn_if_sandbox_sender() -> None:
+    """Warn when the Resend sandbox sender is still configured.
+
+    ``onboarding@resend.dev`` only delivers to the address that owns the Resend
+    account, so any other recipient is rejected with a 403. A verified custom
+    domain is required for real users.
+    """
+    if settings.EMAIL_FROM.strip().lower().endswith("@resend.dev"):
+        logger.warning(
+            "EMAIL_FROM still uses the Resend sandbox sender (@resend.dev). "
+            "It can only deliver to your own Resend account address. Verify a "
+            "domain (e.g. edubaselearning.uz) and set EMAIL_FROM to a sender on it."
+        )
+
+
+def _cleanup_expired_pending() -> None:
+    """Best-effort purge of old pending registrations at startup.
+
+    Keeps ``pending_registrations`` from growing unbounded. A failure here must
+    never stop the API from starting.
+    """
+    from app.services.auth import cleanup_expired_pending
+
+    db = SessionLocal()
+    try:
+        removed = cleanup_expired_pending(db)
+        if removed:
+            logger.info("Purged %s expired/consumed pending registration(s)", removed)
+    except Exception:  # noqa: BLE001 — startup must not fail on housekeeping
+        logger.warning("Pending-registration cleanup failed", exc_info=True)
+    finally:
+        db.close()
+
+
 def _prepare_schema_and_seed_superuser() -> None:
     """Bring the schema to this code's revision, then ensure the configured superuser.
 
@@ -187,8 +258,11 @@ def create_app() -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        _warn_if_insecure_configuration()
+        _warn_if_sandbox_sender()
         _ensure_database()
         _prepare_schema_and_seed_superuser()
+        _cleanup_expired_pending()
         yield
         await close_ai_client()
 
@@ -222,6 +296,9 @@ def create_app() -> FastAPI:
     # (with the exception still logged server-side) instead of a 500 that
     # leaks a stack trace / connection internals.
     app.add_exception_handler(SQLAlchemyError, _handle_db_error)
+    app.add_exception_handler(
+        EmailVerificationRequiredError, _handle_email_verification_required
+    )
     app.add_exception_handler(StarletteHTTPException, _handle_http_exception)
     app.add_exception_handler(Exception, _handle_unexpected_error)
 

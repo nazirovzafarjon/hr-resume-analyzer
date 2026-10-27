@@ -5,6 +5,7 @@ import type {
   GoogleAuthInput,
   LoginInput,
   RegisterInput,
+  RegisterResponse,
   ResetPasswordInput,
   ResetTokenInfo,
   SessionRole,
@@ -12,9 +13,9 @@ import type {
   SkipResetInput,
 } from "../types/auth";
 
-/** POST /api/auth/register — create an account and receive a token pair. */
-export function register(input: RegisterInput): Promise<SignInResult> {
-  return apiRequest<SignInResult>("/auth/register", {
+/** POST /api/auth/register — initiate two-phase registration (requires email confirmation). */
+export function register(input: RegisterInput): Promise<RegisterResponse> {
+  return apiRequest<RegisterResponse>("/auth/register", {
     method: "POST",
     body: input,
   });
@@ -58,6 +59,42 @@ export function switchRole(role: SessionRole): Promise<AuthResponse> {
     method: "POST",
     auth: true,
     body: { role },
+  });
+}
+
+/**
+ * POST /api/auth/verify-email — confirm the email with link token or 6-digit code.
+ *
+ * Returns a fresh session (the backend signs the account in as part of the
+ * verification), or throws ApiError(400) for an invalid/expired/used credential.
+ */
+export function verifyEmail(
+  tokenOrEmail: string | { token?: string; email?: string; code?: string },
+  code?: string,
+): Promise<SignInResult> {
+  const body =
+    typeof tokenOrEmail === "object"
+      ? tokenOrEmail
+      : code
+      ? { email: tokenOrEmail, code }
+      : { token: tokenOrEmail };
+
+  return apiRequest<SignInResult>("/auth/verify-email", {
+    method: "POST",
+    body,
+  });
+}
+
+/**
+ * POST /api/auth/resend-verification-code — email a fresh 6-digit code.
+ *
+ * The backend answers identically for unknown addresses; it throttles (429)
+ * repeat requests for the same email.
+ */
+export function resendVerification(email: string): Promise<{ message: string }> {
+  return apiRequest<{ message: string }>("/auth/resend-verification-code", {
+    method: "POST",
+    body: { email },
   });
 }
 

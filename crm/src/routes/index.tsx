@@ -13,6 +13,7 @@ import LoginPage from "../pages/auth/LoginPage";
 import RegisterPage from "../pages/auth/RegisterPage";
 const ForgotPasswordPage = lazy(() => import("../pages/auth/ForgotPasswordPage"));
 const ResetPasswordPage = lazy(() => import("../pages/auth/ResetPasswordPage"));
+const VerifyEmailPage = lazy(() => import("../pages/auth/VerifyEmailPage"));
 const RoleSelectPage = lazy(() => import("../pages/auth/RoleSelectPage"));
 const DashboardPage = lazy(() => import("../pages/dashboard/DashboardPage"));
 const JobListPage = lazy(() => import("../pages/jobs/JobListPage"));
@@ -47,6 +48,7 @@ const CandidateLoginPage = lazy(() => import("../pages/candidate/auth/CandidateL
 const CandidateRegisterPage = lazy(() => import("../pages/candidate/auth/CandidateRegisterPage"));
 const CandidateForgotPasswordPage = lazy(() => import("../pages/candidate/auth/CandidateForgotPasswordPage"));
 const CandidateResetPasswordPage = lazy(() => import("../pages/candidate/auth/CandidateResetPasswordPage"));
+const CandidateVerifyEmailPage = lazy(() => import("../pages/candidate/auth/CandidateVerifyEmailPage"));
 const CandidateDashboardPage = lazy(() => import("../pages/candidate/CandidateDashboardPage"));
 const CandidateApplicationsPage = lazy(() => import("../pages/candidate/CandidateApplicationsPage"));
 const CandidateApplicationDetailPage = lazy(() => import("../pages/candidate/CandidateApplicationDetailPage"));
@@ -139,6 +141,7 @@ export const routes: RouteObject[] = [
   { path: "/register", element: <RegisterPage /> },
   { path: "/forgot-password", element: publicPage(<ForgotPasswordPage />) },
   { path: "/reset-password", element: publicPage(<ResetPasswordPage />) },
+  { path: "/verify-email", element: publicPage(<VerifyEmailPage />) },
   { path: "/select-role", element: publicPage(<RoleSelectPage />) },
   { path: "/oauth/callback", element: <GoogleAuthCallback /> },
   { path: "/apply/:token", element: publicPage(<ApplyPage />) },
@@ -159,6 +162,7 @@ export const routes: RouteObject[] = [
   { path: "/candidate/register", element: publicPage(<CandidateRegisterPage />) },
   { path: "/candidate/forgot-password", element: publicPage(<CandidateForgotPasswordPage />) },
   { path: "/candidate/reset-password", element: publicPage(<CandidateResetPasswordPage />) },
+  { path: "/candidate/verify-email", element: publicPage(<CandidateVerifyEmailPage />) },
   { path: "/candidate", element: candidatePage(<CandidateDashboardPage />) },
   { path: "/candidate/applications", element: candidatePage(<CandidateApplicationsPage />) },
   { path: "/candidate/applications/:id", element: candidatePage(<CandidateApplicationDetailPage />) },

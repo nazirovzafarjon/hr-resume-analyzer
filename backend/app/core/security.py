@@ -48,6 +48,14 @@ from app.core.config import settings
 # bcrypt only uses the first 72 bytes of a password; truncate beyond that.
 _BCRYPT_MAX_BYTES = 72
 
+#: A real bcrypt digest verified against when there is no stored hash to check
+#: (unknown account, or a Google-only account without a local password). Running
+#: one bcrypt comparison keeps the login response time roughly constant, so an
+#: attacker cannot tell a registered email from an unknown one by timing.
+_DUMMY_PASSWORD_HASH = (
+    "$2b$12$LAt7bq3wcrFcqgCxQ6NLcOtyoRfLchR20XmJveKNNLSzm4tZ76eZG"
+)
+
 #: Bearer credential used to authorize API requests (the default purpose).
 TOKEN_PURPOSE_ACCESS = "access"
 #: Long-lived credential exchanged for a new access token.
@@ -64,6 +72,13 @@ ROLE_SELECTION_TOKEN_EXPIRE_MINUTES = 5
 TOKEN_PURPOSE_CANDIDATE_ACCESS = "candidate_access"
 TOKEN_PURPOSE_CANDIDATE_REFRESH = "candidate_refresh"
 TOKEN_PURPOSE_CANDIDATE_RESET = "candidate_password_reset"
+#: Single-purpose credential embedded in the Candidate Portal "verify your
+#: email" link. Never accepted as a session credential: the bearer guards accept
+#: only the access purposes.
+TOKEN_PURPOSE_CANDIDATE_EMAIL_VERIFICATION = "candidate_email_verification"
+
+# NOTE: HR email verification uses a short-lived 6-digit code stored hashed in
+# ``email_verifications`` (see app.services.email_verification), not a JWT.
 
 
 def _password_bytes(password: str) -> bytes:
@@ -76,13 +91,23 @@ def hash_password(password: str) -> str:
     return bcrypt.hashpw(_password_bytes(password), bcrypt.gensalt()).decode("utf-8")
 
 
-def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Return ``True`` when a plain password matches its stored hash."""
+def verify_password(plain_password: str, hashed_password: str | None) -> bool:
+    """Return ``True`` when a plain password matches its stored hash.
+
+    A missing hash (``None``) is never a match, but one bcrypt comparison is
+    still performed against a throwaway digest so callers (the login services)
+    cannot be timed to learn whether an email is registered or whether an
+    account is Google-only. It also means a ``None`` hash can never raise into
+    an endpoint.
+    """
+    if not hashed_password:
+        bcrypt.checkpw(_password_bytes(plain_password), _DUMMY_PASSWORD_HASH.encode("utf-8"))
+        return False
     try:
         return bcrypt.checkpw(
             _password_bytes(plain_password), hashed_password.encode("utf-8")
         )
-    except ValueError:
+    except (ValueError, TypeError):
         return False
 
 
@@ -119,11 +144,26 @@ def _role_claims(role: str | None) -> dict[str, Any] | None:
     return {"role": role} if role else None
 
 
+def _session_claims(role: str | None, email_verified: bool | None) -> dict[str, Any] | None:
+    """Extra claims carried by session tokens (workspace + email verification).
+
+    ``email_verified`` is a UI hint only: the guards always re-read the flag
+    from the database, so a stale token can never widen access.
+    """
+    claims: dict[str, Any] = {}
+    if role:
+        claims["role"] = role
+    if email_verified is not None:
+        claims["email_verified"] = email_verified
+    return claims or None
+
+
 def create_access_token(
     subject: str | int,
     expires_delta: timedelta | None = None,
     issued_at: datetime | None = None,
     role: str | None = None,
+    email_verified: bool | None = None,
 ) -> str:
     """Create a signed JWT whose ``sub`` claim identifies the user.
 
@@ -132,13 +172,16 @@ def create_access_token(
         expires_delta: Optional custom lifetime; defaults to the configured value.
         issued_at: Optional ``iat`` override (see :func:`_create_token`).
         role: The session's active workspace (``SessionRole`` value).
+        email_verified: The account's email-verification state, carried so the
+            frontend can show the verification UI before calling a panel
+            endpoint. Authoritative checks always read the database.
     """
     return _create_token(
         subject,
         expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
         TOKEN_PURPOSE_ACCESS,
         issued_at=issued_at,
-        extra_claims=_role_claims(role),
+        extra_claims=_session_claims(role, email_verified),
     )
 
 
@@ -156,6 +199,7 @@ def create_refresh_token(
     expires_delta: timedelta | None = None,
     issued_at: datetime | None = None,
     role: str | None = None,
+    email_verified: bool | None = None,
 ) -> str:
     """Create a long-lived refresh token for the given user.
 
@@ -168,16 +212,21 @@ def create_refresh_token(
         TOKEN_PURPOSE_REFRESH,
         issued_at=issued_at,
         # Carried so a refresh keeps the session's workspace (never upgrades it).
-        extra_claims=_role_claims(role),
+        extra_claims=_session_claims(role, email_verified),
     )
 
 
 def create_candidate_token(
-    candidate_id: int, purpose: str, issued_at: datetime | None = None
+    candidate_id: int,
+    purpose: str,
+    issued_at: datetime | None = None,
+    email_verified: bool | None = None,
 ) -> str:
     """Create a Candidate Portal token (access, refresh or password reset).
 
     Lifetimes match the HR equivalents so both sides behave the same.
+    ``email_verified`` is only carried on the session purposes (a UI hint; the
+    guard re-reads the database flag).
     """
     lifetimes = {
         TOKEN_PURPOSE_CANDIDATE_ACCESS: timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
@@ -186,7 +235,18 @@ def create_candidate_token(
             minutes=settings.PASSWORD_RESET_TOKEN_EXPIRE_MINUTES
         ),
     }
-    return _create_token(candidate_id, lifetimes[purpose], purpose, issued_at=issued_at)
+    return _create_token(
+        candidate_id,
+        lifetimes[purpose],
+        purpose,
+        issued_at=issued_at,
+        extra_claims=(
+            _session_claims(None, email_verified)
+            if purpose
+            in (TOKEN_PURPOSE_CANDIDATE_ACCESS, TOKEN_PURPOSE_CANDIDATE_REFRESH)
+            else None
+        ),
+    )
 
 
 def create_password_reset_token(
@@ -203,6 +263,37 @@ def create_password_reset_token(
         or timedelta(minutes=settings.PASSWORD_RESET_TOKEN_EXPIRE_MINUTES),
         TOKEN_PURPOSE_RESET,
     )
+
+
+def create_candidate_email_verification_token(subject: str | int) -> str:
+    """Create the short-lived token embedded in the Candidate verification link.
+
+    Tagged ``typ: "candidate_email_verification"`` so the API bearer guards
+    reject it: a forwarded verification link can never be replayed as a session.
+    """
+    return _create_token(
+        subject,
+        timedelta(minutes=settings.PASSWORD_RESET_TOKEN_EXPIRE_MINUTES),
+        TOKEN_PURPOSE_CANDIDATE_EMAIL_VERIFICATION,
+    )
+
+
+def decode_candidate_email_verification_token(token: str) -> dict[str, Any]:
+    """Decode a Candidate verification token, requiring its purpose.
+
+    Raises:
+        JWTError: If the token is invalid, expired or of the wrong purpose.
+    """
+    return decode_token_for_purpose(token, TOKEN_PURPOSE_CANDIDATE_EMAIL_VERIFICATION)
+
+
+def token_email_verified(payload: dict[str, Any]) -> bool:
+    """Return the token's email-verification hint (True when the claim is absent).
+
+    Tokens minted before this claim existed are treated as verified so existing
+    sessions keep working; the guards still read the authoritative DB flag.
+    """
+    return bool(payload.get("email_verified", True))
 
 
 def decode_access_token(token: str) -> dict[str, Any]:

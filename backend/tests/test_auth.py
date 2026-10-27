@@ -125,6 +125,32 @@ class TestLogin:
         db_session.commit()
 
         assert login(client).status_code == 401
+
+    def test_login_with_random_credentials_fails(self, client):
+        """Arbitrary/random credentials must never authenticate."""
+        response = login(client, email="random123@example.com", password="randomPassword123")
+        assert response.status_code == 401
+        assert response.json()["detail"] == "Incorrect email or password"
+
+    def test_login_rejects_google_only_account_with_arbitrary_password(self, client, db_session):
+        """Google-only accounts (hashed_password=None) cannot log in with arbitrary passwords."""
+        from app.crud.user import get_or_create_google_user
+        get_or_create_google_user(
+            db_session,
+            google_id="google-sub-789",
+            email="google.only@example.com",
+            full_name="Google User",
+            picture=None,
+        )
+        response = login(client, email="google.only@example.com", password="anyPassword123")
+        assert response.status_code == 401
+
+    def test_register_and_login_case_insensitive_email(self, client, user_factory):
+        """Registration and login must handle mixed-case emails consistently."""
+        reg_res = user_factory(email="CaseMix@Example.COM", password="StrongPassword123")
+        assert reg_res.status_code == 201
+        login_res = login(client, email="casemix@example.com", password="StrongPassword123")
+        assert login_res.status_code == 200
 # ---------------------------------------------------------------------------
 # Logout
 # ---------------------------------------------------------------------------
