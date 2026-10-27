@@ -9,7 +9,7 @@ import pytest
 from tests.payloads import APPLICATION_PAYLOAD
 
 from app.crud import application as application_crud
-from app.models.application import HiringStatus, InterviewStatus
+from app.models.application import AnalysisStatus, Application, HiringStatus, InterviewStatus
 from app.schemas.application import ApplicationCreate, ApplicationUpdate
 
 
@@ -531,3 +531,122 @@ class TestApplicationCrud:
         application = application_crud.create_application(db_session, job_id=job.id, payload=ApplicationCreate(**APPLICATION_PAYLOAD))
         application_crud.delete_application(db_session, application.id)
         assert application_crud.get_application(db_session, application.id) is None
+
+
+# ---------------------------------------------------------------------------
+# Application Comparison (Relative Competitiveness) API Tests
+# ---------------------------------------------------------------------------
+
+
+class TestApplicationComparisonAPI:
+    """Regression tests for the Application Comparison feature.
+    
+    These tests ensure the comparison endpoint works correctly after fixing
+    the AttributeError bug where SQLAlchemy queries incorrectly used
+    Job.user_id instead of Job.owner_id.
+    
+    The bug manifested as:
+        AttributeError: type object 'Job' has no attribute 'user_id'. 
+        Did you mean: 'owner_id'?
+    
+    These tests verify:
+    1. The endpoint returns 200 (not 500) for valid requests
+    2. Ownership filtering uses the correct Job.owner_id field
+    3. HR users cannot access other users' application comparisons
+    4. Unanalyzed applications return appropriate response
+    """
+
+    @pytest.fixture
+    def analyzed_application(self, sample_application, db_session):
+        """Mark the sample application as AI-analyzed with a completed score."""
+        application = db_session.get(Application, sample_application["id"])
+        application.analysis_status = AnalysisStatus.COMPLETED
+        application.ai_score = 82.5
+        application.ai_analysis_details = {"match_percentage": 82.5}
+        db_session.commit()
+        return sample_application
+
+    def test_get_comparison_for_analyzed_application_succeeds(
+        self, client, sample_job, analyzed_application
+    ):
+        """Valid owner can access comparison for analyzed application.
+        
+        Regression test: This should return 200, not 500 AttributeError.
+        """
+        response = client.get(
+            f"/api/applications/{analyzed_application['id']}/comparison",
+            headers=sample_job["headers"],
+        )
+        assert response.status_code == 200
+        body = response.json()
+        assert body["has_comparison"] is True
+        assert body["application_id"] == analyzed_application["id"]
+        assert body["job_id"] == sample_job["id"]
+        assert "requirements_fit_score" in body
+        assert "relative_percentile" in body
+        assert "comparison_pool_size" in body
+        assert "rank" in body
+        assert body["comparison_scope"] == "same_job"
+
+    def test_get_comparison_for_unanalyzed_application_returns_no_comparison(
+        self, client, sample_job, application_factory
+    ):
+        """Unanalyzed applications return has_comparison: false."""
+        app_response = application_factory(sample_job["id"])
+        app_id = app_response.json()["id"]
+
+        response = client.get(
+            f"/api/applications/{app_id}/comparison",
+            headers=sample_job["headers"],
+        )
+        assert response.status_code == 200
+        body = response.json()
+        assert body["has_comparison"] is False
+        assert "reason" in body
+
+    def test_get_comparison_for_other_users_application_returns_404(
+        self, client, sample_job, analyzed_application, other_user
+    ):
+        """HR user cannot access another user's application comparison.
+        
+        Ensures ownership filtering works correctly with Job.owner_id.
+        """
+        response = client.get(
+            f"/api/applications/{analyzed_application['id']}/comparison",
+            headers=other_user["headers"],
+        )
+        assert response.status_code == 404
+
+    def test_get_comparison_requires_authentication(
+        self, client, analyzed_application
+    ):
+        """Comparison endpoint requires authentication."""
+        response = client.get(
+            f"/api/applications/{analyzed_application['id']}/comparison"
+        )
+        assert response.status_code == 401
+
+    def test_get_job_comparisons_returns_all_analyzed(
+        self, client, sample_job, analyzed_application
+    ):
+        """Job comparisons endpoint returns all analyzed applications for a job."""
+        response = client.get(
+            f"/api/applications/jobs/{sample_job['id']}/comparisons",
+            headers=sample_job["headers"],
+        )
+        assert response.status_code == 200
+        body = response.json()
+        assert body["job_id"] == sample_job["id"]
+        assert body["total_analyzed"] >= 1
+        assert "comparisons" in body
+        assert isinstance(body["comparisons"], list)
+
+    def test_get_job_comparisons_for_other_users_job_returns_404(
+        self, client, sample_job, other_user
+    ):
+        """HR user cannot access another user's job comparisons."""
+        response = client.get(
+            f"/api/applications/jobs/{sample_job['id']}/comparisons",
+            headers=other_user["headers"],
+        )
+        assert response.status_code == 404
