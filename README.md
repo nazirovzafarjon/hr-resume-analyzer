@@ -86,6 +86,15 @@ The second side of the platform: job seekers follow their applications.
   `candidate_refresh`, `candidate_password_reset`). The HR guard accepts only
   `access` tokens and the candidate guard only `candidate_access`, so neither
   token works on the other side. Hashing and JWT signing are shared.
+* **Email/password and Google.** Candidates can register/sign in with a local
+  password or with the same Google OAuth code exchange HR uses. Only a
+  *verified* Google email is accepted; an existing candidate account is linked
+  by email, while an HR account with the same address stays a separate
+  identity (candidates can never take over an HR/admin account). A Google-only
+  candidate has `hashed_password = NULL`: password login is rejected (the
+  profile reports `has_password: false` and the UI hides the change-password
+  form), and the reset flow can set a first local password without unlinking
+  Google.
 * **Applying.** The existing public form (`/apply/:token`) is reused. Sent with
   a candidate token (optional), the new application is linked to the account
   (`applications.candidate_account_id`); guests can still apply. Applications
@@ -111,7 +120,7 @@ The second side of the platform: job seekers follow their applications.
 
 | Endpoint | Purpose |
 |---|---|
-| `POST /api/candidate/auth/register` · `login` · `refresh` · `logout` | Candidate session (refresh tokens are single-use) |
+| `POST /api/candidate/auth/register` · `login` · `google` · `refresh` · `logout` | Candidate session (refresh tokens are single-use). `google` uses the same Google OAuth code exchange as HR sign-in and links an existing candidate account by verified email. |
 | `POST /api/candidate/auth/forgot-password` · `reset-password` | Password reset by emailed link (`/candidate/reset-password`) |
 | `GET/PATCH /api/candidate/profile`, `PATCH …/profile/password`, `POST/DELETE …/profile/image` | Own profile |
 | `GET /api/candidate/dashboard` | Counts, next interview, recent applications |
@@ -353,16 +362,20 @@ All settings are read from real environment variables or the `.env` file
 | `REFRESH_TOKEN_EXPIRE_DAYS` | `7` | Refresh-token lifetime (days); only accepted by `POST /api/auth/refresh`. |
 | `PASSWORD_RESET_TOKEN_EXPIRE_MINUTES` | `30` | Lifetime of the token carried by an emailed password-reset link. |
 | `FRONTEND_BASE_URL` | `http://localhost:5173` | Origin used to build the reset link sent to the user. |
-| `RESEND_API_KEY` | *(empty)* | Resend API key (https://resend.com/api-keys). When empty, reset links are written to the server log instead of being emailed. |
-| `EMAIL_FROM` | `onboarding@resend.dev` | Verified from-address for reset emails. The sandbox `onboarding@resend.dev` sender only delivers to the address your Resend account was registered with. |
+| `RESEND_API_KEY` | *(empty)* | Resend API key (https://resend.com/api-keys). When empty, verification/reset links are written to the server log in DEBUG builds instead of being emailed. |
+| `EMAIL_FROM` | `onboarding@resend.dev` | From-address. Must be on a Resend-verified domain for real recipients; the sandbox `onboarding@resend.dev` sender only delivers to your own Resend account address. |
+| `EMAIL_FROM_NAME` | *(empty)* | Optional display name, rendered as `Name <EMAIL_FROM>`. |
+| `EMAIL_REPLY_TO` | *(empty)* | Optional Reply-To address; omitted when empty. |
+| `EMAIL_REQUEST_TIMEOUT` | `10` | Seconds to wait for the Resend API (registration sends synchronously). |
+| `EMAIL_MAX_RETRIES` | `2` | Max retries for transient Resend failures (HTTP 429/5xx, network). Permanent 4xx are never retried. |
+| `EMAIL_RETRY_BASE_DELAY` | `1` | Base seconds for the bounded exponential backoff between email retries. |
+| `EMAIL_MAX_RETRY_WAIT` | `10` | Longest single backoff wait between email retries, in seconds. |
 | `DATABASE_URL` | `postgresql://postgres:postgres@localhost:5432/resume_analyzer` | SQLAlchemy database URL. |
 | `DB_AUTO_MIGRATE` | `true` | Apply pending Alembic migrations at startup. `false`: refuse to start on an out-of-date schema and ask for `alembic upgrade head`. |
 | `BACKEND_CORS_ORIGINS` | `http://localhost:5173,http://localhost:5174` | Comma-separated browser origins allowed to call the API: the CRM (`crm/`) and the landing site (`landing/`, for its Contact form). |
 | `SUPERUSER_EMAIL` | *(empty)* | If set, a superuser is seeded at startup when no superuser exists yet. Needed to use the admin `/api/users` endpoints. |
 | `SUPERUSER_PASSWORD` | *(empty)* | Password for the seeded superuser. |
 | `SUPERUSER_FULL_NAME` | `Administrator` | Display name for the seeded superuser. |
-| `RESEND_API_KEY` | *(empty)* | Resend key; reset links are emailed when set, otherwise logged. |
-| `EMAIL_FROM` | `onboarding@resend.dev` | From-address for reset emails. |
 
 ### AI Provider Configuration
 
@@ -570,6 +583,49 @@ Client sends: Authorization: Bearer <token>
    → request proceeds on owned resources only
 ```
 
+### HR email verification & Two-Phase Registration
+
+To prevent spam, unverified accounts, and orphaned records, HR registration follows a **secure two-phase architecture**:
+1. When an HR user registers, an unverified record is stored in `pending_registrations`. **No user row is inserted into `users` and zero JWT tokens are issued.**
+2. A cryptographically secure random token (sha256 hash) and a 6-digit OTP code (bcrypt/hash) are generated and stored with a 10-minute expiry.
+3. Resend delivers an email containing both a secure activation link (`/verify-email?token=<token>`) and a 6-digit verification code.
+4. The pending record is persisted **before** the email is attempted, so a rejected delivery never discards the recoverable state. If delivery fails (e.g. Resend HTTP 403 sandbox restriction or an unverified sender), `POST /api/auth/register` still returns **HTTP 201 Created** with `verification_email_sent: false` and a safe, actionable `email_delivery_error`. The user can then request a fresh code with `POST /api/auth/resend-verification-code`. (A hard 502 is deliberately *not* returned: the registration itself was accepted, and the account can still be completed.)
+5. Once the user clicks the link and confirms ("It's me" POST action) or enters the 6-digit code, the pending registration is atomically consumed: the permanent user is created in `users` with `is_email_verified = True`, and session JWT tokens are minted.
+
+```text
+POST /api/auth/register
+   → pending record created in pending_registrations (NO user in `users`, zero JWT tokens)
+   → cryptographically random token (sha256) and 6-digit code generated
+   → email dispatched via Resend (delivery failure is reported via verification_email_sent=false, never a 502)
+   → response: { message: "...", email: "...", requires_verification: true,
+                 verification_email_sent: true, email_delivery_error: null }
+        ↓
+Option A: Click verification link in email (GET /verify-email?token=...)
+   → Frontend displays "Confirm Your Email" with "It's me — Complete Registration" button
+   → User clicks confirmation button (POST /api/auth/verify-email { token })
+        ↓
+Option B: Enter 6-digit OTP code (POST /api/auth/verify-email { email, code })
+        ↓
+Atomically in DB transaction:
+   → Pending registration consumed and verified
+   → Permanent account created in `users` (is_email_verified = true)
+   → Legitimate JWT session tokens issued
+        ↓
+HR panel accessible
+```
+
+* **Model.** `pending_registrations` (separate table with email, full name, hashed password, token hash, code hash, attempt counter, last sent timestamp, expiration timestamp).
+* **Security.** Link scanner protection: link verification uses an explicit confirmation button submitting a POST request to ensure security bots following GET links do not consume the pending registration.
+* **Concurrency.** The pending row is claimed with a conditional `UPDATE … WHERE consumed_at IS NULL`, so two simultaneous confirmations (double-click, retried request) can never both create a user; the loser gets a clean `400`. The user insert and the claim share one transaction, and the unique email constraint is the final backstop.
+* **Background dispatch.** Registration email is sent synchronously (bounded by `EMAIL_REQUEST_TIMEOUT`) so the client can be told whether delivery was accepted; `POST /api/auth/resend-verification-code` regenerates the credentials synchronously but dispatches the message through `BackgroundTasks`, so its response never waits on the provider.
+* **Resend Configuration & Sandbox Restrictions:**
+  - `RESEND_API_KEY`: API key from [Resend](https://resend.com/api-keys).
+  - `EMAIL_FROM` / `EMAIL_FROM_NAME`: the from-address (and optional display name). By default `onboarding@resend.dev`, but that sandbox sender **only permits delivery to the specific email address used to register the Resend account** — any other recipient yields HTTP 403.
+  - For staging/production, verify a custom domain in the Resend dashboard (e.g. `edubaselearning.uz`) and set `EMAIL_FROM=noreply@edubaselearning.uz` (optionally `EMAIL_FROM_NAME=EduBase`, `EMAIL_REPLY_TO=support@edubaselearning.uz`). The API logs a startup warning while `@resend.dev` is still configured.
+  - Delivery retries only transient failures: HTTP 429/5xx and network errors are retried with bounded exponential backoff (`EMAIL_MAX_RETRIES`, `EMAIL_RETRY_BASE_DELAY`, `EMAIL_MAX_RETRY_WAIT`); permanent 4xx rejections (the sandbox 403, an invalid key) fail immediately. Provider error bodies are sanitized (addresses redacted) before being logged.
+* **Rate Limiting & Cooldowns:** 60-second cooldown between resend requests per address; max 5 codes per hour.
+* **Candidate Portal:** Maintains separate identity and independent candidate verification table.
+
 ### Forgot / reset password
 
 ```text
@@ -671,7 +727,7 @@ Responses use FastAPI's standard error shape:`{"detail": "..."}`.
 ---
 
 ### POST /api/auth/register
-**Purpose:** Register a new HR account and return an access token.,
+**Purpose:** Initiate a two-phase HR registration and email a verification link + code. No account is created and no token is issued until the email is verified.,
 
 **Authentication:** Not required.,
 
@@ -689,14 +745,22 @@ Responses use FastAPI's standard error shape:`{"detail": "..."}`.
 
 ```json
 {
-    "access_token": "<jwt>",
-    "token_type": "bearer",
-    "refresh_token": "<jwt>"
+    "message": "Please check your email to complete registration.",
+    "email": "hr@example.com",
+    "requires_verification": true,
+    "verification_email_sent": true,
+    "email_delivery_error": null
 }
 ```
 
+When the email provider rejects the message, the pending registration is still
+persisted and the same `201` is returned with `verification_email_sent: false`
+and a safe `email_delivery_error` (never a false success and never a `502`). The
+user completes registration through `POST /api/auth/resend-verification-code`.
+
 **Possible errors:**
 * `400` — email already registered (`"A user with this email already exists"`)
+* `403` — an administrator has switched registration off
 * `422` — invalid email, empty `full_name`, missing fields.,
 
 ---
@@ -732,6 +796,36 @@ Responses use FastAPI's standard error shape:`{"detail": "..."}`.
 **Errors:** `401` — missing/invalid token.,
 
 ---
+
+### POST /api/auth/verify-email
+**Purpose:** Confirm the HR email with the emailed 6-digit code and sign in.
+
+**Authentication:** Not required (the code is the credential).
+
+**Request body:**
+```json
+{ "email": "hr@example.com", "code": "483921" }
+```
+
+**Success (200):** a `Token`/role-selection result — the account is signed in as
+part of the verification (`is_email_verified: true`).
+
+**Errors:**
+* `400` — `"Invalid or expired verification code"` for a wrong, expired, used or
+  unknown-account code (one generic message)
+* `400` — `"Email is already verified"`
+* `422` — missing/malformed email or a code that is not exactly 6 digits
+
+### POST /api/auth/resend-verification-code
+**Purpose:** Email a fresh 6-digit verification code.
+
+**Authentication:** Not required.
+
+**Request body:** `{ "email": "hr@example.com" }`
+
+**Success (200):** `{ "message": "If that email needs verification, a verification code has been sent." }` — generic for unknown/unverified addresses.
+
+**Errors:** `400` — `"Email is already verified"`; `429` — too soon or too many requests.
 
 ### POST /api/auth/forgot-password
 **Purpose:** Request a password-reset token for an email.,
