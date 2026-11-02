@@ -22,7 +22,7 @@ from app.core.database import SessionLocal, engine
 from app.core.errors import EMAIL_VERIFICATION_REQUIRED, EmailVerificationRequiredError
 from app.core.migrations import prepare_schema
 from app.core.request_context import REQUEST_ID_HEADER, RequestContextMiddleware, request_id_from_scope
-from app.routers import admin, applications, auth, candidate, dashboard, exports, interviews, jobs, public, translations, users
+from app.routers import admin, admin_notifications, applications, auth, candidate, dashboard, exports, interviews, jobs, public, translations, users
 from app.services.admin import errors as error_monitor
 from app.services.ai.job_analyzer import close_ai_client
 
@@ -340,6 +340,11 @@ def create_app() -> FastAPI:
         admin.router,
         prefix=f"{settings.API_PREFIX}/admin",
         tags=["admin (superuser only)"],
+    )
+    app.include_router(
+        admin_notifications.router,
+        prefix=f"{settings.API_PREFIX}/admin/notifications",
+        tags=["admin-notifications"],
     )
     app.include_router(
         translations.router,
