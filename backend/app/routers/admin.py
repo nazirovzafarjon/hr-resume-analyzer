@@ -23,7 +23,6 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.crud import audit_log as audit_crud
-from app.crud import contact_message as contact_crud
 from app.crud import job as job_crud
 from app.crud import user as user_crud
 from app.crud.admin import ApplicationFilters
@@ -33,12 +32,6 @@ from app.models.interview import InterviewStatus as InterviewSessionStatus
 from app.models.user import User
 from app.models.application import ApplicationStatus, HiringStatus, InterviewStatus
 from app.schemas import admin as schemas
-from app.schemas.contact_message import (
-    ContactMessageAdminRow,
-    ContactMessagePage,
-    ContactMessageUpdateRead,
-    ContactUnreadCount,
-)
 from app.services.admin import directory as admin_directory
 from app.services.admin import stats as admin_stats
 from app.services.ai import monitoring as ai_monitoring
@@ -537,80 +530,3 @@ def update_settings(
 )
 def get_system_health(db: Session = Depends(get_db)) -> dict:
     return system_health.get_report(db)
-
-
-# ---------------------------------------------------------------------------
-# Notifications (Contact Us Inquiries)
-# ---------------------------------------------------------------------------
-
-
-@router.get(
-    "/notifications",
-    response_model=ContactMessagePage,
-    summary="List contact inquiries",
-    description=f"{ADMIN_ONLY} Paginated and sorted by created_at DESC with optional read status and search filter.",
-)
-def list_notifications(
-    page: int = PageParam,
-    limit: int = LimitParam,
-    is_read: bool | None = Query(None, description="Filter by read status (true, false, or omitted for all)"),
-    q: str | None = SearchParam,
-    db: Session = Depends(get_db),
-) -> dict:
-    items, total, unread_count = contact_crud.get_contact_messages(
-        db, page=page, limit=limit, is_read=is_read, q=_clean(q)
-    )
-    return {
-        "items": items,
-        "total": total,
-        "unread_count": unread_count,
-        "page": page,
-        "limit": limit,
-    }
-
-
-@router.get(
-    "/notifications/unread-count",
-    response_model=ContactUnreadCount,
-    summary="Get unread contact inquiries count",
-    description=ADMIN_ONLY,
-)
-def get_notifications_unread_count(db: Session = Depends(get_db)) -> dict:
-    return {"unread_count": contact_crud.get_unread_count(db)}
-
-
-@router.patch(
-    "/notifications/{id}/read",
-    response_model=ContactMessageAdminRow,
-    summary="Mark inquiry as read or unread",
-    description=ADMIN_ONLY,
-)
-def mark_notification_read(
-    id: int,
-    payload: ContactMessageUpdateRead | None = None,
-    db: Session = Depends(get_db),
-) -> ContactMessageAdminRow:
-    is_read = payload.is_read if payload is not None else True
-    message = contact_crud.mark_contact_message_read(db, id, is_read=is_read)
-    if not message:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Inquiry not found"
-        )
-    return message
-
-
-@router.delete(
-    "/notifications/{id}",
-    status_code=status.HTTP_204_NO_CONTENT,
-    summary="Delete a contact inquiry",
-    description=ADMIN_ONLY,
-)
-def delete_notification(
-    id: int,
-    db: Session = Depends(get_db),
-) -> None:
-    deleted = contact_crud.delete_contact_message(db, id)
-    if not deleted:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Inquiry not found"
-        )
