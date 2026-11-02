@@ -16,6 +16,7 @@
       "applications": "Applications",
       "candidates": "Candidates",
       "interviews": "Interviews",
+      "notifications": "Notifications",
       "aiAnalysis": "AI Analysis",
       "analytics": "Analytics",
       "auditLogs": "Audit Logs",
@@ -541,6 +542,32 @@
         "stale_analyses": "Stale analyses",
         "per_user_credentials_required": "Each HR uses their own AI key"
       }
+    },
+    "notifications": {
+      "title": "Notifications",
+      "description": "Visitor contact inquiries and messages from the public landing page.",
+      "total": "Total inquiries",
+      "unread": "Unread",
+      "statusAll": "All",
+      "statusUnread": "Unread",
+      "statusRead": "Read",
+      "status": "Status",
+      "sender": "Sender",
+      "subject": "Subject & Message",
+      "received": "Received",
+      "emptyTitle": "No inquiries yet",
+      "emptyMessage": "Messages sent through the landing page's Contact form will appear here.",
+      "markAsRead": "Mark as read",
+      "markAsUnread": "Mark as unread",
+      "deleteTitle": "Delete inquiry",
+      "deleteMessage": "Are you sure you want to delete this inquiry from {name}? This cannot be undone.",
+      "deleteSuccess": "Inquiry deleted",
+      "detailTitle": "Contact Inquiry",
+      "noSubject": "No subject",
+      "replyTo": "Reply via email",
+      "searchPlaceholder": "Search inquiries by name, email, subject or message…",
+      "isReadBadge": "Read",
+      "isUnreadBadge": "Unread"
     }
   }
 }

@@ -16,6 +16,8 @@ import type {
   AnalyticsRange,
   AuditLogEntry,
   AuditMeta,
+  ContactNotificationPage,
+  ContactNotificationRow,
   FilterOptions,
   HealthReport,
   Page,
@@ -100,3 +102,27 @@ export function updateAdminSettings(input: { registration_enabled?: boolean }): 
 }
 
 export const fetchSystemHealth = () => get<HealthReport>("/system-health");
+
+export const fetchAdminNotifications = (params: QueryParams) =>
+  get<ContactNotificationPage>("/notifications", params);
+
+export const fetchAdminUnreadNotificationsCount = () =>
+  get<{ unread_count: number }>("/notifications/unread-count");
+
+export function markAdminNotificationRead(
+  id: number,
+  is_read = true,
+): Promise<ContactNotificationRow> {
+  return apiRequest<ContactNotificationRow>(`/admin/notifications/${id}/read`, {
+    method: "PATCH",
+    body: { is_read },
+    auth: true,
+  });
+}
+
+export function deleteAdminNotification(id: number): Promise<void> {
+  return apiRequest<void>(`/admin/notifications/${id}`, {
+    method: "DELETE",
+    auth: true,
+  });
+}

@@ -16,6 +16,7 @@
       "applications": "Arizalar",
       "candidates": "Nomzodlar",
       "interviews": "Suhbatlar",
+      "notifications": "Xabarnomalar",
       "aiAnalysis": "AI tahlili",
       "analytics": "Tahlil",
       "auditLogs": "Audit jurnali",
@@ -541,6 +542,32 @@
         "stale_analyses": "Qotib qolgan tahlillar",
         "per_user_credentials_required": "Har bir HR o'z AI kalitidan foydalanadi"
       }
+    },
+    "notifications": {
+      "title": "Xabarnomalar",
+      "description": "Landing sahifasidagi aloqa shakli orqali yuborilgan murojaatlar va xabarlar.",
+      "total": "Jami murojaatlar",
+      "unread": "O'qilmagan",
+      "statusAll": "Barchasi",
+      "statusUnread": "O'qilmagan",
+      "statusRead": "O'qilgan",
+      "status": "Holat",
+      "sender": "Yuboruvchi",
+      "subject": "Mavzu va xabar",
+      "received": "Qabul qilindi",
+      "emptyTitle": "Hozircha murojaatlar yo'q",
+      "emptyMessage": "Landing sahifasidagi aloqa shakli orqali yuborilgan xabarlar shu yerda ko'rinadi.",
+      "markAsRead": "O'qilgan deb belgilash",
+      "markAsUnread": "O'qilmagan deb belgilash",
+      "deleteTitle": "Murojaatni o'chirish",
+      "deleteMessage": "{name} tomonidan yuborilgan murojaatni o'chirib tashlamoqchimisiz? Buni qaytarib bo'lmaydi.",
+      "deleteSuccess": "Murojaat o'chirildi",
+      "detailTitle": "Foydalanuvchi murojaati",
+      "noSubject": "Mavzusiz",
+      "replyTo": "Elektron pochta orqali javob berish",
+      "searchPlaceholder": "Ism, email, mavzu yoki xabar bo'yicha qidirish…",
+      "isReadBadge": "O'qilgan",
+      "isUnreadBadge": "Yangi"
     }
   }
 }

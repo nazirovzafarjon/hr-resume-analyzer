@@ -1,4 +1,5 @@
-import { NavLink } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { NavLink, useLocation } from "react-router-dom";
 import {
   ArrowLeftRight,
   BarChart3,
@@ -22,6 +23,7 @@ import { useWorkspaceSwitch } from "../../hooks/useWorkspaceSwitch";
 import { SESSION_ROLES } from "../../types/auth";
 import { LANDING_URL } from "../../config";
 import { ADMIN_NAV_GROUPS } from "./adminNavigation";
+import { fetchAdminUnreadNotificationsCount } from "../../services/adminService";
 
 export type ShellVariant = "hr" | "admin";
 
@@ -40,6 +42,7 @@ export type NavItem = {
   labelKey: string;
   icon: LucideIcon;
   end?: boolean;
+  badge?: number | string | null;
 };
 
 export type NavGroup = {
@@ -103,11 +106,39 @@ export default function Sidebar({
   // shortcut: the admin routes and API check the session themselves.
   const adminSession = activeRole === SESSION_ROLES.ADMIN;
   const adminAccount = adminSession || (user?.available_roles ?? []).includes(SESSION_ROLES.ADMIN);
-  const groups: NavGroup[] = isAdminShell
+  const location = useLocation();
+  const [unreadCount, setUnreadCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!isAdminShell) return;
+    let active = true;
+    fetchAdminUnreadNotificationsCount()
+      .then((res) => {
+        if (active) setUnreadCount(res.unread_count);
+      })
+      .catch(() => {
+        // Non-critical, ignore error in unread badge
+      });
+    return () => {
+      active = false;
+    };
+  }, [isAdminShell, location.pathname]);
+
+  const baseGroups: NavGroup[] = isAdminShell
     ? ADMIN_NAV_GROUPS
     : adminAccount
       ? [...NAV_GROUPS, ADMIN_GROUP]
       : NAV_GROUPS;
+
+  const groups: NavGroup[] = baseGroups.map((group) => ({
+    ...group,
+    items: group.items.map((item) =>
+      item.to === "/admin/notifications"
+        ? { ...item, badge: unreadCount && unreadCount > 0 ? unreadCount : null }
+        : item,
+    ),
+  }));
+
   const homePath = isAdminShell ? "/admin/dashboard" : "/dashboard";
 
   return (
@@ -181,6 +212,9 @@ export default function Sidebar({
                                 <Icon size={18} />
                               </span>
                               <span className="sidebar-link-label">{label}</span>
+                              {item.badge !== undefined && item.badge !== null && (
+                                <span className="sidebar-link-badge">{item.badge}</span>
+                              )}
                             </button>
                           ) : (
                             <NavLink
@@ -195,6 +229,9 @@ export default function Sidebar({
                                 <Icon size={18} />
                               </span>
                               <span className="sidebar-link-label">{label}</span>
+                              {item.badge !== undefined && item.badge !== null && (
+                                <span className="sidebar-link-badge">{item.badge}</span>
+                              )}
                             </NavLink>
                           )}
                         </Tooltip>
