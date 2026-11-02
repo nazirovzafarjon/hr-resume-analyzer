@@ -6,7 +6,7 @@ what the visitor typed. ``email`` is the address the team replies to.
 
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, String, Text, func
+from sqlalchemy import Boolean, DateTime, String, Text, func, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
@@ -26,7 +26,17 @@ class ContactMessage(Base):
     first_name: Mapped[str] = mapped_column(String(100))
     last_name: Mapped[str] = mapped_column(String(100))
     email: Mapped[str] = mapped_column(String(255), index=True)
+    subject: Mapped[str | None] = mapped_column(String(255), nullable=True)
     message: Mapped[str] = mapped_column(Text)
+    is_read: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=text("false"), index=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow, server_default=func.now()
     )
+
+    @property
+    def name(self) -> str:
+        """Full display name."""
+        full = f"{self.first_name} {self.last_name}".strip()
+        return full or self.email
