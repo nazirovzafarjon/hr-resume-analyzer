@@ -54,6 +54,12 @@ class TestListNotifications:
         assert data["total"] == 0
         assert data["unread_count"] == 0
 
+    def test_listing_with_trailing_slash(self, client, admin):
+        res = client.get(f"{BASE_URL}/", headers=admin["headers"])
+        assert res.status_code == 200
+        data = res.json()
+        assert data["items"] == []
+
     def test_listing_with_seed_data(self, client, admin, db_session):
         _seed_messages(db_session, count=6)
         res = client.get(BASE_URL, headers=admin["headers"])
@@ -138,6 +144,12 @@ class TestUnreadCountEndpoint:
     def test_unread_count(self, client, admin, db_session):
         _seed_messages(db_session, count=5)  # 3 unread
         res = client.get(f"{BASE_URL}/unread-count", headers=admin["headers"])
+        assert res.status_code == 200
+        assert res.json() == {"unread_count": 3}
+
+    def test_unread_count_with_trailing_slash(self, client, admin, db_session):
+        _seed_messages(db_session, count=5)  # 3 unread
+        res = client.get(f"{BASE_URL}/unread-count/", headers=admin["headers"])
         assert res.status_code == 200
         assert res.json() == {"unread_count": 3}
 
