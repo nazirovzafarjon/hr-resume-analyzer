@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { JobCreateInput } from "../../types/job";
 import { useLanguage } from "../../contexts/LanguageContext";
 import Button from "../ui/Button";
+import BackButton from "../ui/BackButton";
 import TextInput from "../forms/TextInput";
 import TextArea from "../forms/TextArea";
 import SkillsInput from "../forms/SkillsInput";
@@ -10,6 +11,8 @@ type JobFormProps = {
   submitLabel: string;
   initial?: JobCreateInput;
   onSubmit: (input: JobCreateInput) => void | Promise<void>;
+  onDirtyChange?: (isDirty: boolean) => void;
+  fallbackPath?: string;
 };
 
 type FormErrors = {
@@ -22,7 +25,13 @@ type FormErrors = {
  * submit behaviour live in one place. `onSubmit` receives the ready-to-save
  * payload; the caller decides what to do next (navigate, update state).
  */
-export default function JobForm({ submitLabel, initial, onSubmit }: JobFormProps) {
+export default function JobForm({
+  submitLabel,
+  initial,
+  onSubmit,
+  onDirtyChange,
+  fallbackPath,
+}: JobFormProps) {
   const { t } = useLanguage();
   const [companyName, setCompanyName] = useState(initial?.company_name ?? "");
   const [position, setPosition] = useState(initial?.position ?? "");
@@ -35,6 +44,17 @@ export default function JobForm({ submitLabel, initial, onSubmit }: JobFormProps
   const [description, setDescription] = useState(initial?.description ?? "");
   const [errors, setErrors] = useState<FormErrors>({});
   const [saving, setSaving] = useState(false);
+
+  const isDirty =
+    companyName !== (initial?.company_name ?? "") ||
+    position !== (initial?.position ?? "") ||
+    experience !== (initial?.required_experience ?? "") ||
+    skills.join(", ") !== (initial?.required_skills ?? "") ||
+    description !== (initial?.description ?? "");
+
+  useEffect(() => {
+    onDirtyChange?.(isDirty);
+  }, [isDirty, onDirtyChange]);
 
   async function handleSubmit() {
     const nextErrors: FormErrors = {};
@@ -113,9 +133,13 @@ export default function JobForm({ submitLabel, initial, onSubmit }: JobFormProps
       />
 
       <div className="job-form-actions">
-        <Button to=".." variant="secondary">
-          {t("jobs.cancel")}
-        </Button>
+        <BackButton
+          fallbackPath={fallbackPath || ".."}
+          label={t("jobs.cancel")}
+          variant="secondary"
+          size="md"
+          isDirty={isDirty}
+        />
         <Button onClick={handleSubmit} loading={saving} type="button">
           {saving ? t("jobs.saving") : submitLabel}
         </Button>

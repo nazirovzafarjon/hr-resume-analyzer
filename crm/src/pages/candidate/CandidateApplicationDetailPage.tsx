@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useParams } from "react-router-dom";
-import { ArrowLeft, Download, Info } from "lucide-react";
+import { Download, Info } from "lucide-react";
 import Button from "../../components/ui/Button";
+import BackButton from "../../components/ui/BackButton";
 import Card from "../../components/ui/Card";
 import PageMeta from "../../components/seo/PageMeta";
 import ApplicationTimeline from "../../components/candidate/ApplicationTimeline";
@@ -57,9 +58,13 @@ export default function CandidateApplicationDetailPage() {
   }
 
   const back = (
-    <Button variant="ghost" size="sm" to="/candidate/applications" icon={<ArrowLeft size={14} />}>
-      {t("portal.detail.back")}
-    </Button>
+    <BackButton
+      fallbackPath="/candidate/applications"
+      label={t("portal.detail.back")}
+      variant="ghost"
+      size="sm"
+      iconSize={14}
+    />
   );
 
   if (error && !data) {

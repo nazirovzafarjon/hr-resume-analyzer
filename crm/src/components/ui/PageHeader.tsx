@@ -14,21 +14,25 @@ type PageHeaderProps = {
   action?: ReactNode;
   /** Optional breadcrumb trail rendered above the title. */
   breadcrumbs?: Crumb[];
+  /** Optional back navigation button rendered above breadcrumbs and title. */
+  backButton?: ReactNode;
 };
 
 /**
  * Consistent page heading used across every application page: optional
- * breadcrumbs, title, one-line description and the primary page action.
+ * back button, breadcrumbs, title, one-line description and the primary page action.
  */
 export default function PageHeader({
   title,
   description,
   action,
   breadcrumbs,
+  backButton,
 }: PageHeaderProps) {
   return (
     <header className="page-header">
       <div className="page-header-text">
+        {backButton && <div className="page-header-back">{backButton}</div>}
         {breadcrumbs && breadcrumbs.length > 0 && (
           <nav className="breadcrumbs" aria-label="Breadcrumb">
             {breadcrumbs.map((crumb, index) => (

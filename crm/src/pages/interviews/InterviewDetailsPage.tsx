@@ -4,6 +4,7 @@ import { ArrowLeft, Video, Edit3, Trash2 } from "lucide-react";
 import { formatDateTime } from "../../utils/date";
 import { getErrorMessage } from "../../utils/apiError";
 import PageHeader from "../../components/ui/PageHeader";
+import BackButton from "../../components/ui/BackButton";
 import PageMeta from "../../components/seo/PageMeta";
 import Button from "../../components/ui/Button";
 import Card from "../../components/ui/Card";
@@ -202,11 +203,7 @@ export default function InterviewDetailsPage() {
       <PageHeader
         title={interview.candidate_name}
         description={`${interview.job_title} at ${interview.company_name}`}
-        action={
-          <Button variant="secondary" to="/interviews" icon={<ArrowLeft size={16} />}>
-            {t("common.back") || "Back"}
-          </Button>
-        }
+        backButton={<BackButton fallbackPath="/interviews" />}
       />
       <div className="job-summary-grid">
         <Card title={t("interviews.scheduled") || "Schedule"} subtitle="When and where this interview takes place.">
