@@ -47,7 +47,7 @@ function deepGet(obj: unknown, path: string): string | undefined {
 
 function interpolate(template: string, params?: Record<string, string | number>): string {
   if (!params) return template;
-  return template.replace(/\{(\w+)\}/g, (_, key) => {
+  return template.replace(/\{{1,2}(\w+)\}{1,2}/g, (_, key) => {
     return params[key]?.toString() ?? `{${key}}`;
   });
 }

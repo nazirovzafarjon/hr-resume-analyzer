@@ -1,6 +1,7 @@
 import { useEffect, useState, type CSSProperties } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, CheckCircle2, AlertCircle, Trash2 } from "lucide-react";
+import { ArrowLeft, CheckCircle2, AlertCircle, Trash2, Languages } from "lucide-react";
+import { useTranslatedAnalysis } from "../../hooks/useTranslatedAnalysis";
 import {
   getWorker,
   updateWorker,
@@ -8,6 +9,7 @@ import {
 } from "../../services/applicationsService";
 import { formatDate } from "../../utils/date";
 import PageHeader from "../../components/ui/PageHeader";
+import BackButton from "../../components/ui/BackButton";
 import PageMeta from "../../components/seo/PageMeta";
 import Button from "../../components/ui/Button";
 import Card from "../../components/ui/Card";
@@ -16,6 +18,7 @@ import StatusBadge from "../../components/ui/StatusBadge";
 import ApplicationStatusBadge from "../../components/ui/ApplicationStatusBadge";
 import Select from "../../components/forms/Select";
 import ApplicationAnswers from "../../components/applications/ApplicationAnswers";
+import ComparativeAnalysis from "../../components/applications/ComparativeAnalysis";
 import ResumeActions from "../../components/applications/ResumeActions";
 import ConfirmDialog from "../../components/ui/ConfirmDialog";
 import { Skeleton, SkeletonText } from "../../components/ui/Skeleton";
@@ -40,6 +43,16 @@ export default function CandidateDetailsPage() {
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+
+  const rawAnalysis = candidate?.analysis;
+  const {
+    translatedAnalysis,
+    isTranslating,
+    isOriginal,
+    isFallback,
+  } = useTranslatedAnalysis(rawAnalysis, candidate?.id);
+  const analysis = translatedAnalysis ?? rawAnalysis;
+  const matchScore = Math.round(candidate?.ai_score || (analysis?.match_percentage ?? 0));
 
   const interviewOptions: { value: InterviewStatus; label: string }[] = [
     { value: "not_completed", label: t("statusMeta.interview.not_completed") || "Not completed" },
@@ -147,8 +160,6 @@ export default function CandidateDetailsPage() {
     );
   }
 
-  const analysis = candidate.analysis;
-  const matchScore = Math.round(candidate.ai_score || (analysis?.match_percentage ?? 0));
 
   return (
     <div className="page">
@@ -157,6 +168,7 @@ export default function CandidateDetailsPage() {
         <PageHeader
           title={candidate.name}
           description={`${candidate.position ? `${candidate.position} · ${candidate.company_name}` : candidate.email}`}
+          backButton={<BackButton fallbackPath="/candidates" />}
         />
         <div className="candidate-hero-badges">
           <StatusBadge kind="hiring" value={candidate.hiring_status} />
@@ -180,9 +192,9 @@ export default function CandidateDetailsPage() {
         {/* Candidate Info */}
         <Card title={t("candidates.info") || "Candidate Information"}>
           <dl className="detail-list">
-            <dt>{t("auth.name") || "Full name"}</dt>
+            <dt>{t("common.full_name") || t("auth.name") || "Full name"}</dt>
             <dd>{candidate.name}</dd>
-            <dt>{t("auth.email") || "Email"}</dt>
+            <dt>{t("common.email") || t("auth.email") || "Email"}</dt>
             <dd>{candidate.email}</dd>
             <dt>{t("jobs.position") || "Applied position"}</dt>
             <dd>{candidate.position || "—"}</dd>
@@ -273,7 +285,33 @@ export default function CandidateDetailsPage() {
       )}
 
       {/* Saved AI Resume Analysis */}
-      <Card title={t("candidates.aiScreening") || "Stored AI Screening Analysis"} subtitle={t("candidates.aiScreeningSubtitle")}>
+      <Card
+        title={t("candidates.aiScreening") || "Stored AI Screening Analysis"}
+        subtitle={t("candidates.aiScreeningSubtitle")}
+        action={
+          analysis ? (
+            isTranslating ? (
+              <span className="badge badge--warning" style={{ fontSize: "0.75rem" }}>
+                <Languages size={12} style={{ display: "inline", marginRight: "4px" }} />
+                {t("applications.translatingBadge")}
+              </span>
+            ) : isFallback ? (
+              <span
+                className="badge badge--neutral"
+                style={{ fontSize: "0.75rem" }}
+                title={t("applications.translationError")}
+              >
+                {t("applications.showingOriginalBadge")}
+              </span>
+            ) : !isOriginal ? (
+              <span className="badge badge--info" style={{ fontSize: "0.75rem" }}>
+                <Languages size={12} style={{ display: "inline", marginRight: "4px" }} />
+                {t("applications.translatedBadge")}
+              </span>
+            ) : null
+          ) : undefined
+        }
+      >
         {!analysis ? (
           <EmptyState
             title={t("applications.noAnalysis") || "No AI analysis recorded"}
@@ -285,7 +323,13 @@ export default function CandidateDetailsPage() {
             }
           />
         ) : (
-          <div className="analysis">
+          <div
+            className="analysis"
+            style={{
+              opacity: isTranslating ? 0.6 : 1,
+              transition: "opacity 0.2s ease-in-out",
+            }}
+          >
             <div className="analysis-score">
               <div
                 className="analysis-score-ring"
@@ -386,6 +430,16 @@ export default function CandidateDetailsPage() {
           </div>
         )}
       </Card>
+
+      {/* Comparative Analysis - Two Dimensions */}
+      {candidate.job_id ? (
+        <ComparativeAnalysis
+          applicationId={candidate.id}
+          jobId={candidate.job_id}
+          requirementsFitScore={matchScore}
+          isAnalyzed={candidate.analysis_status === "completed" || !!candidate.analysis}
+        />
+      ) : null}
 
       {/* Resume Card */}
       <Card

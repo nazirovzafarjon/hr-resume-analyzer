@@ -14,6 +14,7 @@ import { TrendingUp, Users } from "lucide-react";
 import { getApplicationComparison, type ApplicationComparisonResponse } from "../../services/applicationsService";
 import Card from "../ui/Card";
 import { Skeleton } from "../ui/Skeleton";
+import { useLanguage } from "../../contexts/LanguageContext";
 
 type ComparativeAnalysisProps = {
   applicationId: number;
@@ -29,6 +30,7 @@ export default function ComparativeAnalysis({
   requirementsFitScore,
   isAnalyzed,
 }: ComparativeAnalysisProps) {
+  const { t } = useLanguage();
   const [comparison, setComparison] = useState<ApplicationComparisonResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -52,7 +54,7 @@ export default function ComparativeAnalysis({
         }
       } catch (err) {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : "Failed to load comparison data");
+          setError(err instanceof Error ? err.message : t("assessment.failed_to_load"));
         }
       } finally {
         if (!cancelled) {
@@ -66,17 +68,17 @@ export default function ComparativeAnalysis({
     return () => {
       cancelled = true;
     };
-  }, [applicationId, isAnalyzed]);
+  }, [applicationId, isAnalyzed, t]);
 
   if (!isAnalyzed) {
     return (
       <Card>
         <div className="card-header">
-          <h2 className="card-title">Candidate Assessment</h2>
+          <h2 className="card-title">{t("assessment.title")}</h2>
         </div>
         <div style={{ padding: "var(--card-padding)" }}>
           <p style={{ color: "var(--text-secondary)", marginBottom: 0 }}>
-            Analysis required to view assessment metrics.
+            {t("assessment.analysis_required")}
           </p>
         </div>
       </Card>
@@ -87,7 +89,7 @@ export default function ComparativeAnalysis({
     return (
       <Card>
         <div className="card-header">
-          <h2 className="card-title">Candidate Assessment</h2>
+          <h2 className="card-title">{t("assessment.title")}</h2>
         </div>
         <div style={{ padding: "var(--card-padding)" }}>
           <Skeleton variant="title" />
@@ -101,7 +103,7 @@ export default function ComparativeAnalysis({
     return (
       <Card>
         <div className="card-header">
-          <h2 className="card-title">Candidate Assessment</h2>
+          <h2 className="card-title">{t("assessment.title")}</h2>
         </div>
         <div style={{ padding: "var(--card-padding)" }}>
           <p style={{ color: "var(--error-600)", marginBottom: 0 }}>
@@ -133,19 +135,19 @@ export default function ComparativeAnalysis({
 
   // Get descriptive label for percentile
   const getPercentileLabel = (pct: number): string => {
-    if (pct >= 90) return "Top tier";
-    if (pct >= 75) return "Strong relative position";
-    if (pct >= 50) return "Middle of the pool";
-    if (pct >= 25) return "Lower half";
-    return "Below average relative to pool";
+    if (pct >= 90) return t("assessment.tier.top");
+    if (pct >= 75) return t("assessment.tier.upper");
+    if (pct >= 50) return t("assessment.tier.mid");
+    if (pct >= 25) return t("assessment.tier.lower");
+    return t("assessment.tier.below_average");
   };
 
   return (
     <Card>
       <div className="card-header">
-        <h2 className="card-title">Candidate Assessment</h2>
+        <h2 className="card-title">{t("assessment.title")}</h2>
         <p className="card-description" style={{ marginTop: "0.25rem" }}>
-          Two-dimensional analysis: independent fit score and relative comparison within the job's candidate pool
+          {t("assessment.subtitle")}
         </p>
       </div>
 
@@ -177,7 +179,7 @@ export default function ComparativeAnalysis({
                 textTransform: "uppercase",
                 letterSpacing: "0.05em",
               }}>
-                Requirements Fit
+                {t("assessment.requirements_fit")}
               </h3>
             </div>
 
@@ -197,7 +199,7 @@ export default function ComparativeAnalysis({
               margin: 0,
               lineHeight: 1.5,
             }}>
-              Independent assessment of how well the candidate's submitted information matches this job's requirements
+              {t("assessment.requirements_fit_desc")}
             </p>
           </div>
 
@@ -223,7 +225,7 @@ export default function ComparativeAnalysis({
                 textTransform: "uppercase",
                 letterSpacing: "0.05em",
               }}>
-                Relative Competitiveness
+                {t("assessment.relative_competitiveness")}
               </h3>
             </div>
 
@@ -237,7 +239,9 @@ export default function ComparativeAnalysis({
                   marginBottom: "0.25rem",
                 }}>
                   {Math.round(percentile)}
-                  <span style={{ fontSize: "1.25rem", fontWeight: 600 }}>th</span>
+                  <span style={{ fontSize: "1.25rem", fontWeight: 600, marginLeft: "2px" }}>
+                    {t("assessment.ordinal_suffix")}
+                  </span>
                 </div>
                 <div style={{
                   fontSize: "0.875rem",
@@ -258,12 +262,12 @@ export default function ComparativeAnalysis({
                 }}>
                   <div>
                     <div style={{ fontWeight: 500, color: "var(--text-primary)" }}>
-                      Rank: {rank} of {poolSize}
+                      {t("assessment.rank_info", { rank, pool: poolSize })}
                     </div>
                   </div>
                   <div>
                     <div style={{ fontWeight: 500, color: "var(--text-primary)" }}>
-                      Pool: {poolSize} analyzed
+                      {t("assessment.pool_analyzed", { pool: poolSize })}
                     </div>
                   </div>
                 </div>
@@ -274,7 +278,9 @@ export default function ComparativeAnalysis({
                   margin: "0.75rem 0 0 0",
                   lineHeight: 1.5,
                 }}>
-                  Compared with {poolSize} analyzed candidate{poolSize !== 1 ? "s" : ""} for this job
+                  {poolSize === 1
+                    ? t("assessment.compared_with_one", { count: poolSize })
+                    : t("assessment.compared_with", { count: poolSize })}
                 </p>
               </>
             ) : (
@@ -283,7 +289,7 @@ export default function ComparativeAnalysis({
                 color: "var(--text-secondary)",
                 margin: 0,
               }}>
-                {comparison?.reason || "Not enough analyzed candidates to calculate relative position"}
+                {comparison?.reason || t("assessment.not_enough_candidates")}
               </p>
             )}
           </div>
@@ -303,9 +309,8 @@ export default function ComparativeAnalysis({
             margin: 0,
             lineHeight: 1.6,
           }}>
-            <strong style={{ color: "var(--text-primary)" }}>Decision Support Only:</strong>{" "}
-            These metrics provide context but do not make hiring decisions. The HR team is responsible 
-            for final candidate evaluation. Comparison uses only job-relevant factors from submitted information.
+            <strong style={{ color: "var(--text-primary)" }}>{t("assessment.disclaimer_title")}</strong>{" "}
+            {t("assessment.disclaimer")}
           </p>
         </div>
       </div>
