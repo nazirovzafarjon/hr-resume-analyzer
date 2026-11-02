@@ -6,6 +6,7 @@ import { buildDefaultApplicationFields, reviewFieldsFromAnalysis, validateApplic
 import { useLanguage } from "../../contexts/LanguageContext";
 import { useNotify } from "../../contexts/ToastContext";
 import PageHeader from "../../components/ui/PageHeader";
+import BackButton from "../../components/ui/BackButton";
 import PageMeta from "../../components/seo/PageMeta";
 import Card from "../../components/ui/Card";
 import Button from "../../components/ui/Button";
@@ -213,10 +214,27 @@ export default function JobCreatePage() {
       }
     : undefined;
 
+  const isDirty =
+    step !== "published" &&
+    Boolean(
+      company.trim() ||
+        position.trim() ||
+        experience.trim() ||
+        description.trim() ||
+        skills.length > 0 ||
+        fileText.trim() ||
+        instructions.trim() ||
+        step === "review",
+    );
+
   return (
     <div className="page">
       <PageMeta title={t("jobs.createPageTitle")} noindex />
-      <PageHeader title={t("jobs.createPageTitle")} description={t("jobs.createPageDescription")} />
+      <PageHeader
+        title={t("jobs.createPageTitle")}
+        description={t("jobs.createPageDescription")}
+        backButton={<BackButton fallbackPath="/jobs" isDirty={isDirty} />}
+      />
 
       <ol className="create-steps" aria-label={t("jobs.stepsAriaLabel") || "Job creation progress"}>
         {stepMarkers.map((marker, index) => (
@@ -320,9 +338,13 @@ export default function JobCreatePage() {
               />
               </fieldset>
               <div className="job-form-actions">
-                <Button variant="secondary" to="/jobs">
-                  {t("jobs.cancel")}
-                </Button>
+                <BackButton
+                  fallbackPath="/jobs"
+                  label={t("jobs.cancel")}
+                  variant="secondary"
+                  size="md"
+                  isDirty={isDirty}
+                />
                 <Button onClick={handleAnalyse} loading={analyzing} disabled={analyzing}>
                   {analyzing ? t("jobs.analysing") : t("jobs.analyseButton")}
                 </Button>

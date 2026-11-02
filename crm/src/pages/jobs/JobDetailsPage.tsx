@@ -15,6 +15,7 @@ import { jobStatusFromToken } from "../../utils/statusLabels";
 import { copyToClipboard } from "../../utils/clipboard";
 import { applicationUrl } from "../../components/application-form/ApplicationLinkCard";
 import PageHeader from "../../components/ui/PageHeader";
+import BackButton from "../../components/ui/BackButton";
 import PageMeta from "../../components/seo/PageMeta";
 import Button from "../../components/ui/Button";
 import Card from "../../components/ui/Card";
@@ -302,6 +303,7 @@ export default function JobDetailsPage() {
       <PageHeader
         title={job.position}
         description={`${job.company_name} · ${t("jobs.created") || "Created"} ${formatDate(job.created_at)}`}
+        backButton={<BackButton fallbackPath="/jobs" />}
         action={
           <>
             <StatusBadge kind="job" value={jobStatus} />

@@ -1802,6 +1802,21 @@ hr {
 
 .page-header-text { min-width: 0; }
 
+.page-header-back {
+  display: inline-flex;
+  align-items: center;
+  margin-bottom: var(--space-xs);
+}
+
+.back-button {
+  padding-left: 0;
+  color: var(--color-text-secondary);
+}
+
+.back-button:hover {
+  color: var(--color-text);
+}
+
 .page-title {
   margin: 0;
   font-size: var(--text-2xl);

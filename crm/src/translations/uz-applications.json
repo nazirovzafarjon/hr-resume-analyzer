@@ -54,6 +54,11 @@
     "aiAnalysisSubtitle": "Nomzod rezyumesi va javoblarining lavozim talablariga ob'ektiv taqqoslanishi.",
     "analysisComplete": "Tahlil tugallandi",
     "analysisError": "Ba'zi arizalar tahlili amalga oshmadi",
+    "translatedBadge": "Tarjima qilingan",
+    "translatingBadge": "Tarjima qilinmoqda…",
+    "originalBadge": "Asl nusxa",
+    "showingOriginalBadge": "Asl tili",
+    "translationError": "Tarjima qilib bo'lmadi, asl nusxa ko'rsatilmoqda",
     "autoAnalyzeModal": {
       "orderOldest": "Avval eskilari",
       "orderNewest": "Avval yangilari",
@@ -206,5 +211,29 @@
       "fileType": "Bu fayl turi qo'llab-quvvatlanmaydi. PDF, DOC, DOCX yoki TXT dan foydalaning.",
       "fileSize": "Fayl hajmi {size} MB dan katta."
     }
+  },
+  "assessment": {
+    "title": "Nomzodni baholash",
+    "subtitle": "Ikki o'lchovli tahlil: mustaqil moslik balli va ish o'rni bo'yicha nomzodlar orasidagi nisbiy taqqoslash",
+    "analysis_required": "Baholash ko'rsatkichlarini ko'rish uchun tahlil talab qilinadi.",
+    "failed_to_load": "Taqqoslash ma'lumotlarini yuklab bo'lmadi",
+    "requirements_fit": "Talablarga moslik",
+    "requirements_fit_desc": "Nomzod taqdim etgan ma'lumotlar ushbu ish o'rni talablariga qanchalik mos kelishining mustaqil bahosi",
+    "relative_competitiveness": "Nisbiy raqobatbardoshlik",
+    "tier": {
+      "top": "Yetakchi daraja (Top tier)",
+      "upper": "Yuqori daraja",
+      "mid": "O'rta daraja",
+      "lower": "Quyi daraja",
+      "below_average": "Hovuzdagi o'rtachadan past"
+    },
+    "ordinal_suffix": "-o'rin",
+    "rank_info": "O'rin: {pool} tadan {rank}",
+    "pool_analyzed": "Hovuz: {pool} ta tahlil qilingan",
+    "compared_with": "Ushbu ish uchun {count} ta tahlil qilingan nomzod bilan taqqoslandi",
+    "compared_with_one": "Ushbu ish uchun 1 ta tahlil qilingan nomzod bilan taqqoslandi",
+    "not_enough_candidates": "Nisbiy pozitsiyani hisoblash uchun tahlil qilingan nomzodlar yetarli emas",
+    "disclaimer_title": "Faqat qaror qabul qilishni qo'llab-quvvatlash uchun:",
+    "disclaimer": "Ushbu ko'rsatkichlar kontekst beradi, lekin ishga qabul qilish to'g'risida yakuniy qaror chiqarmaydi. Yakuniy baholash uchun HR jamoasi mas'uldir. Taqqoslash faqat taqdim etilgan ma'lumotlardagi ishga tegishli omillardan foydalanadi."
   }
 }

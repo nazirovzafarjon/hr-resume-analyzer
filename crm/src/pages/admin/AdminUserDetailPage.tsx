@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { Pencil, ShieldOff, ShieldPlus, Trash2, UserCheck, UserX } from "lucide-react";
 import PageHeader from "../../components/ui/PageHeader";
+import BackButton from "../../components/ui/BackButton";
 import PageMeta from "../../components/seo/PageMeta";
 import Button from "../../components/ui/Button";
 import Card from "../../components/ui/Card";
@@ -80,6 +81,7 @@ export default function AdminUserDetailPage() {
         title={user.full_name}
         description={user.email}
         breadcrumbs={crumbs}
+        backButton={<BackButton fallbackPath="/admin/users" />}
         action={
           <div className="admin-actions">
             <Button variant="secondary" icon={<Pencil size={15} />} onClick={() => setEditing(true)}>

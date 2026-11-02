@@ -1,5 +1,6 @@
 import {
   BarChart3,
+  Bell,
   Bot,
   Briefcase,
   CalendarDays,
@@ -25,6 +26,7 @@ export const ADMIN_NAV_GROUPS: NavGroup[] = [
       { to: "/admin/applications", labelKey: "admin.nav.applications", icon: FileText },
       { to: "/admin/candidates", labelKey: "admin.nav.candidates", icon: UserRound },
       { to: "/admin/interviews", labelKey: "admin.nav.interviews", icon: CalendarDays },
+      { to: "/admin/notifications", labelKey: "admin.nav.notifications", icon: Bell },
     ],
   },
   {
@@ -50,6 +52,7 @@ export const ADMIN_NAV_GROUPS: NavGroup[] = [
 export function adminTitleKey(pathname: string): string {
   if (/^\/admin\/users\/\d+/.test(pathname)) return "admin.users.detailTitle";
   if (/^\/admin\/(applications|candidates)\/\d+/.test(pathname)) return "admin.applications.detailTitle";
+  if (pathname.startsWith("/admin/notifications")) return "admin.notifications.title";
   const match = ADMIN_NAV_GROUPS.flatMap((group) => group.items).find((item) =>
     pathname.startsWith(item.to),
   );

@@ -54,6 +54,11 @@
     "aiAnalysisSubtitle": "Objective comparison of applicant resume and submitted answers against job requirements.",
     "analysisComplete": "Analysis complete",
     "analysisError": "Analysis failed for some applications",
+    "translatedBadge": "Translated",
+    "translatingBadge": "Translating…",
+    "originalBadge": "Original",
+    "showingOriginalBadge": "Original language",
+    "translationError": "Translation unavailable, showing original",
     "autoAnalyzeModal": {
       "orderOldest": "Oldest first",
       "orderNewest": "Newest first",
@@ -206,5 +211,29 @@
       "fileType": "This file type isn't supported. Use PDF, DOC, DOCX or TXT.",
       "fileSize": "This file is larger than {size} MB."
     }
+  },
+  "assessment": {
+    "title": "Candidate Assessment",
+    "subtitle": "Two-dimensional analysis: independent fit score and relative comparison within the job's candidate pool",
+    "analysis_required": "Analysis required to view assessment metrics.",
+    "failed_to_load": "Failed to load comparison data",
+    "requirements_fit": "Requirements Fit",
+    "requirements_fit_desc": "Independent assessment of how well the candidate's submitted information matches this job's requirements",
+    "relative_competitiveness": "Relative Competitiveness",
+    "tier": {
+      "top": "Top tier",
+      "upper": "Upper tier",
+      "mid": "Mid tier",
+      "lower": "Lower tier",
+      "below_average": "Below average relative to pool"
+    },
+    "ordinal_suffix": "th",
+    "rank_info": "Rank: {rank} of {pool}",
+    "pool_analyzed": "Pool: {pool} analyzed",
+    "compared_with": "Compared with {count} analyzed candidates for this job",
+    "compared_with_one": "Compared with 1 analyzed candidate for this job",
+    "not_enough_candidates": "Not enough analyzed candidates to calculate relative position",
+    "disclaimer_title": "Decision Support Only:",
+    "disclaimer": "These metrics provide context but do not make hiring decisions. The HR team is responsible for final candidate evaluation. Comparison uses only job-relevant factors from submitted information."
   }
 }

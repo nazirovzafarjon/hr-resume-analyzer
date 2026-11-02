@@ -37,6 +37,7 @@ const AdminJobsPage = lazy(() => import("../pages/admin/AdminJobsPage"));
 const AdminApplicationsPage = lazy(() => import("../pages/admin/AdminApplicationsPage"));
 const AdminApplicationDetailPage = lazy(() => import("../pages/admin/AdminApplicationDetailPage"));
 const AdminInterviewsPage = lazy(() => import("../pages/admin/AdminInterviewsPage"));
+const AdminNotificationsPage = lazy(() => import("../pages/admin/AdminNotificationsPage"));
 const AdminAIAnalysisPage = lazy(() => import("../pages/admin/AdminAIAnalysisPage"));
 const AdminAnalyticsPage = lazy(() => import("../pages/admin/AdminAnalyticsPage"));
 const AdminAuditLogsPage = lazy(() => import("../pages/admin/AdminAuditLogsPage"));
@@ -179,6 +180,7 @@ export const routes: RouteObject[] = [
   { path: "/admin/candidates", element: adminPage(<AdminApplicationsPage mode="candidates" />) },
   { path: "/admin/candidates/:id", element: adminPage(<AdminApplicationDetailPage />) },
   { path: "/admin/interviews", element: adminPage(<AdminInterviewsPage />) },
+  { path: "/admin/notifications", element: adminPage(<AdminNotificationsPage />) },
   { path: "/admin/ai-analysis", element: adminPage(<AdminAIAnalysisPage />) },
   { path: "/admin/analytics", element: adminPage(<AdminAnalyticsPage />) },
   { path: "/admin/audit-logs", element: adminPage(<AdminAuditLogsPage />) },

@@ -229,7 +229,7 @@ export type CandidateComparison = {
 
 export type ApplicationComparisonResponse = {
   has_comparison: boolean;
-  reason?: string;
+  reason?: string | null;
   application_id?: number;
   job_id?: number;
   requirements_fit_score?: number;

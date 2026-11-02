@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { fetchJob, updateJob } from "../../services/jobsService";
 import PageHeader from "../../components/ui/PageHeader";
+import BackButton from "../../components/ui/BackButton";
 import PageMeta from "../../components/seo/PageMeta";
 import Card from "../../components/ui/Card";
 import Button from "../../components/ui/Button";
@@ -24,6 +25,7 @@ export default function JobEditPage() {
   const [job, setJob] = useState<JobInput | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isDirty, setIsDirty] = useState(false);
 
   function loadJob() {
     let cancelled = false;
@@ -97,11 +99,14 @@ export default function JobEditPage() {
       <PageHeader
         title={t("jobs.editJob")}
         description={t("jobs.editPageDescription", { company: job.company_name })}
+        backButton={<BackButton fallbackPath={`/jobs/${id}`} isDirty={isDirty} />}
       />
       <Card>
         <JobForm
           key={job.id}
           submitLabel={t("jobs.saveChanges")}
+          onDirtyChange={setIsDirty}
+          fallbackPath={`/jobs/${id}`}
           initial={{
             company_name: job.company_name,
             position: job.position,

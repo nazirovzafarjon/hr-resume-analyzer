@@ -348,3 +348,21 @@ export type AdminSettings = {
   };
   configuration: Record<string, Record<string, unknown>>;
 };
+
+// Notifications (Contact Inquiries) -------------------------------------------
+
+export type ContactNotificationRow = {
+  id: number;
+  name: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  subject: string | null;
+  message: string;
+  is_read: boolean;
+  created_at: string;
+};
+
+export type ContactNotificationPage = Page<ContactNotificationRow> & {
+  unread_count: number;
+};
