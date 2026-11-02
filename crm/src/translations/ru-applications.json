@@ -54,6 +54,11 @@
     "aiAnalysisSubtitle": "Объективное сравнение резюме и ответов кандидата с требованиями вакансии.",
     "analysisComplete": "Анализ завершен",
     "analysisError": "Анализ не удался для некоторых заявок",
+    "translatedBadge": "Переведено",
+    "translatingBadge": "Перевод…",
+    "originalBadge": "Оригинал",
+    "showingOriginalBadge": "Язык оригинала",
+    "translationError": "Перевод недоступен, показан оригинал",
     "autoAnalyzeModal": {
       "orderOldest": "Сначала старые",
       "orderNewest": "Сначала новые",

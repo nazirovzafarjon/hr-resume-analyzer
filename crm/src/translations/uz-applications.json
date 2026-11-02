@@ -54,6 +54,11 @@
     "aiAnalysisSubtitle": "Nomzod rezyumesi va javoblarining lavozim talablariga ob'ektiv taqqoslanishi.",
     "analysisComplete": "Tahlil tugallandi",
     "analysisError": "Ba'zi arizalar tahlili amalga oshmadi",
+    "translatedBadge": "Tarjima qilingan",
+    "translatingBadge": "Tarjima qilinmoqda…",
+    "originalBadge": "Asl nusxa",
+    "showingOriginalBadge": "Asl tili",
+    "translationError": "Tarjima qilib bo'lmadi, asl nusxa ko'rsatilmoqda",
     "autoAnalyzeModal": {
       "orderOldest": "Avval eskilari",
       "orderNewest": "Avval yangilari",

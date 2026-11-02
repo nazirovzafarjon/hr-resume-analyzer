@@ -1,6 +1,7 @@
 import { useEffect, useState, type CSSProperties } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Sparkles, UserPlus, Trash2, CheckCircle2, AlertCircle, RefreshCw } from "lucide-react";
+import { ArrowLeft, Sparkles, UserPlus, Trash2, CheckCircle2, AlertCircle, RefreshCw, Languages } from "lucide-react";
+import { useTranslatedAnalysis } from "../../hooks/useTranslatedAnalysis";
 import {
   getWorker,
   updateWorker,
@@ -10,6 +11,7 @@ import {
 } from "../../services/applicationsService";
 import { formatDate } from "../../utils/date";
 import PageHeader from "../../components/ui/PageHeader";
+import BackButton from "../../components/ui/BackButton";
 import PageMeta from "../../components/seo/PageMeta";
 import Button from "../../components/ui/Button";
 import Card from "../../components/ui/Card";
@@ -77,6 +79,19 @@ export default function ApplicationDetailsPage() {
       desc: t("applications.recommendationDesc.do_not_hire"),
     },
   };
+
+  const rawAnalysis = application?.analysis;
+  const {
+    translatedAnalysis,
+    isTranslating,
+    isOriginal,
+    isFallback,
+  } = useTranslatedAnalysis(rawAnalysis, application?.id);
+  const analysis = translatedAnalysis ?? rawAnalysis;
+  const matchPercentage = Math.round(application?.ai_score || (analysis?.match_percentage ?? 0));
+  const aiRec = analysis?.ai_recommendation
+    ? aiRecommendationLabels[analysis.ai_recommendation]
+    : null;
 
   useEffect(() => {
     let cancelled = false;
@@ -204,11 +219,7 @@ export default function ApplicationDetailsPage() {
     );
   }
 
-  const analysis = application.analysis;
-  const matchPercentage = Math.round(application.ai_score || (analysis?.match_percentage ?? 0));
-  const aiRec = analysis?.ai_recommendation
-    ? aiRecommendationLabels[analysis.ai_recommendation]
-    : null;
+
 
   return (
     <div className="page">
@@ -217,6 +228,7 @@ export default function ApplicationDetailsPage() {
         <PageHeader
           title={application.name}
           description={`${application.position ? `${application.position} · ${application.company_name}` : application.email} · ${t("applications.submittedAt") || "Submitted"} ${formatDate(application.submitted_at || application.created_at)}`}
+          backButton={<BackButton fallbackPath="/applications" />}
         />
         <div className="candidate-hero-badges">
           <ApplicationStatusBadge value={application.application_status} />
@@ -267,9 +279,9 @@ export default function ApplicationDetailsPage() {
         {/* Applicant Details */}
         <Card title={t("applications.applicantInfo") || "Applicant Information"}>
           <dl className="detail-list">
-            <dt>{t("auth.name") || "Full name"}</dt>
+            <dt>{t("common.full_name") || t("auth.name") || "Full name"}</dt>
             <dd>{application.name}</dd>
-            <dt>{t("auth.email") || "Email"}</dt>
+            <dt>{t("common.email") || t("auth.email") || "Email"}</dt>
             <dd>{application.email}</dd>
             <dt>{t("jobs.position") || "Applied Position"}</dt>
             <dd>{application.position || "—"}</dd>
@@ -338,16 +350,39 @@ export default function ApplicationDetailsPage() {
         title={t("applications.aiAnalysisTitle")}
         subtitle={t("applications.aiAnalysisSubtitle")}
         action={
-          application.analysis_status !== "analyzing" ? (
-            <Button
-              variant="secondary"
-              onClick={() => handleRunAnalysis(true)}
-              disabled={analyzing}
-              icon={<RefreshCw size={14} />}
-            >
-              {analyzing ? (t("common.loading") || "Analyzing…") : (t("applications.refreshAnalysis") || "Refresh Analysis")}
-            </Button>
-          ) : undefined
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            {analysis && (
+              isTranslating ? (
+                <span className="badge badge--warning" style={{ fontSize: "0.75rem" }}>
+                  <Languages size={12} style={{ display: "inline", marginRight: "4px" }} />
+                  {t("applications.translatingBadge")}
+                </span>
+              ) : isFallback ? (
+                <span
+                  className="badge badge--neutral"
+                  style={{ fontSize: "0.75rem" }}
+                  title={t("applications.translationError")}
+                >
+                  {t("applications.showingOriginalBadge")}
+                </span>
+              ) : !isOriginal ? (
+                <span className="badge badge--info" style={{ fontSize: "0.75rem" }}>
+                  <Languages size={12} style={{ display: "inline", marginRight: "4px" }} />
+                  {t("applications.translatedBadge")}
+                </span>
+              ) : null
+            )}
+            {application.analysis_status !== "analyzing" ? (
+              <Button
+                variant="secondary"
+                onClick={() => handleRunAnalysis(true)}
+                disabled={analyzing}
+                icon={<RefreshCw size={14} />}
+              >
+                {analyzing ? (t("common.loading") || "Analyzing…") : (t("applications.refreshAnalysis") || "Refresh Analysis")}
+              </Button>
+            ) : undefined}
+          </div>
         }
       >
         {application.analysis_status === "analyzing" || analyzing ? (
@@ -371,7 +406,13 @@ export default function ApplicationDetailsPage() {
             }
           />
         ) : (
-          <div className="analysis">
+          <div
+            className="analysis"
+            style={{
+              opacity: isTranslating ? 0.6 : 1,
+              transition: "opacity 0.2s ease-in-out",
+            }}
+          >
             <div className="analysis-score">
               <div
                 className="analysis-score-ring"

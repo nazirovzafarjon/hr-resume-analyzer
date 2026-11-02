@@ -1,6 +1,8 @@
 import { Link, useLocation, useParams } from "react-router-dom";
-import { Bot, Pencil } from "lucide-react";
+import { Bot, Pencil, Languages } from "lucide-react";
+import { useTranslatedAnalysis } from "../../hooks/useTranslatedAnalysis";
 import PageHeader from "../../components/ui/PageHeader";
+import BackButton from "../../components/ui/BackButton";
 import PageMeta from "../../components/seo/PageMeta";
 import Button from "../../components/ui/Button";
 import Card from "../../components/ui/Card";
@@ -56,6 +58,15 @@ export default function AdminApplicationDetailPage() {
       workerId ? fetchAdminApplication(workerId) : Promise.reject(new ApiError(404, "Application not found")),
     String(workerId),
   );
+
+  const rawAnalysis = item?.analysis;
+  const {
+    translatedAnalysis,
+    isTranslating,
+    isOriginal,
+    isFallback,
+  } = useTranslatedAnalysis(rawAnalysis, item?.id);
+  const analysis = translatedAnalysis ?? rawAnalysis;
   const crumbs = [{ label: listLabel, to: listPath }, { label: item?.name ?? "…" }];
 
   if (error && !item) {
@@ -92,7 +103,7 @@ export default function AdminApplicationDetailPage() {
     );
   }
 
-  const analysis = item.analysis;
+
 
   return (
     <div className="page">
@@ -101,6 +112,7 @@ export default function AdminApplicationDetailPage() {
         title={item.name}
         description={`${item.position} · ${item.company_name}`}
         breadcrumbs={crumbs}
+        backButton={<BackButton fallbackPath={listPath} />}
         action={
           <Button
             icon={<Pencil size={15} />}
@@ -161,7 +173,32 @@ export default function AdminApplicationDetailPage() {
         title={t("admin.applications.aiAnalysis")}
         subtitle={t("admin.applications.aiAnalysisHint")}
         icon={<Bot size={16} />}
-        action={<AnalysisStatusBadge value={item.analysis_status} />}
+        action={
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            {analysis && (
+              isTranslating ? (
+                <span className="badge badge--warning" style={{ fontSize: "0.75rem" }}>
+                  <Languages size={12} style={{ display: "inline", marginRight: "4px" }} />
+                  {t("applications.translatingBadge")}
+                </span>
+              ) : isFallback ? (
+                <span
+                  className="badge badge--neutral"
+                  style={{ fontSize: "0.75rem" }}
+                  title={t("applications.translationError")}
+                >
+                  {t("applications.showingOriginalBadge")}
+                </span>
+              ) : !isOriginal ? (
+                <span className="badge badge--info" style={{ fontSize: "0.75rem" }}>
+                  <Languages size={12} style={{ display: "inline", marginRight: "4px" }} />
+                  {t("applications.translatedBadge")}
+                </span>
+              ) : null
+            )}
+            <AnalysisStatusBadge value={item.analysis_status} />
+          </div>
+        }
       >
         {item.analysis_status === "failed" && item.analysis_error && (
           <p className="admin-error-text">{item.analysis_error}</p>
@@ -169,7 +206,13 @@ export default function AdminApplicationDetailPage() {
         {!analysis ? (
           <p className="table-muted">{t("admin.applications.noAnalysis")}</p>
         ) : (
-          <div className="admin-analysis">
+          <div
+            className="admin-analysis"
+            style={{
+              opacity: isTranslating ? 0.6 : 1,
+              transition: "opacity 0.2s ease-in-out",
+            }}
+          >
             <dl className="detail-list">
               <dt>{t("admin.applications.aiScore")}</dt>
               <dd>{formatScore(analysis.match_percentage)}</dd>

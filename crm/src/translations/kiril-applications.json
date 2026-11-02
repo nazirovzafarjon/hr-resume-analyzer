@@ -54,6 +54,11 @@
     "aiAnalysisSubtitle": "Номзод резюмеси ва жавобларининг лавозим талабларига объектив таққосланиши.",
     "analysisComplete": "Таҳлил тугалланди",
     "analysisError": "Баъзи аризалар таҳлили амалга ошмади",
+    "translatedBadge": "Таржима қилинган",
+    "translatingBadge": "Таржима қилинмоқда…",
+    "originalBadge": "Асл нусха",
+    "showingOriginalBadge": "Асл тили",
+    "translationError": "Таржима қилиб бўлмади, асл нусха кўрсатилмоқда",
     "autoAnalyzeModal": {
       "orderOldest": "Аввал эскилари",
       "orderNewest": "Аввал янгилари",

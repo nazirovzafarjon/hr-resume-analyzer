@@ -54,6 +54,11 @@
     "aiAnalysisSubtitle": "Objective comparison of applicant resume and submitted answers against job requirements.",
     "analysisComplete": "Analysis complete",
     "analysisError": "Analysis failed for some applications",
+    "translatedBadge": "Translated",
+    "translatingBadge": "Translating…",
+    "originalBadge": "Original",
+    "showingOriginalBadge": "Original language",
+    "translationError": "Translation unavailable, showing original",
     "autoAnalyzeModal": {
       "orderOldest": "Oldest first",
       "orderNewest": "Newest first",
