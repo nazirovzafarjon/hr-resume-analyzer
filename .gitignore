@@ -1,2 +1,49 @@
-# Stray Vite cache from running the dev server at the repo root
-/frontend/
+# Environment files and credentials (NEVER commit secrets)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Backups and disaster recovery artifacts
+backups/
+*.dump
+*.dump.*
+*.tar.gz
+*.sha256
+
+# Python artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+env/
+venv/
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# Node & Frontend artifacts
+node_modules/
+dist/
+dist-ssr/
+build/
+*.tsbuildinfo
+.eslintcache
+
+# Uploads and temporary data
+uploads/
+!uploads/.gitkeep
+tmp/
+
+# OS and IDE files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
