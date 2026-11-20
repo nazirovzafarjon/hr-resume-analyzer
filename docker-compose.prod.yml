@@ -1,0 +1,406 @@
+services:
+  # Nginx Production Reverse Proxy (Edge TLS & Load Balancer)
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: resume-analyzer-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./deploy/nginx/conf.d:/etc/nginx/conf.d:ro
+      - certs-data:/etc/nginx/ssl:ro
+      - certbot-challenge:/var/www/certbot:ro
+    depends_on:
+      - api
+      - crm
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 256M
+        reservations:
+          cpus: "0.2"
+          memory: 64M
+
+  # Persistent Relational Database (Internal Network Only - No Exposed Public Ports)
+  postgres:
+    image: postgres:16-alpine
+    container_name: resume-analyzer-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-resume_analyzer}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - backups-data:/backups
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB:-resume_analyzer}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 2048M
+        reservations:
+          cpus: "0.5"
+          memory: 512M
+
+  # Redis Message Broker with AOF (Internal Network Only - No Exposed Public Ports)
+  redis:
+    image: redis:7-alpine
+    container_name: resume-analyzer-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+        reservations:
+          cpus: "0.2"
+          memory: 128M
+
+  # FastAPI Web API
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: resume-analyzer-api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-resume_analyzer}
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+      - UPLOAD_DIR=/app/uploads
+      - SECRET_KEY=${SECRET_KEY}
+      - AI_CREDENTIAL_ENCRYPTION_KEY=${AI_CREDENTIAL_ENCRYPTION_KEY}
+      - SENTRY_DSN=${SENTRY_DSN:-}
+      - SENTRY_ENVIRONMENT=production
+      - LOG_FORMAT=json
+      - DEBUG=false
+    volumes:
+      - uploads-data:/app/uploads
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health/liveness"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 1024M
+        reservations:
+          cpus: "0.5"
+          memory: 256M
+
+  # CRM Frontend (SPA Container)
+  crm:
+    build:
+      context: ./crm
+      dockerfile: Dockerfile
+    container_name: resume-analyzer-crm
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+        reservations:
+          cpus: "0.1"
+          memory: 64M
+
+  # Landing Frontend (Static Site Container)
+  landing:
+    build:
+      context: ./landing
+      dockerfile: Dockerfile
+    container_name: resume-analyzer-landing
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+        reservations:
+          cpus: "0.1"
+          memory: 64M
+
+  # Celery Worker: AI Single Analysis
+  worker-ai:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: resume-analyzer-worker-ai
+    restart: unless-stopped
+    stop_grace_period: 60s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-resume_analyzer}
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+      - UPLOAD_DIR=/app/uploads
+      - SECRET_KEY=${SECRET_KEY}
+      - AI_CREDENTIAL_ENCRYPTION_KEY=${AI_CREDENTIAL_ENCRYPTION_KEY}
+      - SENTRY_DSN=${SENTRY_DSN:-}
+      - LOG_FORMAT=json
+      - DEBUG=false
+    volumes:
+      - uploads-data:/app/uploads
+    command: ["celery", "-A", "app.core.celery_app", "worker", "-Q", "ai_analysis", "-c", "2", "-l", "info", "-n", "worker_ai@%h", "--max-tasks-per-child=100", "--max-memory-per-child=350000"]
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 1536M
+        reservations:
+          cpus: "0.5"
+          memory: 512M
+
+  # Celery Worker: Batch Resume Analysis
+  worker-batch:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: resume-analyzer-worker-batch
+    restart: unless-stopped
+    stop_grace_period: 60s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-resume_analyzer}
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+      - UPLOAD_DIR=/app/uploads
+      - SECRET_KEY=${SECRET_KEY}
+      - AI_CREDENTIAL_ENCRYPTION_KEY=${AI_CREDENTIAL_ENCRYPTION_KEY}
+      - SENTRY_DSN=${SENTRY_DSN:-}
+      - LOG_FORMAT=json
+      - DEBUG=false
+    volumes:
+      - uploads-data:/app/uploads
+    command: ["celery", "-A", "app.core.celery_app", "worker", "-Q", "batch_analysis", "-c", "4", "-l", "info", "-n", "worker_batch@%h", "--max-tasks-per-child=100", "--max-memory-per-child=350000"]
+    deploy:
+      resources:
+        limits:
+          cpus: "2.5"
+          memory: 2048M
+        reservations:
+          cpus: "0.5"
+          memory: 512M
+
+  # Celery Worker: Notifications (Resend Email)
+  worker-notifications:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: resume-analyzer-worker-notifications
+    restart: unless-stopped
+    stop_grace_period: 60s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-resume_analyzer}
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+      - SECRET_KEY=${SECRET_KEY}
+      - RESEND_API_KEY=${RESEND_API_KEY:-}
+      - SENTRY_DSN=${SENTRY_DSN:-}
+      - LOG_FORMAT=json
+      - DEBUG=false
+    command: ["celery", "-A", "app.core.celery_app", "worker", "-Q", "notifications", "-c", "2", "-l", "info", "-n", "worker_notifications@%h", "--max-tasks-per-child=100", "--max-memory-per-child=250000"]
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+        reservations:
+          cpus: "0.2"
+          memory: 128M
+
+  # Celery Worker: File Exports (PDF, Excel, Word)
+  worker-exports:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: resume-analyzer-worker-exports
+    restart: unless-stopped
+    stop_grace_period: 60s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-resume_analyzer}
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+      - UPLOAD_DIR=/app/uploads
+      - SECRET_KEY=${SECRET_KEY}
+      - SENTRY_DSN=${SENTRY_DSN:-}
+      - LOG_FORMAT=json
+      - DEBUG=false
+    volumes:
+      - uploads-data:/app/uploads
+    command: ["celery", "-A", "app.core.celery_app", "worker", "-Q", "exports", "-c", "2", "-l", "info", "-n", "worker_exports@%h", "--max-tasks-per-child=100", "--max-memory-per-child=250000"]
+    deploy:
+      resources:
+        limits:
+          cpus: "1.5"
+          memory: 1024M
+        reservations:
+          cpus: "0.2"
+          memory: 256M
+
+  # Celery Worker: Default Queue
+  worker-default:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: resume-analyzer-worker-default
+    restart: unless-stopped
+    stop_grace_period: 60s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-resume_analyzer}
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+      - UPLOAD_DIR=/app/uploads
+      - SECRET_KEY=${SECRET_KEY}
+      - SENTRY_DSN=${SENTRY_DSN:-}
+      - LOG_FORMAT=json
+      - DEBUG=false
+    volumes:
+      - uploads-data:/app/uploads
+    command: ["celery", "-A", "app.core.celery_app", "worker", "-Q", "default", "-c", "1", "-l", "info", "-n", "worker_default@%h", "--max-tasks-per-child=100", "--max-memory-per-child=250000"]
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+        reservations:
+          cpus: "0.2"
+          memory: 128M
+
+  # Celery Beat Scheduler (Periodic Cron & Outbox Scanner)
+  celery-beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: resume-analyzer-celery-beat
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-resume_analyzer}
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+      - SECRET_KEY=${SECRET_KEY}
+      - SENTRY_DSN=${SENTRY_DSN:-}
+      - LOG_FORMAT=json
+      - DEBUG=false
+    command: ["celery", "-A", "app.core.celery_app", "beat", "-l", "info"]
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+        reservations:
+          cpus: "0.1"
+          memory: 64M
+
+  # Prometheus Telemetry Collector
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    container_name: resume-analyzer-prometheus
+    restart: unless-stopped
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=30d"
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1024M
+        reservations:
+          cpus: "0.2"
+          memory: 256M
+
+  # Grafana Dashboard UI
+  grafana:
+    image: grafana/grafana:11.1.0
+    container_name: resume-analyzer-grafana
+    restart: unless-stopped
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-ChangeMeAdminPass123!}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+        reservations:
+          cpus: "0.2"
+          memory: 128M
+
+volumes:
+  postgres-data:
+  redis-data:
+  uploads-data:
+  backups-data:
+  certs-data:
+  certbot-challenge:
+  prometheus-data:
+  grafana-data:

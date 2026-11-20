@@ -1,0 +1,13 @@
+.git
+.venv
+__pycache__
+*.py[cod]
+.pytest_cache
+tests
+.env
+.env.*
+*.dump
+*.tar.gz
+*.sha256
+uploads/*
+!uploads/.gitkeep

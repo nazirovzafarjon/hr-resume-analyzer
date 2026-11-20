@@ -18,11 +18,12 @@ services:
       timeout: 5s
       retries: 5
 
-  # Redis Message Broker
+  # Redis Message Broker with AOF persistence
   redis:
     image: redis:7-alpine
     container_name: resume-analyzer-redis
     restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
     ports:
       - "${REDIS_PORT:-6379}:6379"
     volumes:
@@ -53,8 +54,16 @@ services:
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/1
       - UPLOAD_DIR=/app/uploads
+      - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
+      - AI_CREDENTIAL_ENCRYPTION_KEY=${AI_CREDENTIAL_ENCRYPTION_KEY:-}
     volumes:
       - uploads-data:/app/uploads
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health/liveness"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
 
   # Celery Worker: AI Single Analysis
@@ -64,6 +73,7 @@ services:
       dockerfile: Dockerfile
     container_name: resume-analyzer-worker-ai
     restart: unless-stopped
+    stop_grace_period: 60s
     depends_on:
       postgres:
         condition: service_healthy
@@ -75,9 +85,11 @@ services:
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/1
       - UPLOAD_DIR=/app/uploads
+      - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
+      - AI_CREDENTIAL_ENCRYPTION_KEY=${AI_CREDENTIAL_ENCRYPTION_KEY:-}
     volumes:
       - uploads-data:/app/uploads
-    command: ["celery", "-A", "app.core.celery_app", "worker", "-Q", "ai_analysis", "-c", "2", "-l", "info", "-n", "worker_ai@%h"]
+    command: ["celery", "-A", "app.core.celery_app", "worker", "-Q", "ai_analysis", "-c", "2", "-l", "info", "-n", "worker_ai@%h", "--max-tasks-per-child=100", "--max-memory-per-child=250000"]
 
   # Celery Worker: Batch Resume Analysis
   worker-batch:
@@ -86,6 +98,7 @@ services:
       dockerfile: Dockerfile
     container_name: resume-analyzer-worker-batch
     restart: unless-stopped
+    stop_grace_period: 60s
     depends_on:
       postgres:
         condition: service_healthy
@@ -97,9 +110,11 @@ services:
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/1
       - UPLOAD_DIR=/app/uploads
+      - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
+      - AI_CREDENTIAL_ENCRYPTION_KEY=${AI_CREDENTIAL_ENCRYPTION_KEY:-}
     volumes:
       - uploads-data:/app/uploads
-    command: ["celery", "-A", "app.core.celery_app", "worker", "-Q", "batch_analysis", "-c", "4", "-l", "info", "-n", "worker_batch@%h"]
+    command: ["celery", "-A", "app.core.celery_app", "worker", "-Q", "batch_analysis", "-c", "4", "-l", "info", "-n", "worker_batch@%h", "--max-tasks-per-child=100", "--max-memory-per-child=250000"]
 
   # Celery Worker: Notifications (Resend Email)
   worker-notifications:
@@ -108,6 +123,7 @@ services:
       dockerfile: Dockerfile
     container_name: resume-analyzer-worker-notifications
     restart: unless-stopped
+    stop_grace_period: 60s
     depends_on:
       postgres:
         condition: service_healthy
@@ -118,7 +134,9 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/1
-    command: ["celery", "-A", "app.core.celery_app", "worker", "-Q", "notifications", "-c", "2", "-l", "info", "-n", "worker_notifications@%h"]
+      - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
+      - RESEND_API_KEY=${RESEND_API_KEY:-}
+    command: ["celery", "-A", "app.core.celery_app", "worker", "-Q", "notifications", "-c", "2", "-l", "info", "-n", "worker_notifications@%h", "--max-tasks-per-child=100", "--max-memory-per-child=250000"]
 
   # Celery Worker: File Exports (PDF, Excel, Word)
   worker-exports:
@@ -127,6 +145,7 @@ services:
       dockerfile: Dockerfile
     container_name: resume-analyzer-worker-exports
     restart: unless-stopped
+    stop_grace_period: 60s
     depends_on:
       postgres:
         condition: service_healthy
@@ -138,9 +157,10 @@ services:
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/1
       - UPLOAD_DIR=/app/uploads
+      - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
     volumes:
       - uploads-data:/app/uploads
-    command: ["celery", "-A", "app.core.celery_app", "worker", "-Q", "exports", "-c", "2", "-l", "info", "-n", "worker_exports@%h"]
+    command: ["celery", "-A", "app.core.celery_app", "worker", "-Q", "exports", "-c", "2", "-l", "info", "-n", "worker_exports@%h", "--max-tasks-per-child=100", "--max-memory-per-child=250000"]
 
   # Celery Worker: Default Queue
   worker-default:
@@ -149,6 +169,7 @@ services:
       dockerfile: Dockerfile
     container_name: resume-analyzer-worker-default
     restart: unless-stopped
+    stop_grace_period: 60s
     depends_on:
       postgres:
         condition: service_healthy
@@ -160,9 +181,10 @@ services:
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/1
       - UPLOAD_DIR=/app/uploads
+      - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
     volumes:
       - uploads-data:/app/uploads
-    command: ["celery", "-A", "app.core.celery_app", "worker", "-Q", "default", "-c", "1", "-l", "info", "-n", "worker_default@%h"]
+    command: ["celery", "-A", "app.core.celery_app", "worker", "-Q", "default", "-c", "1", "-l", "info", "-n", "worker_default@%h", "--max-tasks-per-child=100", "--max-memory-per-child=250000"]
 
   # Celery Beat Scheduler (Periodic Cron & Outbox Scanner)
   celery-beat:
@@ -181,6 +203,7 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/1
+      - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
     command: ["celery", "-A", "app.core.celery_app", "beat", "-l", "info"]
 
   # Flower Dashboard: Real-time Celery Task Monitoring
