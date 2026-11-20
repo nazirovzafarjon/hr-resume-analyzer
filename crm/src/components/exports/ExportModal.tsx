@@ -153,9 +153,10 @@ export function ExportModal({
       
       // Close modal on success
       onClose();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Export failed:", err);
-      setError(err.message || "Failed to generate export. Please try again.");
+      const message = err instanceof Error ? err.message : "Failed to generate export. Please try again.";
+      setError(message);
     } finally {
       setLoading(false);
     }
