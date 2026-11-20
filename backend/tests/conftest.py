@@ -26,6 +26,9 @@ os.environ["DATABASE_URL"] = os.environ.get(
     ),
 )
 os.environ["SECRET_KEY"] = "test-secret-key-for-resume-analyzer"
+# Minimum bcrypt cost: fixtures register and log in many users, and the
+# production cost of 12 (~250 ms per hash/verify) dominated the suite's runtime.
+os.environ["BCRYPT_ROUNDS"] = "4"
 os.environ["SUPERUSER_EMAIL"] = ""
 os.environ["SUPERUSER_PASSWORD"] = ""
 # Blank the real Resend credentials from backend/.env so the suite never hits

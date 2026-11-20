@@ -88,7 +88,8 @@ def _password_bytes(password: str) -> bytes:
 
 def hash_password(password: str) -> str:
     """Hash a plain-text password and return the salted bcrypt digest."""
-    return bcrypt.hashpw(_password_bytes(password), bcrypt.gensalt()).decode("utf-8")
+    salt = bcrypt.gensalt(rounds=settings.BCRYPT_ROUNDS)
+    return bcrypt.hashpw(_password_bytes(password), salt).decode("utf-8")
 
 
 def verify_password(plain_password: str, hashed_password: str | None) -> bool:
