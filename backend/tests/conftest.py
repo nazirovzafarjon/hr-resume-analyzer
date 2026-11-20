@@ -96,7 +96,7 @@ def _clean_tables(_prepare_database):
     with engine.begin() as conn:
         conn.execute(
             text(
-                "TRUNCATE analysis_batch_items, analysis_batches, application_responses, application_forms, interviews, "
+                "TRUNCATE outbox_events, analysis_batch_items, analysis_batches, application_responses, application_forms, interviews, "
                 "applications, jobs, users, contact_messages, audit_logs, system_errors, "
                 "ai_analysis_runs, platform_settings, revoked_tokens, session_cutoffs, "
                 "candidate_accounts, application_status_history, email_verifications, "

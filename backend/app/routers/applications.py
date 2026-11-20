@@ -373,13 +373,17 @@ async def analyze_application(
             )
         raise HTTPException(status_code=exc.status_code, detail=detail) from exc
 
-    # Dispatch to Celery background worker
-    from app.tasks.ai_analysis import analyze_single_application_task
+    # Dispatch via Transactional Outbox for at-least-once Celery delivery
+    from app.services import outbox as outbox_service
 
-    analyze_single_application_task.delay(
-        application_id=application.id,
-        force=force,
-        actor_id=scope.user.id,
+    outbox_service.record_and_dispatch(
+        db,
+        event_type="analyze_single_application",
+        payload={
+            "application_id": application.id,
+            "force": force,
+            "actor_id": scope.user.id,
+        },
     )
 
     db.expire_all()
@@ -603,10 +607,14 @@ async def start_auto_analyze(
         context=audit_ctx,
     )
 
-    # Dispatch Celery background task for batch analysis
-    from app.tasks.ai_analysis import dispatch_batch_analysis_task
+    # Dispatch via Transactional Outbox for at-least-once Celery delivery
+    from app.services import outbox as outbox_service
 
-    dispatch_batch_analysis_task.delay(batch_id=batch.id)
+    outbox_service.record_and_dispatch(
+        db,
+        event_type="dispatch_batch_analysis",
+        payload={"batch_id": batch.id},
+    )
 
     return AutoAnalyzeStartResponse(
         batch_id=batch.id,

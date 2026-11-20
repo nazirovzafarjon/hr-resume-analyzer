@@ -7,6 +7,7 @@ from app.models.ai_analysis_run import AIAnalysisRun
 from app.models.ai_provider_config import UserAIProviderConfig
 from app.models.analysis_batch import AnalysisBatch, AnalysisBatchStatus
 from app.models.analysis_batch_item import AnalysisBatchItem, BatchItemStatus
+from app.models.outbox import OutboxEvent, OutboxStatus
 from app.models.application import (
     AnalysisStatus,
     Application,
@@ -51,6 +52,8 @@ __all__ = [
     "AnalysisBatchStatus",
     "AnalysisBatchItem",
     "BatchItemStatus",
+    "OutboxEvent",
+    "OutboxStatus",
     "AnalysisStatus",
     "ApplicationStatus",
     "HiringStatus",
