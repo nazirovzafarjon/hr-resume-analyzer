@@ -1,6 +1,6 @@
 # Dockerfile for Resume Analyzer Backend & Celery Background Workers
 # Hardened for Production: Non-root user, minimal base image, health checks
-FROM python:3.12-slim AS runtime
+FROM python:3.15-slim AS runtime
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
