@@ -98,7 +98,7 @@ def test_sentry_data_scrubbing():
             },
         },
         "extra": {
-            "api_key": "sk-live-12345",
+            "api_key": "FAKE_TEST_VALUE",
         },
     }
 
@@ -160,4 +160,4 @@ def test_scrub_log_message_standalone():
     """Verify standalone log scrubbing function."""
     assert scrub_log_message('Bearer secret_jwt_token_here') == 'Bearer [REDACTED_TOKEN]'
     assert scrub_log_message('password="mysecret"') == 'password="[REDACTED]"'
-    assert scrub_log_message('api_key="sk-live-123"') == 'api_key="[REDACTED]"'
+    assert scrub_log_message('api_key="fake-key-value"') == 'api_key="[REDACTED]"'
