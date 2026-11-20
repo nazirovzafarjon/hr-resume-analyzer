@@ -25,18 +25,15 @@ from sqlalchemy.orm import Session
 
 from app.core.database import SessionLocal
 from app.crud import batch as batch_crud
-from app.crud import application as application_crud
 from app.crud.query_utils import owner_filter
 from app.models.analysis_batch import AnalysisBatch, AnalysisBatchStatus
-from app.models.analysis_batch_item import AnalysisBatchItem, BatchItemStatus
+from app.models.analysis_batch_item import BatchItemStatus
 from app.models.application import AnalysisStatus, Application, ApplicationStatus
 from app.models.job import Job
 from app.models.user import User
 from app.services import application_analysis as single_analysis
 from app.services.ai import provider as ai_provider_service
-from app.services.ai.application_analyzer import analyze_application as ai_analyze
 from app.services.ai.job_analyzer import AIServiceError
-from app.services.resume_text import extract_resume_text
 
 logger = logging.getLogger(__name__)
 
@@ -300,7 +297,7 @@ async def analyze_single_application(
             exc.message,
         )
         return False, exc.message
-    except Exception as exc:
+    except Exception:
         logger.exception(
             "Unexpected error analyzing application_id=%s",
             application.id,

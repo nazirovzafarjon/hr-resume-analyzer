@@ -128,6 +128,7 @@ def _decode_hex_string(hex_digits: bytes) -> str:
         raw = bytes.fromhex(cleaned.decode("ascii"))
     except (ValueError, UnicodeDecodeError):
         return ""
+    return _decode_pdf_string(raw)
 _PDF_STRING_RE = re.compile(rb"\((?:\\.|[^\\()])*\)", re.DOTALL)
 _PDF_HEX_RE = re.compile(rb"<([0-9A-Fa-f\s]{2,})>")
 _PDF_TJ_ARRAY_RE = re.compile(rb"\[(.*?)\]\s*TJ", re.DOTALL)

@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.dependencies.auth import AccessScope, get_access_scope
-from app.schemas.export import ExportRequest, ExportResponse
+from app.schemas.export import ExportRequest
 from app.services.export_service import ExportService
 
 
@@ -48,7 +48,7 @@ def export_table(
         HTTPException: If no records match filters or invalid parameters
     """
     service = ExportService(db, scope.owner_id)
-    
+
     try:
         file_bytes, filename, record_count = service.export(
             resource=request.resource,
@@ -56,9 +56,9 @@ def export_table(
             columns=request.columns,
             format=request.format,
         )
-        
+
         content_type = CONTENT_TYPES[request.format]
-        
+
         return StreamingResponse(
             file_bytes,
             media_type=content_type,
@@ -66,10 +66,10 @@ def export_table(
                 "Content-Disposition": f'attachment; filename="{filename}"',
             },
         )
-        
+
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
+    except Exception:
         # Log the error in production
         raise HTTPException(
             status_code=500,

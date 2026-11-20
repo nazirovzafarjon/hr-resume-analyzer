@@ -8,18 +8,16 @@ from io import BytesIO
 from typing import Any
 
 from docx import Document
-from docx.shared import Inches, Pt
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment
 from openpyxl.utils import get_column_letter
 from reportlab.lib import colors
-from reportlab.lib.pagesizes import letter, A4
+from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak
-from reportlab.platypus.tables import GRID_STYLE
-from sqlalchemy import select, and_, or_, func
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+from sqlalchemy import select, or_
 from sqlalchemy.orm import Session, contains_eager
 
 from app.crud.query_utils import owner_filter, contains_pattern, escape_like
@@ -80,7 +78,7 @@ RESOURCE_COLUMNS = {
 
 class ExportService:
     """Service for generating filtered table exports."""
-    
+
     def __init__(self, db: Session, owner_id: int | None):
         """Initialize export service.
         
@@ -90,7 +88,7 @@ class ExportService:
         """
         self.db = db
         self.owner_id = owner_id
-    
+
     def validate_columns(self, resource: ExportResource, columns: list[str]) -> list[str]:
         """Validate and filter requested columns against allowed columns.
         
@@ -106,15 +104,15 @@ class ExportService:
         """
         allowed = set(RESOURCE_COLUMNS[resource].keys())
         valid = [col for col in columns if col in allowed]
-        
+
         if not valid:
             raise ValueError(
                 f"No valid columns for resource '{resource}'. "
                 f"Allowed: {', '.join(allowed)}"
             )
-        
+
         return valid
-    
+
     def _get_latest_job_id(self) -> int | None:
         """Get the latest job ID for the current owner.
         
@@ -129,7 +127,7 @@ class ExportService:
         )
         result = self.db.execute(stmt).scalar_one_or_none()
         return result
-    
+
     def _apply_job_filter(self, stmt: Any, filters: ExportFilters, model: Any) -> Any:
         """Apply job-based filters to a query.
         
@@ -150,7 +148,7 @@ class ExportService:
                 return stmt.where(False)
         elif filters.job_id:
             job_id = filters.job_id
-        
+
         # Apply job filter if specified
         if job_id:
             if model == Application:
@@ -158,7 +156,7 @@ class ExportService:
             elif model == Interview:
                 stmt = stmt.join(Application, Interview.candidate_id == Application.id)
                 stmt = stmt.where(Application.job_id == job_id)
-        
+
         # Apply company filter (via job)
         if filters.company:
             if model == Application:
@@ -168,9 +166,9 @@ class ExportService:
                     stmt = stmt.join(Application, Interview.candidate_id == Application.id)
                 stmt = stmt.join(Job, Application.job_id == Job.id)
                 stmt = stmt.where(Job.company_name == filters.company)
-        
+
         return stmt
-    
+
     def _apply_date_filter(self, stmt: Any, filters: ExportFilters, date_column: Any) -> Any:
         """Apply date range filter to a query.
         
@@ -188,7 +186,7 @@ class ExportService:
             # Include the entire day
             stmt = stmt.where(date_column < filters.date_to + timedelta(days=1))
         return stmt
-    
+
     def query_jobs(self, filters: ExportFilters) -> list[dict[str, Any]]:
         """Query and format jobs data.
         
@@ -203,16 +201,16 @@ class ExportService:
             .where(owner_filter(Job.owner_id, self.owner_id))
             .order_by(Job.created_at.desc())
         )
-        
+
         # Apply company filter
         if filters.company:
             stmt = stmt.where(Job.company_name == filters.company)
-        
+
         # Apply date filter
         stmt = self._apply_date_filter(stmt, filters, Job.created_at)
-        
+
         results = self.db.execute(stmt).scalars().all()
-        
+
         return [
             {
                 "company": job.company_name,
@@ -225,10 +223,10 @@ class ExportService:
             }
             for job in results
         ]
-    
+
     def query_applications(
-        self, 
-        filters: ExportFilters, 
+        self,
+        filters: ExportFilters,
         candidates_only: bool = False
     ) -> list[dict[str, Any]]:
         """Query and format applications/candidates data.
@@ -246,14 +244,14 @@ class ExportService:
             .options(contains_eager(Application.job))
             .where(owner_filter(Job.owner_id, self.owner_id))
         )
-        
+
         # Candidates-only filter
         if candidates_only:
             stmt = stmt.where(Application.candidate_at.isnot(None))
-        
+
         # Apply job and company filters
         stmt = self._apply_job_filter(stmt, filters, Application)
-        
+
         # Apply status filters
         if filters.application_status:
             try:
@@ -261,28 +259,28 @@ class ExportService:
                 stmt = stmt.where(Application.application_status == status)
             except ValueError:
                 pass
-        
+
         if filters.analysis_status:
             try:
                 status = AnalysisStatus(filters.analysis_status)
                 stmt = stmt.where(Application.analysis_status == status)
             except ValueError:
                 pass
-        
+
         if filters.hiring_status:
             try:
                 status = HiringStatus(filters.hiring_status)
                 stmt = stmt.where(Application.hiring_status == status)
             except ValueError:
                 pass
-        
+
         if filters.interview_status:
             try:
                 status = AppInterviewStatus(filters.interview_status)
                 stmt = stmt.where(Application.interview_status == status)
             except ValueError:
                 pass
-        
+
         # Apply search filter (name or email)
         if filters.search:
             search_pattern = contains_pattern(escape_like(filters.search))
@@ -292,15 +290,15 @@ class ExportService:
                     Application.email.ilike(search_pattern),
                 )
             )
-        
+
         # Apply date filter
         stmt = self._apply_date_filter(stmt, filters, Application.submitted_at)
-        
+
         # Order by submission date
         stmt = stmt.order_by(Application.submitted_at.desc())
-        
+
         results = self.db.execute(stmt).scalars().all()
-        
+
         return [
             {
                 "name": app.name,
@@ -318,7 +316,7 @@ class ExportService:
             }
             for app in results
         ]
-    
+
     def query_interviews(self, filters: ExportFilters) -> list[dict[str, Any]]:
         """Query and format interviews data.
         
@@ -337,10 +335,10 @@ class ExportService:
             )
             .where(owner_filter(Job.owner_id, self.owner_id))
         )
-        
+
         # Apply job and company filters
         stmt = self._apply_job_filter(stmt, filters, Interview)
-        
+
         # Apply interview status filter
         if filters.interview_status:
             try:
@@ -348,7 +346,7 @@ class ExportService:
                 stmt = stmt.where(Interview.status == status)
             except ValueError:
                 pass
-        
+
         # Apply search filter (candidate name or interviewer)
         if filters.search:
             search_pattern = contains_pattern(escape_like(filters.search))
@@ -358,15 +356,15 @@ class ExportService:
                     Interview.interviewer.ilike(search_pattern),
                 )
             )
-        
+
         # Apply date filter on scheduled_at
         stmt = self._apply_date_filter(stmt, filters, Interview.scheduled_at)
-        
+
         # Order by scheduled date
         stmt = stmt.order_by(Interview.scheduled_at.desc())
-        
+
         results = self.db.execute(stmt).scalars().all()
-        
+
         return [
             {
                 "candidate_name": interview.candidate.name,
@@ -381,10 +379,10 @@ class ExportService:
             }
             for interview in results
         ]
-    
+
     def get_data(
-        self, 
-        resource: ExportResource, 
+        self,
+        resource: ExportResource,
         filters: ExportFilters
     ) -> list[dict[str, Any]]:
         """Get filtered data for a resource.
@@ -406,7 +404,7 @@ class ExportService:
             return self.query_interviews(filters)
         else:
             raise ValueError(f"Unsupported resource: {resource}")
-    
+
     def format_value(self, value: Any) -> str:
         """Format a value for display in exports.
         
@@ -428,7 +426,7 @@ class ExportService:
             return "Yes" if value else "No"
         else:
             return str(value)
-    
+
     def generate_xlsx(
         self,
         resource: ExportResource,
@@ -448,14 +446,14 @@ class ExportService:
         wb = Workbook()
         ws = wb.active
         ws.title = resource.capitalize()
-        
+
         # Get column headers
         column_map = RESOURCE_COLUMNS[resource]
         headers = [column_map[col] for col in columns]
-        
+
         # Write header row
         ws.append(headers)
-        
+
         # Style header row
         header_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
         header_font = Font(bold=True, color="FFFFFF")
@@ -463,39 +461,39 @@ class ExportService:
             cell.fill = header_fill
             cell.font = header_font
             cell.alignment = Alignment(horizontal="center", vertical="center")
-        
+
         # Write data rows
         for record in data:
             row = [self.format_value(record.get(col)) for col in columns]
             ws.append(row)
-        
+
         # Auto-size columns
         for idx, col in enumerate(columns, start=1):
             column_letter = get_column_letter(idx)
             max_length = len(column_map[col])
-            
+
             for cell in ws[column_letter]:
                 try:
                     if len(str(cell.value)) > max_length:
                         max_length = len(str(cell.value))
-                except:
+                except Exception:
                     pass
-            
+
             adjusted_width = min(max_length + 2, 50)
             ws.column_dimensions[column_letter].width = adjusted_width
-        
+
         # Freeze header row
         ws.freeze_panes = "A2"
-        
+
         # Enable autofilter
         ws.auto_filter.ref = ws.dimensions
-        
+
         # Save to BytesIO
         output = BytesIO()
         wb.save(output)
         output.seek(0)
         return output
-    
+
     def generate_pdf(
         self,
         resource: ExportResource,
@@ -523,10 +521,10 @@ class ExportService:
             topMargin=0.75*inch,
             bottomMargin=0.75*inch,
         )
-        
+
         elements = []
         styles = getSampleStyleSheet()
-        
+
         # Title
         title_style = ParagraphStyle(
             'CustomTitle',
@@ -538,7 +536,7 @@ class ExportService:
         )
         title = Paragraph(f"{resource.capitalize()} Report", title_style)
         elements.append(title)
-        
+
         # Metadata
         meta_style = ParagraphStyle(
             'Meta',
@@ -547,10 +545,10 @@ class ExportService:
             textColor=colors.HexColor("#4a5568"),
             spaceAfter=6,
         )
-        
+
         now = datetime.now()
         elements.append(Paragraph(f"<b>Generated:</b> {now.strftime('%d %b %Y, %H:%M')}", meta_style))
-        
+
         # Applied filters
         filter_items = []
         if filters.company:
@@ -573,32 +571,32 @@ class ExportService:
             filter_items.append(f"To: {filters.date_to.strftime('%d %b %Y')}")
         if filters.search:
             filter_items.append(f"Search: {filters.search}")
-        
+
         if filter_items:
             elements.append(Paragraph(f"<b>Filters:</b> {', '.join(filter_items)}", meta_style))
-        
+
         elements.append(Paragraph(f"<b>Records:</b> {len(data)}", meta_style))
         elements.append(Spacer(1, 0.25*inch))
-        
+
         # Table
         if not data:
             elements.append(Paragraph("No records match the selected filters.", styles['Normal']))
         else:
             column_map = RESOURCE_COLUMNS[resource]
             headers = [column_map[col] for col in columns]
-            
+
             table_data = [headers]
             for record in data:
                 row = [self.format_value(record.get(col)) for col in columns]
                 # Truncate long text to prevent layout issues
                 row = [str(val)[:100] + "..." if len(str(val)) > 100 else str(val) for val in row]
                 table_data.append(row)
-            
+
             # Calculate column widths
             available_width = 7.5 * inch
             col_count = len(columns)
             col_width = available_width / col_count
-            
+
             table = Table(table_data, colWidths=[col_width] * col_count, repeatRows=1)
             table.setStyle(TableStyle([
                 ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#366092")),
@@ -615,11 +613,11 @@ class ExportService:
                 ('VALIGN', (0, 0), (-1, -1), 'TOP'),
             ]))
             elements.append(table)
-        
+
         doc.build(elements)
         output.seek(0)
         return output
-    
+
     def generate_docx(
         self,
         resource: ExportResource,
@@ -639,17 +637,17 @@ class ExportService:
             BytesIO containing the DOCX file
         """
         doc = Document()
-        
+
         # Title
         title = doc.add_heading(f"{resource.capitalize()} Report", level=1)
         title.alignment = WD_ALIGN_PARAGRAPH.LEFT
-        
+
         # Metadata
         now = datetime.now()
         metadata = doc.add_paragraph()
         metadata.add_run("Generated: ").bold = True
         metadata.add_run(f"{now.strftime('%d %b %Y, %H:%M')}\n")
-        
+
         # Applied filters
         filter_items = []
         if filters.company:
@@ -672,28 +670,28 @@ class ExportService:
             filter_items.append(f"To: {filters.date_to.strftime('%d %b %Y')}")
         if filters.search:
             filter_items.append(f"Search: {filters.search}")
-        
+
         if filter_items:
             filters_para = metadata.add_run("Filters: ")
             filters_para.bold = True
             metadata.add_run(", ".join(filter_items) + "\n")
-        
+
         records_run = metadata.add_run("Records: ")
         records_run.bold = True
         metadata.add_run(str(len(data)))
-        
+
         doc.add_paragraph()  # Spacer
-        
+
         # Table
         if not data:
             doc.add_paragraph("No records match the selected filters.")
         else:
             column_map = RESOURCE_COLUMNS[resource]
             headers = [column_map[col] for col in columns]
-            
+
             table = doc.add_table(rows=1, cols=len(columns))
             table.style = 'Light Grid Accent 1'
-            
+
             # Header row
             header_cells = table.rows[0].cells
             for idx, header in enumerate(headers):
@@ -702,7 +700,7 @@ class ExportService:
                 for paragraph in header_cells[idx].paragraphs:
                     for run in paragraph.runs:
                         run.font.bold = True
-            
+
             # Data rows
             for record in data:
                 row_cells = table.add_row().cells
@@ -712,12 +710,12 @@ class ExportService:
                     if len(value) > 200:
                         value = value[:200] + "..."
                     row_cells[idx].text = value
-        
+
         output = BytesIO()
         doc.save(output)
         output.seek(0)
         return output
-    
+
     def export(
         self,
         resource: ExportResource,
@@ -741,17 +739,17 @@ class ExportService:
         """
         # Validate columns
         valid_columns = self.validate_columns(resource, columns)
-        
+
         # Get filtered data
         data = self.get_data(resource, filters)
-        
+
         if not data:
             raise ValueError("No records match the selected filters")
-        
+
         # Generate filename
         timestamp = datetime.now().strftime("%Y-%m-%d")
         filename = f"{resource}_report_{timestamp}.{format}"
-        
+
         # Generate file based on format
         if format == "xlsx":
             file_bytes = self.generate_xlsx(resource, data, valid_columns)
@@ -761,5 +759,5 @@ class ExportService:
             file_bytes = self.generate_docx(resource, data, valid_columns, filters)
         else:
             raise ValueError(f"Unsupported format: {format}")
-        
+
         return file_bytes, filename, len(data)
