@@ -13,6 +13,7 @@ A modern, full-stack recruitment platform and applicant tracking system (ATS) po
 - [Technology Stack](#technology-stack)
 - [Repository Structure](#repository-structure)
 - [Backend Architecture](#backend-architecture)
+- [Background Processing Architecture (Celery + Redis)](#background-processing-architecture-celery--redis)
 - [CRM Frontend Architecture](#crm-frontend-architecture)
 - [Landing Website](#landing-website)
 - [Core Business Workflows](#core-business-workflows)
@@ -165,6 +166,8 @@ graph TB
 - **HTTP Client**: HTTPX (asynchronous client for AI provider APIs, Google OAuth 2.0 exchange, and Resend transactional email)
 - **Document Exporting**: ReportLab (PDF generation), OpenPyXL (Excel `.xlsx` generation), python-docx (Word `.docx` generation)
 - **Document Parsing**: Python standard library (`zlib`, `re`, `zipfile`, `html`) for dependency-free text extraction from PDF, DOCX, and TXT files
+- **Background Processing & Message Broker**: Celery 5.x, Redis 7+ (distributed task execution, dedicated queues)
+- **Reliability & Data Consistency**: Transactional Outbox pattern, idempotent execution, bounded exponential backoff
 - **Testing**: Pytest, FastAPI TestClient
 
 ### CRM Frontend Application (`crm/`)
@@ -192,27 +195,30 @@ graph TB
 ```text
 resume_analyzer/
 ├── README.md                      # Primary technical documentation and onboarding guide
+├── docker-compose.yml             # Multi-worker background processing orchestration (API, Redis, Postgres, Workers)
 ├── .gitignore                     # Repository-wide Git ignore rules
 │
 ├── backend/                       # FastAPI REST API & Database Service
+│   ├── Dockerfile                 # Production multi-stage Dockerfile for API & Celery workers
 │   ├── alembic.ini                # Alembic migration configuration
 │   ├── pytest.ini                 # Pytest configuration
 │   ├── requirements.txt           # Python dependency specifications
 │   ├── .env.example               # Backend environment variable template
 │   ├── alembic/                   # Database migration scripts
 │   │   ├── env.py                 # Alembic migration environment
-│   │   └── versions/              # 21 incremental schema migration versions
+│   │   └── versions/              # 23 incremental schema migration versions
 │   ├── app/
 │   │   ├── main.py                # FastAPI initialization, middleware, lifecycle, static mounts
-│   │   ├── core/                  # Core infrastructure (config, database, security, encryption)
+│   │   ├── core/                  # Core infrastructure (config, database, security, celery_app, redis)
 │   │   ├── crud/                  # Database access layer (SQLAlchemy query models)
 │   │   ├── dependencies/          # Dependency injection (HR auth, admin scope, candidate auth)
-│   │   ├── models/                # 19 SQLAlchemy database models
+│   │   ├── models/                # 21 SQLAlchemy database models (including batch items & outbox)
 │   │   ├── routers/               # 10 API route groups (auth, jobs, applications, admin, etc.)
 │   │   ├── schemas/               # Pydantic validation and serialization schemas
-│   │   └── services/              # Business logic (AI pipelines, exports, auth, email, parsing)
-│   ├── tests/                     # 960 automated tests covering all backend domains
-│   └── uploads/                   # Local file storage (profile avatars, uploaded resumes)
+│   │   ├── services/              # Business logic (AI pipelines, exports, auth, email, parsing, outbox)
+│   │   └── tasks/                 # Celery background tasks (ai_analysis, notifications, exports)
+│   ├── tests/                     # 975+ automated tests covering all backend domains & background queues
+│   └── uploads/                   # Shared file storage (profile avatars, uploaded resumes, exports)
 │
 ├── crm/                           # HR & Admin CRM Single Page Application
 │   ├── package.json               # Frontend dependencies and scripts
@@ -300,6 +306,457 @@ To prevent the overhead and vulnerability footprint of heavyweight third-party d
 - **`.docx`**: Unzipped in memory using `zipfile`; extracts paragraph runs directly from `word/document.xml`.
 - **`.pdf`**: Inspects stream blocks, decompresses data using Python's standard `zlib.decompress` (FlateDecode), and parses text-showing operands (`Tj` and `TJ`) while handling octal and hex character escapes.
 - **Scanned / Image PDFs**: Safely identified and handled without crashing; returns an explanation indicating that the resume contained no text layer so analysis can proceed on form answers.
+
+---
+
+## Background Processing Architecture (Celery + Redis)
+
+### 1. Overview
+The Resume Analyzer background processing system decouples long-running, compute-intensive, and I/O-bound tasks from the synchronous FastAPI HTTP request cycle. It uses **Celery** as the distributed task execution framework, **Redis** as the high-throughput message broker, **PostgreSQL** as the authoritative source of truth for business data and task states, and a **Transactional Outbox** pattern to guarantee at-least-once task delivery without dual-write race conditions.
+
+Key architectural benefits:
+- **Zero Request Thread Blocking**: Fast response times for recruiters (< 100ms) while AI models take 5–30 seconds to parse and score candidate resumes.
+- **Resilience Against Crashes**: Worker termination or server restarts do not lose tasks; late acknowledgments (`acks_late=True`) cause unacknowledged tasks to be automatically requeued.
+- **Independent Elastic Scaling**: Workloads are isolated across dedicated queues, allowing AI workers, batch workers, and email notifications to scale independently based on queue depth.
+- **Granular Batch Observability**: Each batch of up to 1,000 applications tracks item-level execution states (`pending`, `running`, `completed`, `failed`, `skipped`, `cancelled`) in PostgreSQL.
+
+---
+
+### 2. System Architecture Diagram
+
+```mermaid
+graph TB
+    subgraph Clients["Client Layer"]
+        CRMApp["React CRM (Port 5173)"]
+        LandingApp["Landing Website (Port 5174)"]
+    end
+
+    subgraph API["FastAPI Application"]
+        Router["HTTP Endpoints (/api/*)"]
+        AuthService["Auth & Recruiter Scoping"]
+        OutboxWriter["Transactional Outbox Writer"]
+    end
+
+    subgraph Database["PostgreSQL (Source of Truth)"]
+        AppTable[("applications & analysis_batches")]
+        BatchItems[("analysis_batch_items")]
+        OutboxTable[("outbox_events")]
+    end
+
+    subgraph Broker["Redis Message Broker (Port 6379)"]
+        QueueAI["Queue: ai_analysis"]
+        QueueBatch["Queue: batch_analysis"]
+        QueueNotify["Queue: notifications"]
+        QueueExport["Queue: exports"]
+        QueueDefault["Queue: default"]
+    end
+
+    subgraph Workers["Dedicated Celery Worker Pool"]
+        WorkerAI["AI Worker (c=2)<br/>analyze_single_application_task"]
+        WorkerBatch["Batch Worker (c=4)<br/>analyze_batch_item_task<br/>dispatch_batch_analysis_task"]
+        WorkerNotify["Notifications Worker (c=2)<br/>send_email_task"]
+        WorkerExport["Exports Worker (c=2)<br/>generate_export_task"]
+        WorkerDefault["Default Worker (c=1)<br/>General Housekeeping"]
+    end
+
+    subgraph External["External Integrations"]
+        LLMProviders["AI Providers<br/>(OpenRouter, Groq, Gemini)"]
+        ResendAPI["Resend Email API"]
+        SharedStorage[("Shared Storage Volume<br/>/app/uploads/")]
+    end
+
+    CRMApp -->|REST Requests| Router
+    LandingApp -->|Contact Inquiries| Router
+    Router --> AuthService
+    Router --> OutboxWriter
+
+    OutboxWriter -->|Atomic SQL Commit| AppTable
+    OutboxWriter -->|Atomic SQL Commit| BatchItems
+    OutboxWriter -->|Atomic SQL Commit| OutboxTable
+
+    OutboxWriter -->|Publish Event| QueueAI
+    OutboxWriter -->|Publish Event| QueueBatch
+    OutboxWriter -->|Publish Event| QueueNotify
+    OutboxWriter -->|Publish Event| QueueExport
+
+    QueueAI --> WorkerAI
+    QueueBatch --> WorkerBatch
+    QueueNotify --> WorkerNotify
+    QueueExport --> WorkerExport
+    QueueDefault --> WorkerDefault
+
+    WorkerAI -->|Decrypt API Keys & Read Resumes| Database
+    WorkerAI -->|Inference Call| LLMProviders
+    WorkerAI -->|Persist Results & ai_score| AppTable
+
+    WorkerBatch -->|Atomic SQL Counter Increments| Database
+    WorkerBatch -->|Inference Call| LLMProviders
+    WorkerBatch -->|Update Item Status| BatchItems
+
+    WorkerNotify -->|Send Transactional Emails| ResendAPI
+    WorkerExport -->|Write Generated PDF/XLSX/DOCX| SharedStorage
+    WorkerAI -->|Read Resume Files| SharedStorage
+```
+
+---
+
+### 3. Queue Topology and Worker Responsibilities
+
+Tasks are strictly partitioned into dedicated Kombu queues to prevent noisy-neighbor starvation:
+
+| Queue Name | Routing Key Pattern | Dedicated Tasks | Concurrency Recommendation | Description |
+|---|---|---|---|---|
+| `ai_analysis` | `ai.#` | `app.tasks.ai_analysis.analyze_single_application_task` | 2 processes | Executes single-resume AI scoring. Limited concurrency respects provider rate limits. |
+| `batch_analysis` | `batch.#` | `app.tasks.ai_analysis.analyze_batch_item_task`, `dispatch_batch_analysis_task` | 4 processes | High-throughput batch processing for bulk candidate evaluations (up to 1,000 items). |
+| `notifications` | `notify.#` | `app.tasks.notifications.send_email_task` | 2 processes | Transactional email delivery via Resend (verification codes, password reset). Completely isolated so notifications are never delayed by LLM queues. |
+| `exports` | `export.#` | `app.tasks.exports.generate_export_task` | 2 processes | Generates Excel, PDF, and Word export files and persists them to shared volume. |
+| `default` | `default.#` | Unrouted tasks, outbox maintenance, periodic cleanup | 1 process | Fallback queue for general asynchronous tasks. |
+
+---
+
+### 4. Detailed Execution Workflows
+
+#### A. Single Resume Analysis Workflow
+1. **Trigger**: Recruiter clicks "Analyze" or sends `POST /api/applications/{id}/analyze`.
+2. **Validation**: API validates recruiter ownership (`owner_id = user.id`), checks that the application is not already analyzed (`force=false`), and pre-verifies that the job owner has connected an AI provider.
+3. **Transactional Outbox Record**: An event `analyze_single_application` is written to `outbox_events` and committed atomically with the application state.
+4. **Task Dispatch**: Celery routes the task to the `ai_analysis` queue in Redis.
+5. **Immediate API Response**: FastAPI returns HTTP 200 with the `ApplicationDetailResponse` showing `analysis_status="analyzing"`.
+6. **Worker Processing**:
+   - `worker-ai` pulls task from Redis.
+   - Worker opens an isolated SQLAlchemy session (`with SessionLocal() as db:`).
+   - Verifies idempotency guard (skips if already completed and `force=false`).
+   - Resolves and decrypts the job owner's AI provider credentials from PostgreSQL using Fernet key (keys are never exposed in task messages).
+   - Extracts resume text from shared storage volume (`/app/uploads/`).
+   - Calls the LLM provider API with built-in retry and schema validation.
+   - Updates `applications` table: `analysis_status="completed"`, `ai_score=88.0`, `ai_analysis_details={...}`.
+   - Writes monitoring diagnostic entry to `ai_analysis_runs` and audit log entry.
+   - Commits transaction and late-acknowledges the Celery task.
+
+#### B. Batch Resume Analysis Workflow
+1. **Batch Creation**: Recruiter submits `POST /api/applications/auto-analyze` with target count (1–1,000) and filters.
+2. **Atomic Persistence**:
+   - PostgreSQL inserts `analysis_batches` (status `queued`, total items count).
+   - PostgreSQL inserts individual `analysis_batch_items` for every selected application (status `pending`).
+   - Outbox event `dispatch_batch_analysis` is recorded and transaction commits.
+3. **Batch Dispatching**:
+   - `dispatch_batch_analysis_task` runs on `worker-batch`.
+   - Transitions batch status to `running`.
+   - Dispatches individual `analyze_batch_item_task` jobs for each item in the batch.
+4. **Parallel Worker Execution**:
+   - `worker-batch` processes items concurrently across workers with `worker_prefetch_multiplier=1`.
+   - **Cooperative Cancellation Guard**: Before calling the AI provider, the worker checks if `batch.status == "cancelled"`. If cancelled, the item transitions to `cancelled` and terminates immediately with zero LLM API costs.
+   - **Atomic SQL Counter Increments**: When an item completes, fails, or is skipped, counters are updated via PostgreSQL SQL expressions (`successful_count = AnalysisBatch.successful_count + 1`), preventing race conditions.
+   - **Item State Tracking**: Detailed item row in `analysis_batch_items` records `started_at`, `completed_at`, `celery_task_id`, and exact error messages on failure.
+   - **Batch Completion**: The last item to finish automatically transitions the parent batch to `status="completed"` and records `finished_at`.
+
+#### C. Document Export Generation Workflow
+1. **Trigger**: Recruiter requests filtered table export (`POST /api/exports`).
+2. **Dispatch**: API dispatches `generate_export_task` to the `exports` queue with resource name, column definitions, and format (`pdf`, `xlsx`, `docx`).
+3. **Execution**:
+   - `worker-exports` opens a DB session and applies recruiter data scoping.
+   - Invokes `ExportService.export()` to stream records from PostgreSQL and compile document binary.
+   - Writes generated document to `/app/uploads/exports/{filename}` in the shared volume.
+   - Returns structured metadata (`status="completed"`, `filename`, `file_size`, `record_count`).
+
+#### D. Transactional Email Dispatch Workflow
+1. **Trigger**: User registers or requests verification code resend (`POST /api/auth/resend-verification-code`).
+2. **Dispatch**: Task `send_email_task` is dispatched to the `notifications` queue.
+3. **Delivery**:
+   - `worker-notifications` calls Resend REST API via `httpx`.
+   - Permanent rejections (e.g., sandbox 403, bad email format) fail fast without retrying.
+   - Transient errors (HTTP 429, 500, 502, 503, 504) trigger Celery exponential backoff retries (countdown 5s, 10s, 20s up to 3 attempts).
+
+---
+
+### 5. Worker Concurrency Guidelines and Allocation
+
+| Worker Container / Process | Assigned Queues | Recommended Concurrency (`-c`) | Memory Allocation | Scalability Strategy |
+|---|---|---|---|---|
+| `worker-ai` | `ai_analysis` | 2 processes | 512 MB – 1 GB | Kept low to avoid exceeding per-minute rate limits (RPM/TPM) of third-party AI provider tiers. |
+| `worker-batch` | `batch_analysis` | 4 processes | 1 GB – 2 GB | High throughput for processing 1,000 resumes. Scale out horizontally with additional nodes if batch volume increases. |
+| `worker-notifications` | `notifications` | 2 processes | 256 MB – 512 MB | Fast I/O workers. Processes hundreds of emails per minute with low CPU overhead. |
+| `worker-exports` | `exports` | 2 processes | 1 GB – 2 GB | High memory headroom for generating large PDFs and Excel workbooks with ReportLab and OpenPyXL. |
+| `worker-default` | `default` | 1 process | 256 MB | Single-process housekeeping worker. |
+
+---
+
+### 6. Configuration and Environment Variables
+
+Add these variables to your `backend/.env` file:
+
+```ini
+# Redis & Celery Message Broker Configuration
+REDIS_URL=redis://localhost:6379/0
+CELERY_BROKER_URL=redis://localhost:6379/0
+CELERY_RESULT_BACKEND=redis://localhost:6379/1
+
+# Default queue for tasks without an explicit route
+CELERY_TASK_DEFAULT_QUEUE=default
+
+# Worker process concurrency per node
+CELERY_WORKER_CONCURRENCY=4
+
+# Task execution reliability:
+# acks_late ensures tasks are acknowledged only after completion (prevents loss on worker crash)
+CELERY_TASK_ACKS_LATE=true
+
+# prefetch_multiplier=1 disables greedy allocation, ensuring fair distribution across workers
+CELERY_WORKER_PREFETCH_MULTIPLIER=1
+
+# reject_on_worker_lost requeues tasks if a worker process is terminated abruptly (SIGKILL/OOM)
+CELERY_TASK_REJECT_ON_WORKER_LOST=true
+
+# Execution timeouts in seconds (soft raises SoftTimeLimitExceeded, hard kills worker)
+CELERY_TASK_SOFT_TIME_LIMIT=300
+CELERY_TASK_TIME_LIMIT=360
+```
+
+---
+
+### 7. Local Development Setup Instructions
+
+#### Running with Docker Compose (Recommended)
+The fastest way to start the complete stack (API, Redis, PostgreSQL, and all 5 workers) is via Docker Compose:
+
+```bash
+# 1. Clone repository and navigate to root
+cd hr-resume-analyzer
+
+# 2. Copy environment file
+cp backend/.env.example backend/.env
+
+# 3. Start all services in the background
+docker-compose up -d
+
+# 4. Follow logs
+docker-compose logs -f
+```
+
+#### Running Locally without Docker
+To run workers natively on your host machine:
+
+1. **Start Redis Server**:
+   ```bash
+   # Linux / Ubuntu / WSL:
+   sudo service redis-server start
+
+   # Verify Redis is listening:
+   redis-cli ping
+   # Expected output: PONG
+   ```
+
+2. **Activate Backend Virtual Environment**:
+   ```bash
+   cd backend
+   source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+   ```
+
+3. **Run Schema Migrations**:
+   ```bash
+   alembic upgrade head
+   ```
+
+4. **Start the FastAPI API Server**:
+   ```bash
+   uvicorn app.main:app --reload --port 8000
+   ```
+
+---
+
+### 8. Running Celery Workers in Development
+
+In development, you can run all queues within a single combined worker, or run dedicated workers matching production:
+
+#### Option A: Combined Development Worker (All Queues)
+```bash
+celery -A app.core.celery_app worker -Q ai_analysis,batch_analysis,notifications,exports,default -c 4 -l info
+```
+
+#### Option B: Dedicated Workers (Production Parity)
+Run each command in a separate terminal:
+
+```bash
+# 1. AI Analysis Worker
+celery -A app.core.celery_app worker -Q ai_analysis -c 2 -l info -n worker_ai@%h
+
+# 2. Batch Analysis Worker
+celery -A app.core.celery_app worker -Q batch_analysis -c 4 -l info -n worker_batch@%h
+
+# 3. Notifications Worker
+celery -A app.core.celery_app worker -Q notifications -c 2 -l info -n worker_notifications@%h
+
+# 4. Exports Worker
+celery -A app.core.celery_app worker -Q exports -c 2 -l info -n worker_exports@%h
+
+# 5. Default Queue Worker
+celery -A app.core.celery_app worker -Q default -c 1 -l info -n worker_default@%h
+```
+
+---
+
+### 9. Docker Compose Multi-Worker Stack
+
+The root `docker-compose.yml` provides production-grade orchestration:
+
+- **`postgres`**: PostgreSQL 16 with health checks (`pg_isready`).
+- **`redis`**: Redis 7 Alpine with persistent volume and health check (`redis-cli ping`).
+- **`api`**: FastAPI application with auto-migration and live reload.
+- **`worker-ai`**: Dedicated container for `ai_analysis` queue.
+- **`worker-batch`**: Dedicated container for `batch_analysis` queue.
+- **`worker-notifications`**: Dedicated container for `notifications` queue.
+- **`worker-exports`**: Dedicated container for `exports` queue.
+- **`worker-default`**: Dedicated container for `default` queue.
+- **Shared Volume (`uploads-data`)**: Mounted at `/app/uploads` across `api`, `worker-ai`, `worker-batch`, and `worker-exports`.
+
+---
+
+### 10. Database Migration Instructions
+
+The background architecture introduces two new tables:
+1. `analysis_batch_items`: Individual batch item tracking for Celery workers.
+2. `outbox_events`: Transactional outbox table for reliable at-least-once task dispatching.
+
+To apply migrations:
+```bash
+cd backend
+alembic upgrade head
+```
+
+To roll back the background migrations:
+```bash
+alembic downgrade -2
+```
+
+---
+
+### 11. Monitoring and Operations
+
+#### Worker Status Inspection
+```bash
+# Check if workers are running and responding
+celery -A app.core.celery_app inspect ping
+
+# View active running tasks
+celery -A app.core.celery_app inspect active
+
+# View reserved/prefetched tasks
+celery -A app.core.celery_app inspect reserved
+
+# View registered tasks
+celery -A app.core.celery_app inspect registered
+```
+
+#### Queue Depth Monitoring via Redis CLI
+```bash
+# Check queue length (pending tasks)
+redis-cli llen ai_analysis
+redis-cli llen batch_analysis
+redis-cli llen notifications
+redis-cli llen exports
+```
+
+#### Flower Web Monitoring (Optional)
+Run the Flower real-time dashboard to monitor task execution, worker loads, and latencies in your browser:
+```bash
+pip install flower
+celery -A app.core.celery_app flower --port=5555
+# Open http://localhost:5555 in your browser
+```
+
+---
+
+### 12. Failure Modes, Retry Policies, and Dead-Letter Handling
+
+1. **Transient Provider Failures (Retryable)**:
+   - Status codes: HTTP 429 (Rate Limit), 502 (Bad Gateway), 503 (Service Unavailable), 504 (Gateway Timeout), and network disconnects.
+   - Behavior: Retried with exponential backoff (`countdown = 5 * 2^retries`). Maximum 2 retries at Celery task level to prevent multiplying internal HTTP client retries.
+2. **Permanent / Business Failures (Non-Retryable)**:
+   - Status codes: HTTP 400 (Bad Request), 401 (Unauthorized), 403 (Forbidden), 422 (Unprocessable Entity), missing AI provider configuration (`AIConfigurationRequiredError`).
+   - Behavior: Fails immediately without Celery retries. Updates PostgreSQL application row: `analysis_status="failed"` with sanitized error message for recruiter retry in the UI.
+3. **Dead-Letter Handling & Outbox Recovery**:
+   - Outbox events that fail to publish are retried up to 5 times.
+   - Events exceeding 5 retries transition to `status="failed"` in `outbox_events` for administrator inspection.
+   - `process_pending_outbox_events(db)` automatically recovers orphaned pending events.
+
+---
+
+### 13. Security and Multi-Tenant Isolation Model
+
+- **Zero Secrets Over Message Broker**: Task payloads strictly pass database primary keys (`application_id: int`, `batch_id: int`). No API keys, passwords, bearer tokens, or resume raw contents are passed over Redis.
+- **Worker-Side Credential Resolution**: The Celery worker loads the application, queries the owning recruiter (`application.job.owner_id`), and decrypts their API key in-process using the application's Fernet encryption key (`AI_CREDENTIAL_ENCRYPTION_KEY`).
+- **Tenant Data Isolation**: Database queries inside workers strictly enforce `owner_filter(Job.owner_id, owner_id)`. Recruiters can never access or analyze candidates outside their workspace.
+
+---
+
+### 14. Shared Storage Architecture
+
+Uploaded documents (resumes in `.pdf`, `.docx`, `.txt`) and generated exports (`.xlsx`, `.pdf`, `.docx`) are stored on the filesystem under the path specified by `UPLOAD_DIR` (default: `uploads/`).
+
+In containerized deployments, `docker-compose.yml` mounts a shared named volume `uploads-data` to `/app/uploads` across the API and all worker services:
+- **API Container**: Saves incoming resume files uploaded via public application forms (`/app/uploads/resumes/`).
+- **AI Workers**: Read resume text from `/app/uploads/resumes/` to generate prompt inputs.
+- **Export Workers**: Write compiled documents to `/app/uploads/exports/`.
+
+---
+
+### 15. Testing Instructions
+
+#### Running Celery Tests in Eager Mode
+During automated testing, Celery is configured in eager mode (`task_always_eager=True`, `task_eager_propagates=False`) in `tests/conftest.py`. This executes task logic synchronously in the test process without requiring a running Celery daemon:
+
+```bash
+# Run Celery configuration and queue tests
+pytest tests/test_celery_config.py
+
+# Run Celery single resume analysis tests
+pytest tests/test_celery_single_analysis.py
+
+# Run Celery batch analysis tests
+pytest tests/test_celery_batch.py
+
+# Run Celery notification and export task tests
+pytest tests/test_celery_notifications_and_exports.py
+
+# Run Transactional Outbox tests
+pytest tests/test_outbox.py
+```
+
+#### Running the Full Test Suite
+```bash
+pytest
+```
+
+---
+
+### 16. Production Deployment Recommendations
+
+1. **Process Supervision**: Run Celery workers under **systemd**, **Docker Compose**, or **Kubernetes** with `restart: unless-stopped`.
+2. **Resource Limits**: Set memory limits (`--max-memory-per-child=500000` in kilobytes) to recycle worker processes and prevent Python memory leaks from document parsing.
+3. **Connection Pooling**: Use Redis connection pooling with appropriate socket timeouts (`socket_timeout=5.0`).
+4. **Log Aggregation**: Collect worker logs in JSON format via fluentd or Promtail/Loki.
+
+---
+
+### 17. Troubleshooting Guide
+
+#### Issue: `redis.exceptions.ConnectionError: Error 111 connecting to localhost:6379. Connection refused.`
+- **Cause**: Redis server is not running or port 6379 is blocked.
+- **Fix**: Start Redis with `sudo service redis-server start` (Linux/WSL) or verify `docker-compose up -d redis`.
+
+#### Issue: Celery tasks stay in `PENDING` state and never run
+- **Cause**: No Celery worker is listening to the designated queue.
+- **Fix**: Check that workers are running with the matching queue flag: `-Q ai_analysis`, `-Q batch_analysis`, `-Q notifications`, `-Q exports`.
+
+#### Issue: Tasks fail with `Application not found in database`
+- **Cause**: Database transaction did not commit before the task was dispatched (dual-write race condition).
+- **Fix**: Always dispatch tasks through `outbox_service.record_and_dispatch(db, ...)`, which commits the database transaction before enqueueing the task.
+
+#### Issue: Worker OOM (Out of Memory) during large PDF export
+- **Cause**: ReportLab drawing huge tables with 10,000+ rows into memory.
+- **Fix**: The export service enforces pagination and column limits; ensure worker containers have at least 1 GB RAM allocated.
+
+---
 
 ---
 
