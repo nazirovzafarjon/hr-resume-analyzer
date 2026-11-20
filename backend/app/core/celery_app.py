@@ -73,6 +73,11 @@ CELERY_ROUTES: dict[str, dict[str, str]] = {
         "queue": "exports",
         "routing_key": "export.#",
     },
+    # Transactional Outbox recovery scanner
+    "app.tasks.outbox.*": {
+        "queue": "default",
+        "routing_key": "default.outbox",
+    },
 }
 
 # Apply configuration
@@ -110,7 +115,18 @@ celery_app.autodiscover_tasks([
     "app.tasks.ai_analysis",
     "app.tasks.notifications",
     "app.tasks.exports",
+    "app.tasks.outbox",
 ])
+
+# Periodic Celery Beat Schedule
+celery_app.conf.beat_schedule = {
+    # Scan for pending outbox events every 30 seconds for guaranteed delivery
+    "process-pending-outbox-events-every-30s": {
+        "task": "app.tasks.outbox.process_outbox_recovery_task",
+        "schedule": 30.0,
+        "options": {"queue": "default"},
+    },
+}
 
 
 def check_celery_broker_health() -> dict[str, Any]:

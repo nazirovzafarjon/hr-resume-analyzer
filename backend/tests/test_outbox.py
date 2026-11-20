@@ -84,3 +84,22 @@ def test_outbox_max_retries_marked_failed(db_session):
     db_session.refresh(event)
     assert event.status == OutboxStatus.FAILED
     assert event.retry_count == 5
+
+
+def test_process_outbox_recovery_task(db_session):
+    """Test Celery Beat periodic task for outbox recovery."""
+    from app.tasks.outbox import process_outbox_recovery_task
+
+    # Create an old pending event
+    event = record_outbox_event(db_session, "dispatch_batch_analysis", {"batch_id": 101})
+    event.created_at = datetime.now(timezone.utc) - timedelta(seconds=20)
+    db_session.commit()
+
+    with patch("app.tasks.ai_analysis.dispatch_batch_analysis_task.delay") as mock_delay:
+        result = process_outbox_recovery_task(limit=10)
+        assert result["status"] == "success"
+        assert result["recovered_count"] == 1
+        mock_delay.assert_called_once_with(batch_id=101)
+
+    db_session.refresh(event)
+    assert event.status == OutboxStatus.PUBLISHED
