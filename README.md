@@ -29,6 +29,7 @@ A modern, full-stack recruitment platform and applicant tracking system (ATS) po
 - [Database Migrations](#database-migrations)
 - [Testing & Quality Assurance](#testing--quality-assurance)
 - [Production Build Instructions](#production-build-instructions)
+- [Phase 1 Production Operations & Disaster Recovery](#phase-1-production-operations--disaster-recovery)
 - [Security Considerations](#security-considerations)
 - [Troubleshooting](#troubleshooting)
 - [Deployment Status & Known Limitations](#deployment-status--known-limitations)
@@ -1570,6 +1571,19 @@ cd backend
 source env/bin/activate
 gunicorn app.main:app -w 4 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000
 ```
+
+---
+
+## Phase 1 Production Operations & Disaster Recovery
+
+Phase 1 provides an enterprise-grade production foundation with comprehensive operational documentation, backup/disaster recovery tooling, monitoring, container hardening, and automated CI/CD workflows:
+
+- **[Production Deployment Guide](docs/operations/PRODUCTION_DEPLOYMENT.md)**: Host infrastructure prerequisites, environment provisioning, SSL/TLS, database migrations, and zero-downtime rolling update instructions.
+- **[Database Backup & Disaster Recovery](docs/operations/DATABASE_BACKUP_AND_RECOVERY.md)**: Automated PostgreSQL logical backups (`-Fc`), cryptographic SHA256 integrity verification, configurable retention policies (7d daily, 4w weekly, 3m monthly), resume storage backups, and verified isolated restoration procedures.
+- **[Monitoring & Observability Guide](docs/operations/MONITORING_AND_ALERTING.md)**: Sentry error tracking with PII scrubbing, Prometheus metrics (`/metrics`), Grafana dashboard provisioning, distinct `/health/liveness` vs `/health/readiness` probes, structured JSON logging, and alert rule catalog.
+- **[Incident Response Guide](docs/operations/INCIDENT_RESPONSE.md)**: Step-by-step diagnostic and safe recovery playbooks for SEV-1 to SEV-4 incidents (API outages, database outages, Redis broker disconnects, Celery worker stalls, backup failures, disk exhaustion, and external provider issues).
+- **[Environment Configuration Reference](docs/operations/ENVIRONMENT_CONFIGURATION.md)**: Complete security-classified audit of all configuration settings across Backend, CRM, and Landing.
+- **[Production Readiness Checklist](docs/operations/PRODUCTION_READINESS_CHECKLIST.md)**: Transparent status breakdown of implemented and verified controls vs external setup requirements.
 
 ---
 
