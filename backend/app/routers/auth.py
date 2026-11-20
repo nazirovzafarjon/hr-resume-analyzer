@@ -279,7 +279,15 @@ def resend_verification_code(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=exc.message
         ) from exc
     if job is not None:
-        background_tasks.add_task(auth_service.dispatch_registration_email, *job)
+        from app.tasks.notifications import send_email_task
+
+        email_key, raw_token, code = job
+        send_email_task.delay(
+            email_type="hr_registration",
+            recipient=email_key,
+            token=raw_token,
+            code=code,
+        )
     return {"message": email_verification_service.CODE_SENT_MESSAGE}
 
 
