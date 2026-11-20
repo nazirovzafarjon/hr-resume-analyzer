@@ -1,0 +1,10 @@
+# Gitleaks Ignore List
+# Historical commit fingerprints for mock test fixtures and test assertions
+0a6fbd4d56f6dad7e2ba745955fa4452ae4bb971:backend/tests/test_observability.py:generic-api-key:101
+faa51eccbda6f8bc33e824b3671a61ca359d4c9b:backend/tests/test_ai_provider.py:generic-api-key:438
+46b243923c6ad223803fd03894b9b3a184255421:backend/tests/test_configured_superuser.py:generic-api-key:16
+46b243923c6ad223803fd03894b9b3a184255421:backend/tests/test_configured_superuser.py:generic-api-key:59
+46b243923c6ad223803fd03894b9b3a184255421:backend/tests/test_configured_superuser.py:generic-api-key:60
+46b243923c6ad223803fd03894b9b3a184255421:backend/tests/test_configured_superuser.py:generic-api-key:68
+46b243923c6ad223803fd03894b9b3a184255421:backend/tests/test_configured_superuser.py:generic-api-key:70
+46b243923c6ad223803fd03894b9b3a184255421:backend/tests/test_audit_monitoring.py:generic-api-key:221

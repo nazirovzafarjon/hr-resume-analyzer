@@ -1,0 +1,27 @@
+# Gitleaks Configuration
+# Defines project-level rules and allowlists for test fixtures and mock secrets.
+
+[extend]
+# Inherit default Gitleaks rule definitions
+useDefault = true
+
+[allowlist]
+description = "Global allowlist for automated test suites, fixtures, mocks, and documentation"
+paths = [
+    '''backend/tests/.*''',
+    '''crm/src/test/.*''',
+    '''landing/src/test/.*''',
+    '''docs/.*''',
+    '''README\.md''',
+    '''\.env\.example''',
+    '''crm/\.env\.example''',
+    '''landing/\.env\.example'''
+]
+regexes = [
+    '''(?i)test-secret.*''',
+    '''(?i)super-secret-key.*''',
+    '''(?i)mock-key.*''',
+    '''(?i)dummy.*''',
+    '''sk-live-12345''',
+    '''StrongPass123'''
+]
