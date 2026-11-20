@@ -49,6 +49,13 @@ os.environ["AI_CREDENTIAL_ENCRYPTION_KEY"] = "7nDjrhPPT4Ie0rBTPRUQ_AL9V4XYmBv2yg
 # the repository's real uploads folder.
 os.environ["UPLOAD_DIR"] = tempfile.mkdtemp(prefix="resume_analyzer_test_uploads_")
 
+from app.core.celery_app import celery_app
+
+celery_app.conf.update(
+    task_always_eager=True,
+    task_eager_propagates=False,
+)
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import text

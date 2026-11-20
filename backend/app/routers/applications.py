@@ -345,12 +345,22 @@ async def analyze_application(
     """
     application = _get_owned_application(db, application_id, scope)
 
-    try:
-        application = await analysis_service.run_analysis(db, application, force=force)
-    except analysis_service.AnalysisInProgressError as exc:
+    if (
+        not force
+        and application.analysis_status == AnalysisStatus.COMPLETED
+        and application.ai_analysis_details
+    ):
+        return _build_detail_response(application)
+
+    if analysis_service._is_run_active(application):
         raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT, detail=exc.message
-        ) from exc
+            status_code=status.HTTP_409_CONFLICT,
+            detail="An analysis is already running for this application.",
+        )
+
+    # Validate AI provider configuration before queuing the task
+    try:
+        ai_provider_service.resolve_for_user(db, application.job.owner_id)
     except ai_provider_service.AIConfigurationRequiredError as exc:
         # Nothing was attempted or persisted: tell the user to configure AI.
         # The job owner's AI configuration is used, so an admin acting on
@@ -362,15 +372,18 @@ async def analyze_application(
                 "so this application cannot be analysed."
             )
         raise HTTPException(status_code=exc.status_code, detail=detail) from exc
-    except AIServiceError as exc:
-        # The failure has already been persisted on the application — return the
-        # updated application so the UI can show the retryable failed state.
-        logger.warning(
-            "AI analysis failed for application_id=%s: %s", application_id, exc.message
-        )
-        db.refresh(application)
-        return _build_detail_response(application)
 
+    # Dispatch to Celery background worker
+    from app.tasks.ai_analysis import analyze_single_application_task
+
+    analyze_single_application_task.delay(
+        application_id=application.id,
+        force=force,
+        actor_id=scope.user.id,
+    )
+
+    db.expire_all()
+    application = _get_owned_application(db, application_id, scope)
     return _build_detail_response(application)
 
 
