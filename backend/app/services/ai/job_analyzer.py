@@ -75,7 +75,10 @@ async def close_ai_client() -> None:
     client = _client
     _client = None
     if client is not None:
-        await client.aclose()
+        try:
+            await client.aclose()
+        except RuntimeError:
+            pass
 
 
 # ---------------------------------------------------------------------------

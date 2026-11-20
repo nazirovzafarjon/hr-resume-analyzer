@@ -76,7 +76,7 @@ def test_outbox_max_retries_marked_failed(db_session):
 
     with patch(
         "app.tasks.notifications.send_email_task.delay",
-        side_effect=RuntimeError("Permanent connection error"),
+        side_effect=ConnectionError("Permanent connection error"),
     ):
         success = publish_outbox_event(db_session, event)
         assert success is False

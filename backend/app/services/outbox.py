@@ -10,6 +10,7 @@ from datetime import datetime, timedelta, timezone
 import logging
 from typing import Any
 
+from kombu.exceptions import KombuError, OperationalError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -69,7 +70,7 @@ def publish_outbox_event(db: Session, event: OutboxEvent) -> bool:
         event.published_at = _utcnow()
         db.commit()
         return True
-    except Exception as exc:
+    except (KombuError, OperationalError, ConnectionError, TimeoutError, OSError) as exc:
         logger.warning(
             "Failed to publish outbox event id=%s type=%s: %s",
             event.id,

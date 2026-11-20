@@ -44,6 +44,8 @@ os.environ["EMAIL_RETRY_BASE_DELAY"] = "0"
 # Existing tests exercise the platform-fallback provider; the tests for the
 # "every HR must configure their own AI" mode switch it on explicitly.
 os.environ["REQUIRE_USER_AI_CONFIG"] = "false"
+os.environ["AI_API_KEY"] = "sk-test-mock-platform-key"
+os.environ["OPENROUTER_API_KEY"] = "sk-test-mock-platform-key"
 os.environ["AI_CREDENTIAL_ENCRYPTION_KEY"] = "7nDjrhPPT4Ie0rBTPRUQ_AL9V4XYmBv2ygD13uNJx5Q="
 # Profile image uploads go to a throwaway directory so tests never write into
 # the repository's real uploads folder.
@@ -53,7 +55,7 @@ from app.core.celery_app import celery_app
 
 celery_app.conf.update(
     task_always_eager=True,
-    task_eager_propagates=False,
+    task_eager_propagates=True,
 )
 
 import pytest

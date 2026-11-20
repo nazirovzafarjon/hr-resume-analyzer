@@ -22,6 +22,7 @@ GET    /api/applications/{id}/resume   — view (inline) or download the stored 
 
 import asyncio
 import logging
+import time
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import FileResponse
@@ -325,7 +326,7 @@ def delete_application(
 
 
 @router.post("/{application_id}/analyze", response_model=ApplicationDetailResponse)
-async def analyze_application(
+def analyze_application(
     application_id: int,
     force: bool = Query(False, description="Re-run even if a completed analysis exists"),
     db: Session = Depends(get_db),
@@ -359,6 +360,7 @@ async def analyze_application(
         )
 
     # Validate AI provider configuration before queuing the task
+    started = time.monotonic()
     try:
         ai_provider_service.resolve_for_user(db, application.job.owner_id)
     except ai_provider_service.AIConfigurationRequiredError as exc:
@@ -372,6 +374,19 @@ async def analyze_application(
                 "so this application cannot be analysed."
             )
         raise HTTPException(status_code=exc.status_code, detail=detail) from exc
+    except AIServiceError as exc:
+        # A saved key exists but cannot be decrypted or used.
+        # Mark the application as failed with the error message and record diagnostics.
+        analysis_service._mark_failed(db, application, exc.message)
+        analysis_service._record_outcome(
+            db,
+            application,
+            application.job.owner_id,
+            {},
+            started,
+            error=exc,
+        )
+        return _build_detail_response(application)
 
     # Dispatch via Transactional Outbox for at-least-once Celery delivery
     from app.services import outbox as outbox_service
@@ -531,7 +546,7 @@ def get_auto_analyze_available(
     response_model=AutoAnalyzeStartResponse,
     status_code=status.HTTP_201_CREATED,
 )
-async def start_auto_analyze(
+def start_auto_analyze(
     request: AutoAnalyzeStartRequest,
     db: Session = Depends(get_db),
     scope: AccessScope = Depends(get_access_scope),
@@ -607,6 +622,9 @@ async def start_auto_analyze(
         context=audit_ctx,
     )
 
+    # Capture the initial queued status before dispatching
+    initial_status = batch.status.value
+
     # Dispatch via Transactional Outbox for at-least-once Celery delivery
     from app.services import outbox as outbox_service
 
@@ -622,7 +640,7 @@ async def start_auto_analyze(
         selected_count=selected,
         available_count=available,
         remaining_count=max(available - selected, 0),
-        status=batch.status.value,
+        status=initial_status,
     )
 
 

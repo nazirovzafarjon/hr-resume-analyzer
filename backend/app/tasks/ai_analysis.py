@@ -51,8 +51,13 @@ from app.services.ai.job_analyzer import AIServiceError
 
 logger = logging.getLogger(__name__)
 
-# Transient HTTP status codes from AI providers that warrant a Celery-level retry
-_RETRYABLE_STATUS_CODES = {429, 502, 503, 504}
+# Note on AI provider retries:
+# Upstream HTTP calls to AI providers are already automatically retried with exponential
+# backoff inside `app.services.ai.job_analyzer` (up to settings.AI_MAX_RETRIES = 3).
+# Therefore, any AIServiceError that surfaces here has already exhausted its retries.
+# Retrying AIServiceError in Celery would multiply attempts (3 * 3 = 9), violate rate
+# limits, and produce duplicate audit runs. Celery-level retries are reserved strictly
+# for broker/transport connectivity errors (OperationalError, ConnectionError, TimeoutError).
 
 
 def _utcnow() -> datetime:
@@ -171,24 +176,12 @@ def analyze_single_application_task(
             }
 
         except AIServiceError as exc:
-            # Check if this error is transient and retryable
+            # AIServiceError (e.g. 400, 401, 403, 429, 502, 503) has already completed all
+            # internal retries in the AI layer. single_analysis.run_analysis has already marked
+            # the application FAILED and recorded diagnostics in PostgreSQL.
             status_code = getattr(exc, "status_code", 500)
-            if status_code in _RETRYABLE_STATUS_CODES and self.request.retries < self.max_retries:
-                retry_delay = 5 * (2 ** self.request.retries)  # Exponential backoff: 5s, 10s
-                logger.warning(
-                    "Task encountered transient AI error (HTTP %s). Retrying in %ss (attempt %d/%d): %s",
-                    status_code,
-                    retry_delay,
-                    self.request.retries + 1,
-                    self.max_retries,
-                    exc.message,
-                )
-                raise self.retry(exc=exc, countdown=retry_delay)
-
-            # Permanent or non-retryable error (e.g., 400, 401, 403, 422, or retries exhausted).
-            # single_analysis.run_analysis has already marked the application FAILED and recorded diagnostics.
             logger.error(
-                "Task failed permanently: application_id=%s status=%s error=%s",
+                "Task failed: application_id=%s status=%s error=%s",
                 application_id,
                 status_code,
                 exc.message,
@@ -219,11 +212,7 @@ def analyze_single_application_task(
                 "Unexpected failure in analyze_single_application_task: application_id=%s",
                 application_id,
             )
-            return {
-                "status": "unexpected_error",
-                "application_id": application_id,
-                "error": str(exc),
-            }
+            raise
 
 
 @celery_app.task(
@@ -397,17 +386,6 @@ def analyze_batch_item_task(
             return {"status": "failed", "application_id": application_id, "error": exc.message}
 
         except AIServiceError as exc:
-            status_code = getattr(exc, "status_code", 500)
-            if status_code in _RETRYABLE_STATUS_CODES and self.request.retries < self.max_retries:
-                retry_delay = 5 * (2 ** self.request.retries)
-                logger.warning(
-                    "Batch item transient error (HTTP %s). Retrying in %ss: %s",
-                    status_code,
-                    retry_delay,
-                    exc.message,
-                )
-                raise self.retry(exc=exc, countdown=retry_delay)
-
             batch_crud.update_batch_item(
                 db,
                 item,
