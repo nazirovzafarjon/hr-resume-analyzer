@@ -602,11 +602,13 @@ The root `docker-compose.yml` provides production-grade orchestration:
 - **`postgres`**: PostgreSQL 16 with health checks (`pg_isready`).
 - **`redis`**: Redis 7 Alpine with persistent volume and health check (`redis-cli ping`).
 - **`api`**: FastAPI application with auto-migration and live reload.
-- **`worker-ai`**: Dedicated container for `ai_analysis` queue.
-- **`worker-batch`**: Dedicated container for `batch_analysis` queue.
-- **`worker-notifications`**: Dedicated container for `notifications` queue.
-- **`worker-exports`**: Dedicated container for `exports` queue.
-- **`worker-default`**: Dedicated container for `default` queue.
+- **`worker-ai`**: Dedicated container for `ai_analysis` queue (concurrency: 2).
+- **`worker-batch`**: Dedicated container for `batch_analysis` queue (concurrency: 4).
+- **`worker-notifications`**: Dedicated container for `notifications` queue (concurrency: 2).
+- **`worker-exports`**: Dedicated container for `exports` queue (concurrency: 2).
+- **`worker-default`**: Dedicated container for `default` queue (concurrency: 1).
+- **`celery-beat`**: Celery Beat scheduler executing periodic jobs (outbox recovery scan every 30s).
+- **`flower`**: Real-time Celery task monitoring dashboard on port `5555`.
 - **Shared Volume (`uploads-data`)**: Mounted at `/app/uploads` across `api`, `worker-ai`, `worker-batch`, and `worker-exports`.
 
 ---
@@ -1608,6 +1610,6 @@ gunicorn app.main:app -w 4 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000
 
 ## Deployment Status & Known Limitations
 
-- **Containerization**: There are currently no `Dockerfile` or `docker-compose.yml` configurations in the repository. The application runs natively on Node.js and Python runtimes.
+- **Containerization**: Full Docker containerization is supported via `backend/Dockerfile` and root `docker-compose.yml` for multi-worker background processing with Celery, Redis, PostgreSQL, and Flower. The application can also run natively on Node.js and Python runtimes for local development.
 - **Document Text Extraction**: The zero-dependency PDF parser extracts text from searchable PDF text streams (`Tj`/`TJ`). Scanned, image-only PDFs without an embedded OCR text layer will yield no text; for such files, the analysis engine automatically evaluates the applicant based on submitted form questions.
 - **Legacy Word Files (`.doc`)**: Word 97-2003 binary formats are unsupported by the built-in parser. Applicants should upload modern `.docx` or searchable `.pdf` documents.
