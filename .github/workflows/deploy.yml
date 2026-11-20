@@ -26,27 +26,32 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Verify Environment Target Selection
+        env:
+          TARGET_ENVIRONMENT: ${{ inputs.target_environment }}
+          DRY_RUN: ${{ inputs.dry_run }}
         run: |
-          echo "Target Environment: ${{ github.event.inputs.target_environment }}"
-          echo "Dry Run: ${{ github.event.inputs.dry_run }}"
+          echo "Target Environment: ${TARGET_ENVIRONMENT}"
+          echo "Dry Run: ${DRY_RUN}"
 
   deploy-staging:
     name: Deploy to Staging Environment
     needs: pre-flight
-    if: github.event.inputs.target_environment == 'staging'
+    if: inputs.target_environment == 'staging'
     runs-on: ubuntu-latest
     environment: staging
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Validate Staging Prerequisites
+        env:
+          STAGING_HOST: ${{ secrets.STAGING_HOST }}
         run: |
           echo "Verifying Staging Environment secrets..."
-          if [ -z "${{ secrets.STAGING_HOST }}" ]; then
+          if [ -z "${STAGING_HOST}" ]; then
             echo "STAGING_HOST secret is not configured in repository environment settings."
             echo "Deployment safely halted. See docs/operations/PRODUCTION_DEPLOYMENT.md for setup."
             exit 1
@@ -61,19 +66,21 @@ jobs:
   deploy-production:
     name: Deploy to Production Environment (Protected)
     needs: pre-flight
-    if: github.event.inputs.target_environment == 'production'
+    if: inputs.target_environment == 'production'
     runs-on: ubuntu-latest
     environment:
       name: production
       # GitHub Environment protection rules: requires manual reviewer approval in GitHub settings
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Validate Production Prerequisites
+        env:
+          PROD_SERVER_HOST: ${{ secrets.PROD_SERVER_HOST }}
         run: |
           echo "Validating Production Environment secrets..."
-          if [ -z "${{ secrets.PROD_SERVER_HOST }}" ]; then
+          if [ -z "${PROD_SERVER_HOST}" ]; then
             echo "PROD_SERVER_HOST secret is not configured in repository environment settings."
             echo "Production deployment safely halted. Automatic deployment without verified credentials is prohibited."
             echo "Refer to docs/operations/PRODUCTION_DEPLOYMENT.md for prerequisite instructions."
@@ -81,7 +88,7 @@ jobs:
           fi
 
       - name: Execute Production Deployment
-        if: github.event.inputs.dry_run == false
+        if: ${{ !inputs.dry_run }}
         run: |
           echo "Executing production container release and zero-downtime rolling update..."
           # Safe execution placeholder awaiting target infrastructure credentials

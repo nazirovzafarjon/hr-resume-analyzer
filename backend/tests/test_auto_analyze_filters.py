@@ -168,9 +168,10 @@ class TestStartEndpoint:
     @pytest.fixture(autouse=True)
     def _no_background_run(self):
         # Selection only: the background batch is exercised separately.
-        with patch("app.routers.applications.asyncio.create_task") as create_task:
-            create_task.side_effect = lambda coro: coro.close()
-            yield
+        # The endpoint hands the batch to Celery through the transactional
+        # outbox; stub the task dispatch so the eager worker never runs it.
+        with patch("app.services.outbox.dispatch_batch_analysis_task.delay") as delay:
+            yield delay
 
     def test_filtered_start_reports_requested_selected_and_remaining(
         self, client, user, db_session, make_job, make_app

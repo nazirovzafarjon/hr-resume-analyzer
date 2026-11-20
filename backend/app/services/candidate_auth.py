@@ -6,13 +6,13 @@ Reuses the platform's security primitives (bcrypt hashing, signed JWTs, the
 
 "Sign out everywhere" after a password change/reset uses the account's
 ``password_changed_at``: tokens issued before it are rejected. JOSE stores
-``iat`` in whole seconds, so the cutoff is truncated to the second and the
-fresh pair is stamped with that same instant (it must not be caught by its own
-cutoff).
+``iat`` in whole seconds, so the cutoff is rounded up to the next second (no
+token from the same second survives) and the fresh pair is stamped with that
+same instant (it must not be caught by its own cutoff).
 """
 
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from jose import JWTError
@@ -81,10 +81,6 @@ class ResendThrottledError(Exception):
     """A verification email was requested again too soon (-> 429)."""
 
     message = "Please wait a moment before requesting another verification email."
-
-
-def _now_seconds() -> datetime:
-    return datetime.now(timezone.utc).replace(microsecond=0)
 
 
 def token_predates_password_change(candidate: CandidateAccount, payload: dict[str, Any]) -> bool:
@@ -294,9 +290,21 @@ def logout(db: Session, access_payload: dict[str, Any], refresh_token: str | Non
         revoke_token(token_id(payload), expires_at=token_expires_at(payload), db=db)
 
 
+def _revocation_cutoff() -> datetime:
+    """Return the instant from which candidate tokens are accepted again.
+
+    Rounded **up** to the next whole second, because ``iat`` only has
+    one-second precision: truncating down would let a token issued earlier in
+    the same second survive the password change. The fresh pair is stamped
+    with this same instant, so it passes (``iat < cutoff`` is false). Mirrors
+    ``app.core.token_registry.revoke_user_sessions`` for HR accounts.
+    """
+    return (datetime.now(timezone.utc) + timedelta(seconds=1)).replace(microsecond=0)
+
+
 def _set_password(db: Session, candidate: CandidateAccount, new_password: str) -> datetime:
     """Store a new password and revoke every older session; return the cutoff."""
-    cutoff = _now_seconds()
+    cutoff = _revocation_cutoff()
     candidate_crud.update(
         db,
         candidate,

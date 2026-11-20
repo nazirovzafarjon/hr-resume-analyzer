@@ -26,6 +26,9 @@ os.environ["DATABASE_URL"] = os.environ.get(
     ),
 )
 os.environ["SECRET_KEY"] = "test-secret-key-for-resume-analyzer"
+# Minimum bcrypt cost: fixtures register and log in many users, and the
+# production cost of 12 (~250 ms per hash/verify) dominated the suite's runtime.
+os.environ["BCRYPT_ROUNDS"] = "4"
 os.environ["SUPERUSER_EMAIL"] = ""
 os.environ["SUPERUSER_PASSWORD"] = ""
 # Blank the real Resend credentials from backend/.env so the suite never hits
@@ -58,10 +61,12 @@ celery_app.conf.update(
     task_eager_propagates=True,
 )
 
+import httpx
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import text
 
+from app.core.config import AI_PROVIDER_BASE_URLS
 from app.core.database import Base, SessionLocal, engine
 from app.core.security import create_access_token, decode_access_token, hash_password
 from app.core.token_registry import reset_registry
@@ -136,6 +141,63 @@ def _mock_resend_email(monkeypatch):
 
     monkeypatch.setattr("app.services.auth.send_hr_registration_email", fake_send)
     monkeypatch.setattr("app.services.email_verification.send_verification_code_email", lambda e, c: EmailDeliveryResult(success=True, message_id="fake_msg_id"))
+
+
+#: Hosts of the real AI providers the app can talk to.
+_AI_PROVIDER_HOSTS = frozenset(
+    httpx.URL(url).host for url in AI_PROVIDER_BASE_URLS.values() if url
+)
+_LOOPBACK_HOSTS = frozenset({"localhost", "127.0.0.1", "::1", "testserver"})
+
+
+def _offline_response(request: "httpx.Request") -> "httpx.Response":
+    """Answer an outbound request that escaped a test's mocks, without the network.
+
+    * AI provider hosts get the ``401`` a real provider returns for the fake
+      ``sk-test-*`` key this suite configures, so code paths that reach the
+      provider unmocked (e.g. the auto-analysis that Celery runs eagerly when
+      an application is created) behave exactly as before, but deterministically
+      and instantly instead of depending on the provider's availability, rate
+      limits or bot protection from a CI runner's IP.
+    * Any other external host is a bug in the test: fail loudly and immediately.
+    """
+    host = request.url.host
+    if host in _AI_PROVIDER_HOSTS:
+        return httpx.Response(
+            401,
+            json={"error": {"message": "Invalid API key (offline test stub)", "code": 401}},
+            request=request,
+        )
+    raise httpx.ConnectError(
+        f"Unit tests must not make real network calls (attempted {request.method} {request.url}). "
+        "Mock the client or service boundary instead.",
+        request=request,
+    )
+
+
+@pytest.fixture(autouse=True)
+def _block_real_network(monkeypatch):
+    """Keep the suite hermetic: no real outbound HTTP from httpx transports.
+
+    Only the real network transports are patched, so FastAPI's TestClient,
+    ``httpx.MockTransport`` and tests that patch ``client.post`` are unaffected.
+    Loopback requests (local services) still pass through.
+    """
+    real_sync = httpx.HTTPTransport.handle_request
+    real_async = httpx.AsyncHTTPTransport.handle_async_request
+
+    def guarded_sync(self, request):
+        if request.url.host in _LOOPBACK_HOSTS:
+            return real_sync(self, request)
+        return _offline_response(request)
+
+    async def guarded_async(self, request):
+        if request.url.host in _LOOPBACK_HOSTS:
+            return await real_async(self, request)
+        return _offline_response(request)
+
+    monkeypatch.setattr(httpx.HTTPTransport, "handle_request", guarded_sync)
+    monkeypatch.setattr(httpx.AsyncHTTPTransport, "handle_async_request", guarded_async)
 
 
 @pytest.fixture(scope="session")

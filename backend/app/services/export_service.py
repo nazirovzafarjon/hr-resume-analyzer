@@ -122,7 +122,7 @@ class ExportService:
         stmt = (
             select(Job.id)
             .where(owner_filter(Job.owner_id, self.owner_id))
-            .order_by(Job.created_at.desc())
+            .order_by(Job.created_at.desc(), Job.id.desc())
             .limit(1)
         )
         result = self.db.execute(stmt).scalar_one_or_none()
@@ -199,7 +199,7 @@ class ExportService:
         stmt = (
             select(Job)
             .where(owner_filter(Job.owner_id, self.owner_id))
-            .order_by(Job.created_at.desc())
+            .order_by(Job.created_at.desc(), Job.id.desc())
         )
 
         # Apply company filter

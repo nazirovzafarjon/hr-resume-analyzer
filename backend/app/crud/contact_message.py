@@ -54,7 +54,7 @@ def get_contact_messages(
 
     total = query.count()
     items = (
-        query.order_by(ContactMessage.created_at.desc())
+        query.order_by(ContactMessage.created_at.desc(), ContactMessage.id.desc())
         .offset((page - 1) * limit)
         .limit(limit)
         .all()

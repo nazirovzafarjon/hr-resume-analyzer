@@ -6,7 +6,7 @@ or real environment variables.
 
 from typing import Any
 
-from pydantic import field_validator
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -36,6 +36,11 @@ class Settings(BaseSettings):
     # Security
     SECRET_KEY: str = "change-me-in-production"
     ALGORITHM: str = "HS256"
+    # bcrypt work factor for newly hashed passwords (each +1 doubles the cost).
+    # Keep the default of 12 in every real deployment; the test suite lowers it
+    # to the bcrypt minimum of 4 purely for speed. Existing hashes keep the cost
+    # they were created with, so changing this never invalidates passwords.
+    BCRYPT_ROUNDS: int = Field(default=12, ge=4, le=31)
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
     # Refresh tokens live longer than access tokens and are only ever exchanged
     # at POST /api/auth/refresh (never accepted as an Authorization bearer).

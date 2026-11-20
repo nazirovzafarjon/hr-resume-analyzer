@@ -369,6 +369,22 @@ class TestCandidateAccounts:
         assert client.get("/api/candidate/profile", headers=candidate["headers"]).status_code == 401
         assert client.get("/api/candidate/profile", headers=_bearer(changed.json()["access_token"])).status_code == 200
 
+    def test_password_change_revokes_tokens_from_the_same_second(self):
+        """``iat`` has one-second precision: a session minted earlier in the same
+        second as a password change must still be revoked, while the fresh pair
+        stamped with the cutoff must stay valid."""
+        from datetime import datetime, timezone
+        from types import SimpleNamespace
+
+        from app.services.candidate_auth import _revocation_cutoff, token_predates_password_change
+
+        issued_this_second = int(datetime.now(timezone.utc).timestamp())
+        cutoff = _revocation_cutoff()
+        candidate = SimpleNamespace(password_changed_at=cutoff)
+
+        assert token_predates_password_change(candidate, {"iat": issued_this_second})
+        assert not token_predates_password_change(candidate, {"iat": int(cutoff.timestamp())})
+
     def test_password_reset(self, client, db_session):
         _register(client, "reset@example.com")
         assert client.post("/api/candidate/auth/forgot-password", json={"email": "reset@example.com"}).status_code == 200
