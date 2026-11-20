@@ -8,24 +8,31 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Response
 from fastapi.exception_handlers import http_exception_handler
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from starlette.concurrency import run_in_threadpool
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from app.core.celery_app import check_celery_broker_health
 from app.core.config import settings
 from app.core.database import SessionLocal, engine
 from app.core.errors import EMAIL_VERIFICATION_REQUIRED, EmailVerificationRequiredError
+from app.core.logging_config import configure_logging
+from app.core.metrics import PrometheusMiddleware, metrics_endpoint_response
 from app.core.migrations import prepare_schema
 from app.core.request_context import REQUEST_ID_HEADER, RequestContextMiddleware, request_id_from_scope
+from app.core.sentry import init_sentry
 from app.routers import admin, applications, auth, candidate, dashboard, exports, interviews, jobs, public, translations, users
 from app.services.admin import errors as error_monitor
 from app.services.ai.job_analyzer import close_ai_client
 
+# Initialize structured logging
+configure_logging()
 logger = logging.getLogger(__name__)
 
 # In DEBUG mode make the app's own INFO-level audit trail (Google exchange,
@@ -258,6 +265,7 @@ def create_app() -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        init_sentry()
         _warn_if_insecure_configuration()
         _warn_if_sandbox_sender()
         _ensure_database()
@@ -305,6 +313,10 @@ def create_app() -> FastAPI:
     # Added last so it wraps everything above: every response (including
     # CORS preflights and errors) carries an X-Request-ID.
     app.add_middleware(RequestContextMiddleware, on_unhandled_error=_report_unhandled_error)
+
+    # Prometheus metrics middleware to track HTTP requests and latency
+    if settings.PROMETHEUS_METRICS_ENABLED:
+        app.add_middleware(PrometheusMiddleware)
 
     app.include_router(auth.router, prefix=f"{settings.API_PREFIX}/auth", tags=["auth"])
     app.include_router(users.router, prefix=f"{settings.API_PREFIX}/users", tags=["users"])
@@ -356,10 +368,68 @@ def create_app() -> FastAPI:
     profile_dir.mkdir(parents=True, exist_ok=True)
     app.mount("/uploads/profile", StaticFiles(directory=profile_dir), name="uploads")
 
+    @app.get("/health/liveness", tags=["health"])
     @app.get("/health", tags=["health"])
-    def health_check() -> dict:
-        """Basic liveness endpoint."""
-        return {"status": "ok"}
+    def liveness_check() -> dict:
+        """Liveness probe indicating process is running and responding."""
+        return {"status": "ok", "service": "api"}
+
+    @app.get("/health/readiness", tags=["health"])
+    def readiness_check() -> JSONResponse:
+        """Readiness probe indicating if the instance can safely receive traffic."""
+        checks: dict[str, str] = {}
+        all_ready = True
+
+        # 1. PostgreSQL connectivity
+        try:
+            with engine.connect() as conn:
+                conn.execute(text("SELECT 1;"))
+            checks["database"] = "ok"
+        except Exception as exc:
+            logger.warning("Readiness probe database check failed: %s", exc)
+            checks["database"] = "unhealthy"
+            all_ready = False
+
+        # 2. Redis & Celery broker connectivity
+        try:
+            broker_health = check_celery_broker_health()
+            if broker_health.get("status") == "ok":
+                checks["broker"] = "ok"
+            else:
+                checks["broker"] = "unhealthy"
+                all_ready = False
+        except Exception as exc:
+            logger.warning("Readiness probe broker check failed: %s", exc)
+            checks["broker"] = "unhealthy"
+            all_ready = False
+
+        # 3. Persistent upload storage writeability
+        try:
+            upload_path = Path(settings.UPLOAD_DIR)
+            upload_path.mkdir(parents=True, exist_ok=True)
+            probe_file = upload_path / ".health_probe_tmp"
+            probe_file.write_text("ok")
+            probe_file.unlink(missing_ok=True)
+            checks["storage"] = "ok"
+        except Exception as exc:
+            logger.warning("Readiness probe storage check failed: %s", exc)
+            checks["storage"] = "unhealthy"
+            all_ready = False
+
+        status_code = 200 if all_ready else 503
+        return JSONResponse(
+            status_code=status_code,
+            content={
+                "status": "ready" if all_ready else "unready",
+                "checks": checks,
+            },
+        )
+
+    if settings.PROMETHEUS_METRICS_ENABLED:
+        @app.get("/metrics", tags=["monitoring"], include_in_schema=False)
+        def metrics_endpoint() -> Response:
+            """Prometheus-compatible operational metrics exposition."""
+            return metrics_endpoint_response()
 
     return app
 

@@ -1,0 +1,55 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "title": "Celery Task Throughput (Tasks/sec)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "expr": "sum(rate(celery_task_events_total[5m])) by (task_name)",
+          "legendFormat": "{{task_name}}"
+        }
+      ]
+    },
+    {
+      "title": "Celery Task Failures",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "expr": "sum(rate(celery_task_events_total{status=\"FAILURE\"}[5m])) by (task_name)",
+          "legendFormat": "FAIL {{task_name}}"
+        }
+      ]
+    },
+    {
+      "title": "Celery Task Latency (p95)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 8 },
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "expr": "histogram_quantile(0.95, sum(rate(celery_task_duration_seconds_bucket[5m])) by (le, task_name))",
+          "legendFormat": "p95 {{task_name}}"
+        }
+      ]
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": ["resume-analyzer", "celery", "queues"],
+  "time": { "from": "now-1h", "to": "now" },
+  "title": "Celery Workers and Queue Health",
+  "uid": "resume-analyzer-celery",
+  "version": 1
+}

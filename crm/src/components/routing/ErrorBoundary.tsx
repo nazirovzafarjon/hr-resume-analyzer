@@ -1,5 +1,6 @@
 import { Component, type ReactNode } from "react";
 import { AlertTriangle } from "lucide-react";
+import { reportError } from "../../utils/sentry";
 
 type ErrorBoundaryProps = { children: ReactNode };
 type ErrorBoundaryState = { error: Error | null };
@@ -78,6 +79,7 @@ export default class ErrorBoundary extends Component<
   ): void {
     if (this.state.error && this.state.error !== prevState.error) {
       console.error("[error-boundary] fatal error:", this.state.error);
+      reportError(this.state.error);
     }
   }
 

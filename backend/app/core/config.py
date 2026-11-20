@@ -211,6 +211,19 @@ class Settings(BaseSettings):
     # Maximum accepted size for a profile image upload, in megabytes.
     PROFILE_IMAGE_MAX_SIZE_MB: int = 5
 
+    # Monitoring & Observability
+    # Sentry error tracking (optional - empty disables Sentry gracefully)
+    SENTRY_DSN: str = ""
+    SENTRY_ENVIRONMENT: str = "production"
+    SENTRY_TRACES_SAMPLE_RATE: float = 0.1
+    SENTRY_RELEASE: str = "0.1.0"
+
+    # Prometheus metrics exposition (/metrics endpoint)
+    PROMETHEUS_METRICS_ENABLED: bool = True
+
+    # Logging format ("json" or "text"; defaults to "json" in production, "text" in debug)
+    LOG_FORMAT: str = ""
+
     @field_validator("DEBUG", mode="before")
     @classmethod
     def parse_debug(cls, value: Any) -> Any:

@@ -38,3 +38,7 @@ psycopg[binary]
 openpyxl
 reportlab
 python-docx
+
+# Observability & Monitoring (Phase 1 Production Foundation)
+prometheus-client
+sentry-sdk[fastapi]

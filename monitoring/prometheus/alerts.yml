@@ -1,0 +1,62 @@
+groups:
+  - name: resume_analyzer_alerts
+    rules:
+      # 1. API Availability
+      - alert: APIInstanceDown
+        expr: up{job="resume-analyzer-api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Resume Analyzer API instance is DOWN"
+          description: "API instance {{ $labels.instance }} has been unreachable for more than 1 minute."
+
+      # 2. Elevated HTTP 5xx Error Rate
+      - alert: HighHTTP5xxErrorRate
+        expr: (sum(rate(http_requests_total{status_code=~"5.."}[5m])) / sum(rate(http_requests_total[5m])) * 100) > 5
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Elevated 5xx HTTP Error Rate (> 5%)"
+          description: "The 5xx server error rate is currently {{ $value | printf \"%.2f\" }}% over the last 5 minutes."
+
+      # 3. High Request Latency (p95 > 2s)
+      - alert: HighRequestLatency
+        expr: histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le)) > 2.0
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High API Request Latency (p95 > 2s)"
+          description: "95th percentile request latency is {{ $value | printf \"%.2f\" }}s over the last 5 minutes."
+
+      # 4. Database Connection Pool Saturation
+      - alert: DatabasePoolSaturation
+        expr: (db_pool_checked_out / db_pool_size * 100) > 85
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "PostgreSQL Connection Pool Saturation (> 85%)"
+          description: "Connection pool is {{ $value | printf \"%.1f\" }}% saturated, risking connection starvation."
+
+      # 5. Celery Task Failures
+      - alert: HighCeleryTaskFailures
+        expr: sum(rate(celery_task_events_total{status="FAILURE"}[5m])) > 0.5
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Elevated Celery Background Task Failures"
+          description: "Background workers are experiencing more than 0.5 task failures per second."
+
+      # 6. Outbound AI Provider Outage / High Error Rate
+      - alert: AIProviderErrorRate
+        expr: sum(rate(ai_provider_requests_total{status="error"}[5m])) > 0.2
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: "External AI Provider Elevated Errors"
+          description: "Outbound AI requests are failing at an elevated rate for provider {{ $labels.provider }}."
