@@ -2,9 +2,8 @@
 
 from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
-import pytest
 
-from app.models.outbox import OutboxEvent, OutboxStatus
+from app.models.outbox import OutboxStatus
 from app.services.outbox import (
     process_pending_outbox_events,
     publish_outbox_event,

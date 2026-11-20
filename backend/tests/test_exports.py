@@ -4,7 +4,7 @@ Tests authentication, ownership, filtering, column validation, and file generati
 """
 
 import io
-from datetime import datetime, date, timedelta
+from datetime import datetime, timedelta
 
 import pytest
 from openpyxl import load_workbook
@@ -13,7 +13,6 @@ from docx import Document
 
 from app.models.application import Application, ApplicationStatus, AnalysisStatus, HiringStatus
 from app.models.interview import Interview, InterviewStatus
-from app.models.job import Job
 
 
 @pytest.fixture
@@ -35,13 +34,13 @@ def sample_jobs(client, user):
             "required_experience": "2+ years",
         },
     ]
-    
+
     created_jobs = []
     for job_data in jobs_data:
         response = client.post("/api/jobs", json=job_data, headers=user["headers"])
         assert response.status_code == 201
         created_jobs.append(response.json())
-    
+
     return created_jobs
 
 
@@ -49,7 +48,7 @@ def sample_jobs(client, user):
 def sample_applications(client, sample_jobs, user, db_session):
     """Create sample applications for testing."""
     job_id = sample_jobs[0]["id"]
-    
+
     apps = [
         Application(
             job_id=job_id,
@@ -86,12 +85,12 @@ def sample_applications(client, sample_jobs, user, db_session):
             submitted_at=datetime.now() - timedelta(days=1),
         ),
     ]
-    
+
     db_session.add_all(apps)
     db_session.commit()
     for app in apps:
         db_session.refresh(app)
-    
+
     return apps
 
 
@@ -99,7 +98,7 @@ def sample_applications(client, sample_jobs, user, db_session):
 def sample_interviews(db_session, sample_applications, user):
     """Create sample interviews for testing."""
     candidate = sample_applications[1]  # Jane is a candidate
-    
+
     interview = Interview(
         candidate_id=candidate.id,
         hr_id=user["id"],
@@ -109,17 +108,17 @@ def sample_interviews(db_session, sample_applications, user):
         status=InterviewStatus.UPCOMING,
         meeting_link="https://zoom.us/j/123456",
     )
-    
+
     db_session.add(interview)
     db_session.commit()
     db_session.refresh(interview)
-    
+
     return [interview]
 
 
 class TestExportAuthentication:
     """Test authentication and authorization for exports."""
-    
+
     def test_unauthenticated_request_returns_401(self, client):
         """Unauthenticated export requests should return 401."""
         response = client.post(
@@ -132,7 +131,7 @@ class TestExportAuthentication:
             },
         )
         assert response.status_code == 401
-    
+
     def test_authenticated_request_succeeds(self, client, user, sample_jobs):
         """Authenticated HR user can export their own data."""
         response = client.post(
@@ -151,7 +150,7 @@ class TestExportAuthentication:
 
 class TestExportOwnership:
     """Test ownership filtering for exports."""
-    
+
     def test_hr_cannot_export_other_hr_data(self, client, user, other_user):
         """HR user A cannot export HR user B's data."""
         # Create job for other HR user
@@ -165,7 +164,7 @@ class TestExportOwnership:
             headers=other_user["headers"],
         )
         assert response.status_code == 201
-        
+
         # First HR user tries to export - should get empty result
         response = client.post(
             "/api/exports",
@@ -177,11 +176,11 @@ class TestExportOwnership:
                 "format": "xlsx",
             },
         )
-        
+
         # Should return 400 with "No records match" message
         assert response.status_code == 400
         assert "No records match" in response.json()["detail"]
-    
+
     def test_admin_can_export_all_data(self, client, user, other_user, admin):
         """Admin user can export data from all HR users."""
         # Create jobs for both HR users
@@ -195,7 +194,7 @@ class TestExportOwnership:
             json={"company_name": "Company 2", "position": "Position 2", "description": "Desc 2"},
             headers=other_user["headers"],
         )
-        
+
         # Admin exports all jobs
         response = client.post(
             "/api/exports",
@@ -207,14 +206,14 @@ class TestExportOwnership:
                 "format": "xlsx",
             },
         )
-        
+
         assert response.status_code == 200
-        
+
         # Parse XLSX and verify both jobs are present
         wb = load_workbook(io.BytesIO(response.content))
         ws = wb.active
         rows = list(ws.values)
-        
+
         # Should have header + 2 data rows
         assert len(rows) == 3
         assert any("Company 1" in str(row) for row in rows)
@@ -223,7 +222,7 @@ class TestExportOwnership:
 
 class TestExportValidation:
     """Test request validation."""
-    
+
     def test_unsupported_resource_returns_422(self, client, user):
         """Invalid resource type should return validation error."""
         response = client.post(
@@ -237,7 +236,7 @@ class TestExportValidation:
             },
         )
         assert response.status_code == 422
-    
+
     def test_unsupported_format_returns_422(self, client, user):
         """Invalid format should return validation error."""
         response = client.post(
@@ -251,7 +250,7 @@ class TestExportValidation:
             },
         )
         assert response.status_code == 422
-    
+
     def test_empty_columns_returns_422(self, client, user):
         """Empty columns list should return validation error."""
         response = client.post(
@@ -265,7 +264,7 @@ class TestExportValidation:
             },
         )
         assert response.status_code == 422
-    
+
     def test_invalid_columns_returns_400(self, client, user, sample_jobs):
         """Invalid column names should return 400."""
         response = client.post(
@@ -284,7 +283,7 @@ class TestExportValidation:
 
 class TestJobExports:
     """Test job export functionality."""
-    
+
     def test_export_all_jobs_xlsx(self, client, user, sample_jobs):
         """Export all jobs to XLSX."""
         response = client.post(
@@ -297,21 +296,21 @@ class TestJobExports:
                 "format": "xlsx",
             },
         )
-        
+
         assert response.status_code == 200
         assert "jobs_report" in response.headers["content-disposition"]
-        
+
         # Parse XLSX
         wb = load_workbook(io.BytesIO(response.content))
         ws = wb.active
         rows = list(ws.values)
-        
+
         # Verify header and data
         assert rows[0] == ("Company", "Position", "Applications")
         assert len(rows) == 3  # Header + 2 jobs
         assert any("Unicon Soft" in str(row) for row in rows)
         assert any("TechCorp" in str(row) for row in rows)
-    
+
     def test_export_jobs_with_company_filter(self, client, user, sample_jobs):
         """Export jobs filtered by company."""
         response = client.post(
@@ -324,18 +323,18 @@ class TestJobExports:
                 "format": "xlsx",
             },
         )
-        
+
         assert response.status_code == 200
-        
+
         wb = load_workbook(io.BytesIO(response.content))
         ws = wb.active
         rows = list(ws.values)
-        
+
         # Should only have 1 job + header
         assert len(rows) == 2
         assert "Unicon Soft" in str(rows[1])
         assert "TechCorp" not in str(rows)
-    
+
     def test_export_jobs_pdf(self, client, user, sample_jobs):
         """Export jobs to PDF."""
         response = client.post(
@@ -348,14 +347,14 @@ class TestJobExports:
                 "format": "pdf",
             },
         )
-        
+
         assert response.status_code == 200
         assert response.headers["content-type"] == "application/pdf"
-        
+
         # Verify PDF is valid
         pdf = PdfReader(io.BytesIO(response.content))
         assert len(pdf.pages) > 0
-    
+
     def test_export_jobs_docx(self, client, user, sample_jobs):
         """Export jobs to DOCX."""
         response = client.post(
@@ -368,10 +367,10 @@ class TestJobExports:
                 "format": "docx",
             },
         )
-        
+
         assert response.status_code == 200
         assert response.headers["content-type"] == "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-        
+
         # Verify DOCX is valid
         doc = Document(io.BytesIO(response.content))
         assert len(doc.paragraphs) > 0
@@ -379,7 +378,7 @@ class TestJobExports:
 
 class TestApplicationExports:
     """Test application export functionality."""
-    
+
     def test_export_all_applications(self, client, user, sample_applications):
         """Export all applications."""
         response = client.post(
@@ -392,19 +391,19 @@ class TestApplicationExports:
                 "format": "xlsx",
             },
         )
-        
+
         assert response.status_code == 200
-        
+
         wb = load_workbook(io.BytesIO(response.content))
         ws = wb.active
         rows = list(ws.values)
-        
+
         # Should have all 3 applications
         assert len(rows) == 4  # Header + 3 apps
         assert any("John Doe" in str(row) for row in rows)
         assert any("Jane Smith" in str(row) for row in rows)
         assert any("Bob Johnson" in str(row) for row in rows)
-    
+
     def test_export_applications_with_status_filter(self, client, user, sample_applications):
         """Export applications filtered by status."""
         response = client.post(
@@ -417,17 +416,17 @@ class TestApplicationExports:
                 "format": "xlsx",
             },
         )
-        
+
         assert response.status_code == 200
-        
+
         wb = load_workbook(io.BytesIO(response.content))
         ws = wb.active
         rows = list(ws.values)
-        
+
         # Should only have John Doe (shortlisted)
         assert len(rows) == 2
         assert "John Doe" in str(rows[1])
-    
+
     def test_export_applications_with_search(self, client, user, sample_applications):
         """Export applications with search filter."""
         response = client.post(
@@ -440,13 +439,13 @@ class TestApplicationExports:
                 "format": "xlsx",
             },
         )
-        
+
         assert response.status_code == 200
-        
+
         wb = load_workbook(io.BytesIO(response.content))
         ws = wb.active
         rows = list(ws.values)
-        
+
         # Should only have Jane Smith
         assert len(rows) == 2
         assert "Jane Smith" in str(rows[1])
@@ -454,7 +453,7 @@ class TestApplicationExports:
 
 class TestCandidateExports:
     """Test candidate export functionality."""
-    
+
     def test_export_only_candidates(self, client, user, sample_applications):
         """Export should only include candidates (candidate_at IS NOT NULL)."""
         response = client.post(
@@ -467,13 +466,13 @@ class TestCandidateExports:
                 "format": "xlsx",
             },
         )
-        
+
         assert response.status_code == 200
-        
+
         wb = load_workbook(io.BytesIO(response.content))
         ws = wb.active
         rows = list(ws.values)
-        
+
         # Should only have Jane (she has candidate_at set)
         assert len(rows) == 2
         assert "Jane Smith" in str(rows[1])
@@ -483,7 +482,7 @@ class TestCandidateExports:
 
 class TestInterviewExports:
     """Test interview export functionality."""
-    
+
     def test_export_interviews(self, client, user, sample_interviews):
         """Export interviews."""
         response = client.post(
@@ -496,13 +495,13 @@ class TestInterviewExports:
                 "format": "xlsx",
             },
         )
-        
+
         assert response.status_code == 200
-        
+
         wb = load_workbook(io.BytesIO(response.content))
         ws = wb.active
         rows = list(ws.values)
-        
+
         assert len(rows) == 2  # Header + 1 interview
         assert "Jane Smith" in str(rows[1])
         assert "Tech Lead" in str(rows[1])
@@ -510,7 +509,7 @@ class TestInterviewExports:
 
 class TestEmptyResults:
     """Test handling of empty export results."""
-    
+
     def test_export_with_no_matching_records_returns_400(self, client, user, sample_jobs):
         """Export with filters that match no records should return 400."""
         response = client.post(
@@ -523,10 +522,10 @@ class TestEmptyResults:
                 "format": "xlsx",
             },
         )
-        
+
         assert response.status_code == 400
         assert "No records match" in response.json()["detail"]
-    
+
     def test_export_no_jobs_returns_400(self, client, user):
         """Export when no jobs exist should return 400."""
         response = client.post(
@@ -539,6 +538,6 @@ class TestEmptyResults:
                 "format": "xlsx",
             },
         )
-        
+
         assert response.status_code == 400
         assert "No records match" in response.json()["detail"]

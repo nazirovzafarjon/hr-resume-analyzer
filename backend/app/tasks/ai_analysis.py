@@ -207,7 +207,7 @@ def analyze_single_application_task(
                 raise self.retry(exc=exc, countdown=retry_delay)
             raise
 
-        except Exception as exc:
+        except Exception:
             logger.exception(
                 "Unexpected failure in analyze_single_application_task: application_id=%s",
                 application_id,

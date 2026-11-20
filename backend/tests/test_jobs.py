@@ -4,10 +4,8 @@ Jobs are scoped to the authenticated HR user: endpoints only ever see the
 current user's own jobs (other users' jobs behave like "not found").
 """
 
-import json
 from unittest.mock import AsyncMock, patch
 
-import pytest
 
 from tests.payloads import JOB_PAYLOAD  # noqa: F401  (shared test data)
 

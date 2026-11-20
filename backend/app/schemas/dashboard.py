@@ -6,7 +6,6 @@ from pydantic import BaseModel
 
 from app.models.application import HiringStatus
 
-from app.models.application import InterviewStatus
 
 
 class CategoryBreakdown(BaseModel):

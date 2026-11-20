@@ -578,7 +578,6 @@ class TestBackwardCompatibility:
 
 class TestAnalyzeEndpointIntegration:
     def test_endpoint_returns_429_generic_without_leaking_provider_details(self, client, user, caplog):
-        from app.services.ai.job_analyzer import AIRateLimitError
         fake_resp = _FakeResponse(status_code=429, json_data={"error": {"message": "internal quota detail abc", "code": 429}})
         mock_client = _mock_client_with_response(fake_resp)
         cfg = _make_cfg()
@@ -593,7 +592,6 @@ class TestAnalyzeEndpointIntegration:
         assert FAKE_API_KEY not in response.text
 
     def test_endpoint_401_returns_auth_error(self, client, user):
-        from app.services.ai.job_analyzer import AIProviderAuthError
         fake_resp = _FakeResponse(status_code=401, json_data={"error": {"message": "unauthorized"}})
         mock_client = _mock_client_with_response(fake_resp)
         cfg = _make_cfg()
@@ -605,7 +603,6 @@ class TestAnalyzeEndpointIntegration:
         assert "authentication" in response.json()["detail"].lower()
 
     def test_endpoint_503_returns_unavailable(self, client, user):
-        from app.services.ai.job_analyzer import AIProviderUnavailableError
         fake_resp = _FakeResponse(status_code=503, json_data={"error": {"message": "unavailable"}})
         mock_client = _mock_client_with_response(fake_resp)
         cfg = _make_cfg()
@@ -617,7 +614,6 @@ class TestAnalyzeEndpointIntegration:
         assert "temporarily unavailable" in response.json()["detail"].lower()
 
     def test_endpoint_invalid_json_returns_502(self, client, user):
-        from app.services.ai.job_analyzer import AIInvalidResponseError
         fake_resp = _FakeResponse(status_code=200, text_data="not json at all")
         mock_client = _mock_client_with_response(fake_resp)
         cfg = _make_cfg()

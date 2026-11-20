@@ -1,0 +1,28 @@
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+exclude = [
+    "alembic",
+    ".venv",
+]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+]
+ignore = [
+    "E501",  # line length
+    "E402",  # module import order in tests
+    "F821",  # deferred string forward references in SQLAlchemy relationship annotations
+    "W293",  # blank line contains whitespace
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["F841"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "-q"

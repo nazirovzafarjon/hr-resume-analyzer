@@ -1,9 +1,7 @@
 """Tests for Celery notifications (email) and exports background tasks."""
 
-import os
 from pathlib import Path
 from unittest.mock import patch
-import pytest
 
 from app.core.config import settings
 from app.services.email import EmailDeliveryResult

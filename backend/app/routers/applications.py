@@ -20,7 +20,6 @@ POST   /api/applications/{id}/convert-to-candidate — move to candidate pipelin
 GET    /api/applications/{id}/resume   — view (inline) or download the stored CV
 """
 
-import asyncio
 import logging
 import time
 

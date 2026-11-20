@@ -1,7 +1,6 @@
 """Tests for Celery distributed batch resume analysis architecture."""
 
 from unittest.mock import AsyncMock, patch
-import pytest
 
 from app.crud import batch as batch_crud
 from app.models.analysis_batch import AnalysisBatch, AnalysisBatchStatus

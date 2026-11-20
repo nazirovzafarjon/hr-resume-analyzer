@@ -11,7 +11,6 @@ from app.models.application import AnalysisStatus, Application
 from app.models.job import Job
 from app.models.user import User
 from app.services.candidate_comparison import (
-    CandidateComparison,
     calculate_candidate_comparison,
     calculate_job_comparisons,
 )

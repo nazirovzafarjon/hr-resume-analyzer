@@ -1,6 +1,5 @@
 """Tests for auto-analyze batch functionality."""
 
-import pytest
 
 from tests.payloads import JOB_PAYLOAD
 

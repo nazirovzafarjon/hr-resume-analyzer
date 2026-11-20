@@ -1,9 +1,7 @@
 """Unit and integration tests for Celery app and Redis configuration."""
 
-import pytest
 from app.core.celery_app import celery_app, check_celery_broker_health
-from app.core.config import settings
-from app.core.redis import check_redis_health, get_redis_client
+from app.core.redis import check_redis_health
 
 
 def test_celery_app_initialization():

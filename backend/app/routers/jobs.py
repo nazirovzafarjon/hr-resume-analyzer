@@ -36,12 +36,9 @@ from app.services import application_form as application_form_service
 from app.services import audit
 from app.services.audit import AuditAction, AuditContext, AuditResource
 from app.services.ai.job_analyzer import (
-    AIProviderAuthError,
-    AIProviderUnavailableError,
     AIServiceError,
     AIRateLimitError,
     analyze_vacancy,
-    close_ai_client,
 )
 
 

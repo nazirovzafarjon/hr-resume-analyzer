@@ -1,6 +1,5 @@
 """Tests for superuser admin notifications (Contact Us inquiries) management."""
 
-import pytest
 
 from app.models.contact_message import ContactMessage
 

@@ -15,15 +15,19 @@ never produce more than one candidate.
 
 import enum
 from datetime import datetime, timezone
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import JSON, DateTime, Enum, Float, ForeignKey, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
 
-# Imported for the type annotation below (SQLAlchemy resolves it lazily).
-from app.models.application_form import ApplicationResponse  # noqa: F401
+if TYPE_CHECKING:
+    from app.models.application_form import ApplicationResponse
+    from app.models.application_status_history import ApplicationStatusHistory
+    from app.models.candidate_account import CandidateAccount
+    from app.models.interview import Interview
+    from app.models.job import Job
 
 
 def _utcnow() -> datetime:

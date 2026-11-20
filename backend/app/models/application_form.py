@@ -14,7 +14,6 @@ Stored data is always *configuration/answers*, never generated UI: the public
 form's layout is rendered by the frontend's fixed template.
 """
 
-import uuid
 from datetime import datetime
 from typing import Any
 

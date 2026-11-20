@@ -13,7 +13,6 @@ The public form's layout is rendered by the frontend's fixed template; this
 module only ever deals with *data*.
 """
 
-import json
 import logging
 import re
 from collections.abc import Iterable
@@ -32,14 +31,11 @@ from app.crud import application as application_crud
 from app.models.application_form import ApplicationForm
 from app.models.job import Job
 from app.schemas.application_form import (
-    MAX_FIELDS,
     MAX_TEXT_VALUE_LENGTH,
     PublicApplicationResponse,
     PublicApplicationJobInfo,
-    FormValidationError,
     generate_public_token,
     normalise_application_fields,
-    slugify_key,
     validate_application_form_fields,
 )
 from app.schemas.application import ApplicationCreate
@@ -268,7 +264,7 @@ def _validate_number(field: dict, value: Any) -> str:
     try:
         float(text)
     except ValueError:
-        raise SubmissionValidationError(  # noqa: TRY200/B904 — candidate-safe message
+        raise SubmissionValidationError(  # noqa: B904, TRY200 — candidate-safe message
             f"\"{field['label']}\" must be a valid number."
         ) from None
     return text

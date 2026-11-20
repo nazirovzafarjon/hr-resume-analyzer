@@ -546,7 +546,7 @@ class TestApplicationComparisonAPI:
     Job.user_id instead of Job.owner_id.
     
     The bug manifested as:
-        AttributeError: type object 'Job' has no attribute 'user_id'. 
+        AttributeError: type object 'Job' has no attribute 'user_id'.
         Did you mean: 'owner_id'?
     
     These tests verify:

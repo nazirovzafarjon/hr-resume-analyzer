@@ -151,15 +151,15 @@ def calculate_candidate_comparison(
         return None
 
     pool_size = len(all_analyzed)
-    
+
     # Sort by ai_score descending to determine rank
     scores = [app.ai_score for app in all_analyzed]
     scores.sort(reverse=True)
-    
+
     # Find rank (1-based, 1 = highest score)
     target_score = target_app.ai_score
     rank = scores.index(target_score) + 1
-    
+
     # Calculate percentile: percentage of candidates this candidate scores better than
     # If rank = 1 and pool = 10, percentile = 90 (better than 9 out of 9 others)
     # If rank = 10 and pool = 10, percentile = 0 (better than 0 out of 9 others)
@@ -222,7 +222,7 @@ def calculate_job_comparisons(
 
     for app in all_analyzed:
         rank = scores.index(app.ai_score) + 1
-        
+
         if pool_size == 1:
             percentile = 100.0
         else:

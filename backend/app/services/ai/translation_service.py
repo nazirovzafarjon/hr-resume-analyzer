@@ -23,7 +23,6 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.services.ai import provider as provider_service
 from app.services.ai.job_analyzer import (
-    AIEmptyResponseError,
     AIInvalidResponseError,
     AIServiceError,
     _build_endpoint_url,

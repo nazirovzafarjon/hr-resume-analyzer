@@ -1,7 +1,6 @@
 """Tests for Celery single application AI analysis task."""
 
 from unittest.mock import AsyncMock, patch
-import pytest
 
 from app.models.application import AnalysisStatus, Application
 from app.schemas.application_analysis import ApplicationAnalysis

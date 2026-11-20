@@ -232,7 +232,7 @@ async def public_submit_application(
     try:
         values = json.loads(raw_values)
     except (ValueError, TypeError):
-        raise HTTPException(  # noqa: TRY200/B904 — candidate-safe message
+        raise HTTPException(  # noqa: B904, TRY200 — candidate-safe message
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Invalid application data.",
         ) from None
