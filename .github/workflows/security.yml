@@ -23,11 +23,20 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Run Gitleaks
-        uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITLEAKS_CONFIG: .gitleaks.toml
+      - name: Install Gitleaks
+        run: |
+          GITLEAKS_VERSION="8.21.2"
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            | tar -xz -C /usr/local/bin gitleaks
+          gitleaks version
+
+      - name: Run Gitleaks secret scan
+        run: |
+          gitleaks detect \
+            --source=. \
+            --config=.gitleaks.toml \
+            --verbose \
+            --redact
 
   dependency-audit:
     name: Dependency Vulnerability Audit
@@ -47,8 +56,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install pip-audit
-          # Audit production dependencies without failing the entire pipeline on unpatched upstream libraries
-          pip-audit -r backend/requirements.txt || echo "pip-audit reported advisories (logged above)"
+          pip-audit -r backend/requirements.txt || echo "::warning::pip-audit reported advisories (see log above)"
 
       - name: Set up Node.js 20
         uses: actions/setup-node@v4
@@ -58,12 +66,12 @@ jobs:
       - name: Audit CRM npm dependencies
         run: |
           cd crm
-          npm audit --audit-level=critical || echo "CRM high/critical advisories detected (logged above)"
+          npm audit --audit-level=critical || echo "::warning::CRM critical advisories detected (see log above)"
 
       - name: Audit Landing npm dependencies
         run: |
           cd landing
-          npm audit --audit-level=critical || echo "Landing high/critical advisories detected (logged above)"
+          npm audit --audit-level=critical || echo "::warning::Landing critical advisories detected (see log above)"
 
   container-scan:
     name: Container Vulnerability Scan (Trivy)
@@ -76,12 +84,20 @@ jobs:
         run: |
           docker build -t resume-analyzer-backend:local ./backend
 
-      - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@master
-        with:
-          image-ref: 'resume-analyzer-backend:local'
-          format: 'table'
-          exit-code: '0'
-          ignore-unfixed: true
-          vuln-type: 'os,library'
-          severity: 'CRITICAL,HIGH'
+      - name: Install Trivy
+        run: |
+          sudo apt-get install -y wget apt-transport-https gnupg lsb-release
+          wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | gpg --dearmor | sudo tee /usr/share/keyrings/trivy.gpg > /dev/null
+          echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main" | sudo tee /etc/apt/sources.list.d/trivy.list
+          sudo apt-get update
+          sudo apt-get install -y trivy
+
+      - name: Run Trivy vulnerability scan
+        run: |
+          trivy image \
+            --severity CRITICAL,HIGH \
+            --ignore-unfixed \
+            --vuln-type os,library \
+            --format table \
+            --exit-code 0 \
+            resume-analyzer-backend:local
