@@ -81,3 +81,9 @@ class AnalysisBatch(Base):
         return self.total - self.processed
 
     owner: Mapped["User"] = relationship(back_populates="analysis_batches")
+    items: Mapped[list["AnalysisBatchItem"]] = relationship(
+        "AnalysisBatchItem",
+        back_populates="batch",
+        cascade="all, delete-orphan",
+        order_by="AnalysisBatchItem.id",
+    )

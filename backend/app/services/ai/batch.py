@@ -28,6 +28,7 @@ from app.crud import batch as batch_crud
 from app.crud import application as application_crud
 from app.crud.query_utils import owner_filter
 from app.models.analysis_batch import AnalysisBatch, AnalysisBatchStatus
+from app.models.analysis_batch_item import AnalysisBatchItem, BatchItemStatus
 from app.models.application import AnalysisStatus, Application, ApplicationStatus
 from app.models.job import Job
 from app.models.user import User
@@ -387,6 +388,9 @@ async def run_batch_analysis(batch_id: int) -> None:
                     application_id,
                     batch_id,
                 )
+                item = batch_crud.get_batch_item_by_application(db, batch.id, application_id)
+                if item:
+                    batch_crud.update_batch_item(db, item, status=BatchItemStatus.SKIPPED)
                 batch_crud.update_batch(
                     db,
                     batch,
@@ -397,6 +401,9 @@ async def run_batch_analysis(batch_id: int) -> None:
                 continue
 
             # Update batch to show current application
+            item = batch_crud.get_batch_item_by_application(db, batch.id, application_id)
+            if item:
+                batch_crud.update_batch_item(db, item, status=BatchItemStatus.RUNNING)
             batch_crud.update_batch(
                 db,
                 batch,
@@ -419,6 +426,8 @@ async def run_batch_analysis(batch_id: int) -> None:
                 if application.job.owner_id != batch.owner_id:
                     # Admin batch: this HR user has no AI configuration. Leave
                     # their application "new" and carry on with the others.
+                    if item:
+                        batch_crud.update_batch_item(db, item, status=BatchItemStatus.SKIPPED)
                     batch_crud.update_batch(
                         db,
                         batch,
@@ -436,6 +445,8 @@ async def run_batch_analysis(batch_id: int) -> None:
                     idx,
                     len(application_ids),
                 )
+                if item:
+                    batch_crud.update_batch_item(db, item, status=BatchItemStatus.FAILED)
                 batch_crud.update_batch(
                     db,
                     batch,
@@ -446,6 +457,8 @@ async def run_batch_analysis(batch_id: int) -> None:
                 return
 
             if success:
+                if item:
+                    batch_crud.update_batch_item(db, item, status=BatchItemStatus.COMPLETED)
                 batch_crud.update_batch(
                     db,
                     batch,
@@ -459,6 +472,10 @@ async def run_batch_analysis(batch_id: int) -> None:
                     batch_id,
                 )
             else:
+                if item:
+                    batch_crud.update_batch_item(
+                        db, item, status=BatchItemStatus.FAILED, error_message=error
+                    )
                 batch_crud.update_batch(
                     db,
                     batch,

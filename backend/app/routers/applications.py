@@ -603,8 +603,10 @@ async def start_auto_analyze(
         context=audit_ctx,
     )
 
-    # Start the background analysis
-    asyncio.create_task(auto_analyze_service.run_batch_analysis(batch.id))
+    # Dispatch Celery background task for batch analysis
+    from app.tasks.ai_analysis import dispatch_batch_analysis_task
+
+    dispatch_batch_analysis_task.delay(batch_id=batch.id)
 
     return AutoAnalyzeStartResponse(
         batch_id=batch.id,

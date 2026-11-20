@@ -30,23 +30,34 @@ from __future__ import annotations
 
 import asyncio
 import concurrent.futures
+from datetime import datetime, timezone
 import logging
 from typing import Any
 
 from celery import Task
 from kombu.exceptions import OperationalError
+from sqlalchemy import select
 
 from app.core.celery_app import celery_app
 from app.core.database import SessionLocal
+from app.crud import batch as batch_crud
+from app.models.analysis_batch import AnalysisBatch, AnalysisBatchStatus
+from app.models.analysis_batch_item import AnalysisBatchItem, BatchItemStatus
 from app.models.application import AnalysisStatus, Application
 from app.services import application_analysis as single_analysis
 from app.services.ai import provider as ai_provider_service
+from app.services.ai.batch import ELIGIBLE_ANALYSIS_STATUSES
 from app.services.ai.job_analyzer import AIServiceError
 
 logger = logging.getLogger(__name__)
 
 # Transient HTTP status codes from AI providers that warrant a Celery-level retry
 _RETRYABLE_STATUS_CODES = {429, 502, 503, 504}
+
+
+def _utcnow() -> datetime:
+    """Return the current UTC wall-clock time (timezone-aware)."""
+    return datetime.now(timezone.utc)
 
 
 def _run_async(coro: Any) -> Any:
@@ -213,3 +224,225 @@ def analyze_single_application_task(
                 "application_id": application_id,
                 "error": str(exc),
             }
+
+
+@celery_app.task(
+    bind=True,
+    name="app.tasks.ai_analysis.dispatch_batch_analysis_task",
+    acks_late=True,
+)
+def dispatch_batch_analysis_task(self: Task, batch_id: int) -> dict[str, Any]:
+    """Orchestrate and dispatch execution of an auto-analyze batch.
+
+    Transitions batch from QUEUED to RUNNING, verifies state, and enqueues
+    individual analyze_batch_item_task jobs for all items in the batch.
+    """
+    logger.info("Dispatching batch analysis: batch_id=%s [task_id=%s]", batch_id, self.request.id)
+
+    with SessionLocal() as db:
+        batch = db.get(AnalysisBatch, batch_id)
+        if batch is None:
+            logger.warning("Dispatch aborted: Batch %s not found", batch_id)
+            return {"status": "batch_not_found", "batch_id": batch_id}
+
+        if batch.status == AnalysisBatchStatus.CANCELLED:
+            logger.info("Dispatch aborted: Batch %s was cancelled", batch_id)
+            return {"status": "cancelled", "batch_id": batch_id}
+
+        # Transition to RUNNING
+        batch.status = AnalysisBatchStatus.RUNNING
+        db.commit()
+
+        # Query all items in this batch ordered by primary key
+        items = (
+            db.execute(
+                select(AnalysisBatchItem)
+                .where(AnalysisBatchItem.batch_id == batch_id)
+                .order_by(AnalysisBatchItem.id)
+            )
+            .scalars()
+            .all()
+        )
+
+        logger.info(
+            "Batch %s has %d items to process. Dispatching tasks to batch_analysis queue...",
+            batch_id,
+            len(items),
+        )
+
+        for item in items:
+            analyze_batch_item_task.delay(
+                batch_id=batch_id,
+                item_id=item.id,
+                application_id=item.application_id,
+            )
+
+        return {
+            "status": "dispatched",
+            "batch_id": batch_id,
+            "total_items": len(items),
+        }
+
+
+@celery_app.task(
+    bind=True,
+    name="app.tasks.ai_analysis.analyze_batch_item_task",
+    max_retries=2,
+    default_retry_delay=5,
+    acks_late=True,
+)
+def analyze_batch_item_task(
+    self: Task,
+    batch_id: int,
+    item_id: int,
+    application_id: int,
+) -> dict[str, Any]:
+    """Process an individual application item within an auto-analyze batch."""
+    logger.info(
+        "Processing batch item: batch_id=%s item_id=%s app_id=%s [task_id=%s]",
+        batch_id,
+        item_id,
+        application_id,
+        self.request.id,
+    )
+
+    with SessionLocal() as db:
+        batch = db.get(AnalysisBatch, batch_id)
+        if batch is None:
+            return {"status": "batch_not_found"}
+
+        # Check cooperative cancellation before starting work
+        if batch.status == AnalysisBatchStatus.CANCELLED:
+            item = db.get(AnalysisBatchItem, item_id)
+            if item and item.status != BatchItemStatus.CANCELLED:
+                batch_crud.update_batch_item(db, item, status=BatchItemStatus.CANCELLED)
+            return {"status": "cancelled", "item_id": item_id}
+
+        item = db.get(AnalysisBatchItem, item_id)
+        if item is None:
+            return {"status": "item_not_found"}
+
+        if item.status == BatchItemStatus.COMPLETED:
+            return {"status": "already_completed", "item_id": item_id}
+
+        # Mark item as RUNNING
+        batch_crud.update_batch_item(
+            db,
+            item,
+            status=BatchItemStatus.RUNNING,
+            celery_task_id=self.request.id,
+            started_at=_utcnow(),
+        )
+        batch_crud.increment_batch_counter(
+            db, batch_id, current_application_id=application_id
+        )
+
+        # Verify application eligibility
+        application = db.get(Application, application_id)
+        is_eligible = (
+            application is not None
+            and (batch.owner.is_superuser or application.job.owner_id == batch.owner_id)
+            and application.analysis_status in ELIGIBLE_ANALYSIS_STATUSES
+        )
+
+        if not is_eligible:
+            logger.info(
+                "Batch item no longer eligible: batch_id=%s app_id=%s",
+                batch_id,
+                application_id,
+            )
+            batch_crud.update_batch_item(
+                db, item, status=BatchItemStatus.SKIPPED, completed_at=_utcnow()
+            )
+            batch_crud.increment_batch_counter(db, batch_id, skipped=True)
+            batch_crud.check_and_complete_batch(db, batch_id)
+            return {"status": "skipped", "application_id": application_id}
+
+        # Run AI analysis
+        try:
+            _run_async(single_analysis.run_analysis(db, application))
+            batch_crud.update_batch_item(
+                db, item, status=BatchItemStatus.COMPLETED, completed_at=_utcnow()
+            )
+            batch_crud.increment_batch_counter(db, batch_id, successful=True)
+            batch_crud.check_and_complete_batch(db, batch_id)
+            return {"status": "completed", "application_id": application_id}
+
+        except ai_provider_service.AIConfigurationRequiredError as exc:
+            if application.job.owner_id != batch.owner_id:
+                # Admin batch: skip applications where the job owner has no AI setup
+                batch_crud.update_batch_item(
+                    db,
+                    item,
+                    status=BatchItemStatus.SKIPPED,
+                    error_message=exc.message,
+                    completed_at=_utcnow(),
+                )
+                batch_crud.increment_batch_counter(db, batch_id, skipped=True)
+                batch_crud.check_and_complete_batch(db, batch_id)
+                return {"status": "skipped", "application_id": application_id}
+
+            # Recruiter removed AI setup mid-batch: fail this item and fail batch
+            batch_crud.update_batch_item(
+                db,
+                item,
+                status=BatchItemStatus.FAILED,
+                error_message=exc.message,
+                completed_at=_utcnow(),
+            )
+            batch_crud.increment_batch_counter(db, batch_id, failed=True)
+            batch_crud.update_batch(
+                db, batch, status=AnalysisBatchStatus.FAILED, finished_at=True
+            )
+            return {"status": "failed", "application_id": application_id, "error": exc.message}
+
+        except AIServiceError as exc:
+            status_code = getattr(exc, "status_code", 500)
+            if status_code in _RETRYABLE_STATUS_CODES and self.request.retries < self.max_retries:
+                retry_delay = 5 * (2 ** self.request.retries)
+                logger.warning(
+                    "Batch item transient error (HTTP %s). Retrying in %ss: %s",
+                    status_code,
+                    retry_delay,
+                    exc.message,
+                )
+                raise self.retry(exc=exc, countdown=retry_delay)
+
+            batch_crud.update_batch_item(
+                db,
+                item,
+                status=BatchItemStatus.FAILED,
+                error_message=exc.message,
+                completed_at=_utcnow(),
+            )
+            batch_crud.increment_batch_counter(db, batch_id, failed=True)
+            batch_crud.check_and_complete_batch(db, batch_id)
+            return {"status": "failed", "application_id": application_id, "error": exc.message}
+
+        except (OperationalError, ConnectionError, TimeoutError) as exc:
+            if self.request.retries < self.max_retries:
+                retry_delay = 5 * (2 ** self.request.retries)
+                raise self.retry(exc=exc, countdown=retry_delay)
+            batch_crud.update_batch_item(
+                db,
+                item,
+                status=BatchItemStatus.FAILED,
+                error_message=str(exc),
+                completed_at=_utcnow(),
+            )
+            batch_crud.increment_batch_counter(db, batch_id, failed=True)
+            batch_crud.check_and_complete_batch(db, batch_id)
+            return {"status": "failed", "application_id": application_id, "error": str(exc)}
+
+        except Exception as exc:
+            logger.exception("Unexpected error processing batch item: item_id=%s", item_id)
+            batch_crud.update_batch_item(
+                db,
+                item,
+                status=BatchItemStatus.FAILED,
+                error_message=str(exc),
+                completed_at=_utcnow(),
+            )
+            batch_crud.increment_batch_counter(db, batch_id, failed=True)
+            batch_crud.check_and_complete_batch(db, batch_id)
+            return {"status": "failed", "application_id": application_id, "error": str(exc)}

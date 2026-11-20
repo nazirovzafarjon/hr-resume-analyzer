@@ -6,6 +6,7 @@ Importing the models here makes them visible to Alembic for autogenerate.
 from app.models.ai_analysis_run import AIAnalysisRun
 from app.models.ai_provider_config import UserAIProviderConfig
 from app.models.analysis_batch import AnalysisBatch, AnalysisBatchStatus
+from app.models.analysis_batch_item import AnalysisBatchItem, BatchItemStatus
 from app.models.application import (
     AnalysisStatus,
     Application,
@@ -48,6 +49,8 @@ __all__ = [
     "SessionCutoff",
     "AnalysisBatch",
     "AnalysisBatchStatus",
+    "AnalysisBatchItem",
+    "BatchItemStatus",
     "AnalysisStatus",
     "ApplicationStatus",
     "HiringStatus",
