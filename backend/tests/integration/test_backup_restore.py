@@ -27,14 +27,23 @@ TEST_SOURCE_DB = "resume_analyzer_backup_source"
 TEST_TARGET_DB = "resume_analyzer_restore_target"
 
 
-def run_cmd(cmd: list[str]) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
+def run_cmd(
+    cmd: list[str], env: dict[str, str] | None = None
+) -> subprocess.CompletedProcess[str]:
+    """Run a command, failing with its stderr so CI logs show the real cause."""
+    result = subprocess.run(
         cmd,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
-        check=True,
+        env=env,
     )
+    if result.returncode != 0:
+        pytest.fail(
+            f"{' '.join(cmd)} exited with {result.returncode}:\n{result.stderr}",
+            pytrace=False,
+        )
+    return result
 
 
 @pytest.mark.integration
@@ -136,7 +145,9 @@ class TestDatabaseBackupAndDisasterRecovery:
                 "--file=" + dump_file,
                 TEST_SOURCE_DB,
             ]
-            run_cmd(dump_cmd)
+            # PGPASSWORD must reach pg_dump: CI's Postgres service requires
+            # password auth over TCP (a local trust-auth server hides this).
+            run_cmd(dump_cmd, env=env)
             assert os.path.exists(dump_file)
             assert os.path.getsize(dump_file) > 0
 
