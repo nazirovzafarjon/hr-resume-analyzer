@@ -25,6 +25,14 @@ python-multipart
 
 # Testing
 pytest
+pypdf2
+
+# Background task processing & caching (Celery + Redis)
+celery
+redis
+
+# PostgreSQL DBAPI driver
+psycopg[binary]
 
 # Export generation
 openpyxl

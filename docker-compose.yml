@@ -1,0 +1,170 @@
+services:
+  # Persistent Relational Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: resume-analyzer-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-resume_analyzer}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d resume_analyzer"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Redis Message Broker
+  redis:
+    image: redis:7-alpine
+    container_name: resume-analyzer-redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # FastAPI Web API
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: resume-analyzer-api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-resume_analyzer}
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+      - UPLOAD_DIR=/app/uploads
+    volumes:
+      - uploads-data:/app/uploads
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+
+  # Celery Worker: AI Single Analysis
+  worker-ai:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: resume-analyzer-worker-ai
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-resume_analyzer}
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+      - UPLOAD_DIR=/app/uploads
+    volumes:
+      - uploads-data:/app/uploads
+    command: ["celery", "-A", "app.core.celery_app", "worker", "-Q", "ai_analysis", "-c", "2", "-l", "info", "-n", "worker_ai@%h"]
+
+  # Celery Worker: Batch Resume Analysis
+  worker-batch:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: resume-analyzer-worker-batch
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-resume_analyzer}
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+      - UPLOAD_DIR=/app/uploads
+    volumes:
+      - uploads-data:/app/uploads
+    command: ["celery", "-A", "app.core.celery_app", "worker", "-Q", "batch_analysis", "-c", "4", "-l", "info", "-n", "worker_batch@%h"]
+
+  # Celery Worker: Notifications (Resend Email)
+  worker-notifications:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: resume-analyzer-worker-notifications
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-resume_analyzer}
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+    command: ["celery", "-A", "app.core.celery_app", "worker", "-Q", "notifications", "-c", "2", "-l", "info", "-n", "worker_notifications@%h"]
+
+  # Celery Worker: File Exports (PDF, Excel, Word)
+  worker-exports:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: resume-analyzer-worker-exports
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-resume_analyzer}
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+      - UPLOAD_DIR=/app/uploads
+    volumes:
+      - uploads-data:/app/uploads
+    command: ["celery", "-A", "app.core.celery_app", "worker", "-Q", "exports", "-c", "2", "-l", "info", "-n", "worker_exports@%h"]
+
+  # Celery Worker: Default Queue
+  worker-default:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: resume-analyzer-worker-default
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-resume_analyzer}
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+      - UPLOAD_DIR=/app/uploads
+    volumes:
+      - uploads-data:/app/uploads
+    command: ["celery", "-A", "app.core.celery_app", "worker", "-Q", "default", "-c", "1", "-l", "info", "-n", "worker_default@%h"]
+
+volumes:
+  postgres-data:
+  redis-data:
+  uploads-data:

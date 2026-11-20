@@ -170,6 +170,40 @@ class Settings(BaseSettings):
     # X-Title header value for AI provider attribution.
     AI_APP_TITLE: str = "Resume Analyzer"
 
+    # Redis and Celery background task processing
+    # REDIS_URL acts as the default broker and cache connection.
+    REDIS_URL: str = "redis://localhost:6379/0"
+    # Broker URL override (defaults to REDIS_URL when empty).
+    CELERY_BROKER_URL: str = ""
+    # Result backend override (defaults to database 1 on REDIS_URL when empty).
+    CELERY_RESULT_BACKEND: str = ""
+    CELERY_TASK_DEFAULT_QUEUE: str = "default"
+    CELERY_WORKER_CONCURRENCY: int = 4
+    # Late acknowledgements ensure tasks are only acknowledged after execution.
+    CELERY_TASK_ACKS_LATE: bool = True
+    # Prefetch multiplier of 1 ensures fair dispatch across worker processes.
+    CELERY_WORKER_PREFETCH_MULTIPLIER: int = 1
+    # Re-queue tasks when a worker process terminates unexpectedly.
+    CELERY_TASK_REJECT_ON_WORKER_LOST: bool = True
+    # Soft time limit gives task a chance to clean up before hard SIGKILL.
+    CELERY_TASK_SOFT_TIME_LIMIT: int = 300
+    # Hard time limit terminates unresponsive tasks.
+    CELERY_TASK_TIME_LIMIT: int = 360
+
+    @property
+    def celery_broker_url(self) -> str:
+        """Return the resolved Celery message broker URL."""
+        return self.CELERY_BROKER_URL or self.REDIS_URL
+
+    @property
+    def celery_result_backend(self) -> str:
+        """Return the resolved Celery task result backend URL."""
+        if self.CELERY_RESULT_BACKEND:
+            return self.CELERY_RESULT_BACKEND
+        if self.REDIS_URL.endswith("/0"):
+            return self.REDIS_URL[:-2] + "/1"
+        return self.REDIS_URL
+
     # Profile images (local storage, served from the /uploads static mount)
     # Directory that stores uploaded files (profile images), relative to the
     # directory the backend is started from.

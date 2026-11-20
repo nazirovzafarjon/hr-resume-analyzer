@@ -18,8 +18,12 @@ import tempfile
 from datetime import datetime, timedelta, timezone
 
 # Must happen before importing the app modules below.
-os.environ["DATABASE_URL"] = (
-    "postgresql://postgres:postgres@localhost:5432/resume_analyzer_test"
+os.environ["DATABASE_URL"] = os.environ.get(
+    "TEST_DATABASE_URL",
+    os.environ.get(
+        "DATABASE_URL",
+        "postgresql://postgres:postgres@localhost:5432/resume_analyzer_test",
+    ),
 )
 os.environ["SECRET_KEY"] = "test-secret-key-for-resume-analyzer"
 os.environ["SUPERUSER_EMAIL"] = ""
