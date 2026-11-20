@@ -46,7 +46,7 @@ def get_jobs_for_user(db: Session, owner_id: int | None) -> list[Job]:
         db.query(Job)
         .options(selectinload(Job.application_form))
         .filter(owner_filter(Job.owner_id, owner_id))
-        .order_by(Job.created_at.desc())
+        .order_by(Job.created_at.desc(), Job.id.desc())
         .all()
     )
 
@@ -57,7 +57,7 @@ def get_recent_jobs(db: Session, owner_id: int | None, limit: int = 5) -> list[J
         db.query(Job)
         .options(selectinload(Job.application_form))
         .filter(owner_filter(Job.owner_id, owner_id))
-        .order_by(Job.created_at.desc())
+        .order_by(Job.created_at.desc(), Job.id.desc())
         .limit(limit)
         .all()
     )

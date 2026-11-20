@@ -64,7 +64,7 @@ def get_applications_for_job(db: Session, job_id: int) -> list[Application]:
     return (
         db.query(Application)
         .filter(Application.job_id == job_id)
-        .order_by(Application.created_at.desc())
+        .order_by(Application.created_at.desc(), Application.id.desc())
         .all()
     )
 
@@ -139,7 +139,7 @@ def get_recent_applications(db: Session, owner_id: int | None, limit: int = 5) -
         .join(Application.job)
         .filter(owner_filter(Job.owner_id, owner_id))
         .options(contains_eager(Application.job))
-        .order_by(Application.created_at.desc())
+        .order_by(Application.created_at.desc(), Application.id.desc())
         .limit(limit)
         .all()
     )
