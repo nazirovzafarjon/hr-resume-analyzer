@@ -151,7 +151,8 @@ class TestHealth:
     def test_health_check(self, client):
         response = client.get("/health")
         assert response.status_code == 200
-        assert response.json() == {"status": "ok"}
+        # /health is an alias of the liveness probe (see /health/liveness).
+        assert response.json() == {"status": "ok", "service": "api"}
     def test_overview_only_counts_own_data(self, client, user, other_user):
         _create_application(client, user["headers"], _create_job(client, user["headers"])["id"], "Mine")
 
