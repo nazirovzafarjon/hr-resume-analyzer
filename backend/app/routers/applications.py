@@ -390,6 +390,10 @@ def analyze_application(
     # Dispatch via Transactional Outbox for at-least-once Celery delivery
     from app.services import outbox as outbox_service
 
+    # Mark the run as in flight before queuing it (same commit as the outbox
+    # event): the response already says "analyzing", so the UI waits for the
+    # real result, and a repeated click is refused with 409 above.
+    claimed_at = analysis_service.claim_run(application)
     outbox_service.record_and_dispatch(
         db,
         event_type="analyze_single_application",
@@ -397,6 +401,7 @@ def analyze_application(
             "application_id": application.id,
             "force": force,
             "actor_id": scope.user.id,
+            "claimed_at": claimed_at,
         },
     )
 

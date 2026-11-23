@@ -94,6 +94,7 @@ def analyze_single_application_task(
     application_id: int,
     force: bool = False,
     actor_id: int | None = None,
+    claimed_at: str | None = None,
 ) -> dict[str, Any]:
     """Execute AI analysis for a single candidate application.
 
@@ -102,6 +103,8 @@ def analyze_single_application_task(
         application_id: Primary key of the Application to analyze.
         force: If True, re-analyzes even if a completed analysis already exists.
         actor_id: Optional User ID of the recruiter/admin who triggered the analysis.
+        claimed_at: Claim token set by the API when it marked the run as
+            in flight before queuing it (see ``claim_run``).
 
     Returns:
         A dict summary containing task outcome, application_id, status, and score.
@@ -139,7 +142,8 @@ def analyze_single_application_task(
             }
 
         # 2. Concurrency guard: If another worker is actively analyzing and not stale, skip
-        if single_analysis._is_run_active(application):
+        claimed = single_analysis.owns_claim(application, claimed_at)
+        if single_analysis._is_run_active(application) and not claimed:
             logger.info(
                 "Task skipped: Application %s is currently being analyzed by another run",
                 application_id,
@@ -152,7 +156,9 @@ def analyze_single_application_task(
         # 3. Execute analysis via the application_analysis business service
         try:
             analyzed_application = _run_async(
-                single_analysis.run_analysis(db, application, force=force)
+                single_analysis.run_analysis(
+                    db, application, force=force, claimed_at=claimed_at if claimed else None
+                )
             )
             return {
                 "status": "completed",
@@ -163,7 +169,10 @@ def analyze_single_application_task(
 
         except ai_provider_service.AIConfigurationRequiredError as exc:
             # Permanent configuration error: the recruiter has not connected an AI provider.
-            # Do NOT retry. The application remains in its current state.
+            # Do NOT retry. An unclaimed run leaves the application as it was;
+            # a claimed one must not stay "analyzing", so it is marked failed.
+            if claimed:
+                single_analysis._mark_failed(db, application, exc.message)
             logger.warning(
                 "Task failed permanently (AI provider not configured): application_id=%s: %s",
                 application_id,

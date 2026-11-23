@@ -71,14 +71,27 @@ const SESSIONS: Record<SessionKind, SessionStore> = {
 };
 
 /**
- * In-flight refresh, shared by every caller.
+ * Outcome of a refresh attempt.
+ *
+ * - `ok`: a usable access token (fresh, or one another tab already obtained),
+ * - `rejected`: the server refused the refresh token — the session is over,
+ * - `unavailable`: network/CORS failure or a 5xx — the session may well still
+ *   be valid, so it must NOT be dropped (the request just fails this time).
+ */
+type RefreshOutcome =
+  | { status: "ok"; accessToken: string }
+  | { status: "rejected" }
+  | { status: "unavailable" };
+
+/**
+ * In-flight refresh, shared by every caller in this tab.
  *
  * When a page fires several protected requests with an expired access token,
  * they all 401 at once; without this they would each trigger a refresh, and
  * because refresh tokens are single-use the losers would burn a token they can
  * no longer use and get logged out.
  */
-const refreshInFlight: Record<SessionKind, Promise<string | null> | null> = {
+const refreshInFlight: Record<SessionKind, Promise<RefreshOutcome> | null> = {
   hr: null,
   candidate: null,
 };
@@ -89,33 +102,63 @@ const refreshInFlight: Record<SessionKind, Promise<string | null> | null> = {
  * Implemented with plain fetch on purpose: calling `refreshTokens()` in
  * authService would route back through this module (authService imports it),
  * and a self-referential call here would recurse if the refresh itself 401s.
- * Returns the new access token, or null when the session is unrecoverable.
+ *
+ * `rejectedAccessToken` is the token the server just refused. If storage
+ * already holds a different one, another tab (or an earlier refresh here) has
+ * rotated the pair in the meantime, and that token is used instead of
+ * spending the — by now already consumed — refresh token.
  */
-async function performRefresh(kind: SessionKind): Promise<string | null> {
+async function performRefresh(kind: SessionKind, rejectedAccessToken: string | null): Promise<RefreshOutcome> {
   const store = SESSIONS[kind];
+  const current = store.getToken();
+  if (current && current !== rejectedAccessToken) {
+    return { status: "ok", accessToken: current };
+  }
   const refreshToken = store.getRefreshToken();
-  if (!refreshToken) return null;
+  if (!refreshToken) return { status: "rejected" };
 
+  let response: Response;
   try {
-    const response = await fetch(`${API_BASE_URL}${store.refreshPath}`, {
+    response = await fetch(`${API_BASE_URL}${store.refreshPath}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ refresh_token: refreshToken }),
     });
-    if (!response.ok) return null;
-    const data: unknown = await response.json();
-    const tokens = data as Partial<AuthResponse>;
-    if (typeof tokens?.access_token !== "string") return null;
-    store.save(tokens.access_token, tokens.refresh_token ?? null);
-    return tokens.access_token;
   } catch {
     // Network/CORS failure: leave the session alone and let the caller retry.
-    return null;
+    return { status: "unavailable" };
+  }
+  if (response.status >= 500 || response.status === 429) return { status: "unavailable" };
+  if (!response.ok) {
+    // Another tab may have rotated the pair while this request was in flight;
+    // its new token is then the answer, not a sign-out.
+    const latest = store.getToken();
+    if (latest && latest !== rejectedAccessToken) return { status: "ok", accessToken: latest };
+    return { status: "rejected" };
+  }
+  try {
+    const tokens = (await response.json()) as Partial<AuthResponse>;
+    if (typeof tokens?.access_token !== "string") return { status: "unavailable" };
+    store.save(tokens.access_token, tokens.refresh_token ?? null);
+    return { status: "ok", accessToken: tokens.access_token };
+  } catch {
+    return { status: "unavailable" };
   }
 }
 
-function refreshAccessToken(kind: SessionKind): Promise<string | null> {
-  refreshInFlight[kind] ??= performRefresh(kind).finally(() => {
+/**
+ * Run the refresh under a cross-tab lock where the browser supports it (Web
+ * Locks), so two tabs never spend the same single-use refresh token: the
+ * second tab waits, then finds the first tab's new token in storage.
+ */
+function refreshWithLock(kind: SessionKind, rejectedAccessToken: string | null): Promise<RefreshOutcome> {
+  const locks = typeof navigator !== "undefined" ? navigator.locks : undefined;
+  if (!locks?.request) return performRefresh(kind, rejectedAccessToken);
+  return locks.request(`resumeAnalyzer.refresh.${kind}`, () => performRefresh(kind, rejectedAccessToken));
+}
+
+function refreshAccessToken(kind: SessionKind, rejectedAccessToken: string | null): Promise<RefreshOutcome> {
+  refreshInFlight[kind] ??= refreshWithLock(kind, rejectedAccessToken).finally(() => {
     refreshInFlight[kind] = null;
   });
   return refreshInFlight[kind];
@@ -168,15 +211,21 @@ export async function apiRequest<T>(
 
   let response: Response;
   try {
-    response = await send(store.getToken());
+    const sentToken = store.getToken();
+    response = await send(sentToken);
     // Expired (or otherwise rejected) bearer token: refresh once and replay.
-    if (response.status === 401 && withAuth && store.getRefreshToken()) {
-      const accessToken = await refreshAccessToken(kind);
-      if (accessToken) {
-        response = await send(accessToken);
+    if (response.status === 401 && withAuth) {
+      const outcome = await refreshAccessToken(kind, sentToken);
+      if (outcome.status === "ok") {
+        response = await send(outcome.accessToken);
+      } else if (outcome.status === "unavailable") {
+        // Could not reach the refresh endpoint: report a connection problem
+        // and keep the session, instead of logging the user out.
+        throw new ApiError(0, "Unable to connect to the server.");
       }
     }
-  } catch {
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
     // fetch throws on network failures and CORS problems.
     throw new ApiError(0, "Unable to connect to the server.");
   }

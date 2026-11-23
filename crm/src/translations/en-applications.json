@@ -39,6 +39,7 @@
     "moveToCandidate": "Move to Candidate Pipeline",
     "noAnalysis": "No AI analysis recorded",
     "reAnalyze": "Re-analyze with AI",
+    "analysisStillRunning": "This is taking longer than usual. Reload the page later to see the result.",
     "refreshAnalysis": "Refresh Analysis",
     "runAnalysis": "Run AI Analysis",
     "submittedAnswers": "Submitted Application Answers",
