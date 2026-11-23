@@ -7,8 +7,9 @@ ENV PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
-# Install runtime system libraries (libpq for PostgreSQL driver, curl for Docker health checks)
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# Apply pending Debian security updates (the base image lags behind them), then
+# install runtime system libraries (libpq for PostgreSQL driver, curl for Docker health checks)
+RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
     curl \
     libpq5 \
     && rm -rf /var/lib/apt/lists/*
