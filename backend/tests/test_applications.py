@@ -297,7 +297,11 @@ class TestAnalyzeApplication:
         from unittest.mock import AsyncMock, patch
 
         url = f"/api/applications/{sample_application['id']}/analyze?force=true"
-        with patch("app.services.outbox.dispatch_event") as dispatch, patch(
+        payloads = []
+        with patch(
+            "app.services.outbox.dispatch_event",
+            side_effect=lambda event: payloads.append(dict(event.payload)),
+        ) as dispatch, patch(
             "app.services.application_analysis.analyze_application",
             new_callable=AsyncMock,
         ) as mock_analyze:
@@ -309,8 +313,7 @@ class TestAnalyzeApplication:
         assert second.status_code == 409
         assert dispatch.call_count == 1
         assert mock_analyze.call_count == 0
-        payload = dispatch.call_args.args[0].payload
-        assert payload["claimed_at"]
+        assert payloads[0]["claimed_at"]
 
     def test_worker_runs_its_own_claim_but_not_a_stranger(self, client, sample_application, db_session):
         """The queued task proceeds past the in-flight guard only with the
@@ -321,9 +324,14 @@ class TestAnalyzeApplication:
         from app.tasks.ai_analysis import analyze_single_application_task
 
         url = f"/api/applications/{sample_application['id']}/analyze?force=true"
-        with patch("app.services.outbox.dispatch_event") as dispatch:
+        # Copy the payload while the request's session is still open.
+        payloads = []
+        with patch(
+            "app.services.outbox.dispatch_event",
+            side_effect=lambda event: payloads.append(dict(event.payload)),
+        ):
             client.post(url, headers=sample_application["headers"])
-        payload = dispatch.call_args.args[0].payload
+        payload = payloads[0]
 
         with patch(
             "app.services.application_analysis.analyze_application",
