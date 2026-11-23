@@ -10,7 +10,7 @@ import logging
 import secrets
 from datetime import datetime, timedelta, timezone
 
-from jose import JWTError
+from jwt import InvalidTokenError
 from sqlalchemy import update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -684,7 +684,7 @@ def select_role(
     try:
         payload = decode_token_for_purpose(selection_token, TOKEN_PURPOSE_ROLE_SELECTION)
         user_id = int(payload["sub"])
-    except (JWTError, KeyError, TypeError, ValueError) as exc:
+    except (InvalidTokenError, KeyError, TypeError, ValueError) as exc:
         raise ValueError(INVALID_SELECTION_MESSAGE) from exc
 
     if is_token_revoked(token_id(payload)) or is_session_revoked(user_id, token_issued_at(payload)):
@@ -739,7 +739,7 @@ def logout(user: User, access_payload: dict, refresh_token: str | None) -> None:
         return
     try:
         payload = decode_token_for_purpose(refresh_token, TOKEN_PURPOSE_REFRESH)
-    except JWTError:
+    except InvalidTokenError:
         return
     if str(payload.get("sub")) == str(user.id):
         revoke_token(token_id(payload), expires_at=token_expires_at(payload))
@@ -787,7 +787,7 @@ def resolve_reset_token(db: Session, token: str) -> User:
     try:
         payload = decode_reset_token(token)
         user_id = int(payload["sub"])
-    except (JWTError, KeyError, TypeError, ValueError) as exc:
+    except (InvalidTokenError, KeyError, TypeError, ValueError) as exc:
         raise ValueError("Invalid or expired reset token") from exc
 
     user = get_user_by_id(db, user_id)
@@ -907,7 +907,7 @@ def refresh_access_token(db: Session, refresh_token: str) -> Token:
     try:
         payload = decode_token_for_purpose(refresh_token, TOKEN_PURPOSE_REFRESH)
         user_id = int(payload["sub"])
-    except (JWTError, KeyError, TypeError, ValueError) as exc:
+    except (InvalidTokenError, KeyError, TypeError, ValueError) as exc:
         raise ValueError("Invalid or expired refresh token") from exc
 
     if is_token_revoked(token_id(payload)) or is_session_revoked(

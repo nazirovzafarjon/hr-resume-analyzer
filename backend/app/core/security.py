@@ -2,7 +2,7 @@
 
 Responsible for:
 - password hashing / verification (using bcrypt)
-- JWT creation and validation (using python-jose)
+- JWT creation and validation (using PyJWT)
 
 Every token carries a ``typ`` claim describing what it may be used for:
 
@@ -41,7 +41,8 @@ from typing import Any
 from uuid import uuid4
 
 import bcrypt
-from jose import JWTError, jwt
+import jwt
+from jwt import InvalidTokenError
 
 from app.core.config import settings
 
@@ -283,7 +284,7 @@ def decode_candidate_email_verification_token(token: str) -> dict[str, Any]:
     """Decode a Candidate verification token, requiring its purpose.
 
     Raises:
-        JWTError: If the token is invalid, expired or of the wrong purpose.
+        InvalidTokenError: If the token is invalid, expired or of the wrong purpose.
     """
     return decode_token_for_purpose(token, TOKEN_PURPOSE_CANDIDATE_EMAIL_VERIFICATION)
 
@@ -301,7 +302,7 @@ def decode_access_token(token: str) -> dict[str, Any]:
     """Validate a JWT signature/expiry and return its payload.
 
     Raises:
-        JWTError: If the token is malformed, expired or has an invalid signature.
+        InvalidTokenError: If the token is malformed, expired or has an invalid signature.
     """
     return jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
 
@@ -318,7 +319,7 @@ def token_purpose(payload: dict[str, Any]) -> str:
 def token_issued_at(payload: dict[str, Any]) -> datetime | None:
     """Return the ``iat`` instant of a decoded token, or ``None`` when absent.
 
-    ``iat`` is serialized by JOSE as integer seconds, so the value is
+    ``iat`` is serialized by PyJWT as integer seconds, so the value is
     second-granular — revocation cutoffs must be compared on the same scale.
     """
     return _timestamp_claim(payload, "iat")
@@ -330,7 +331,7 @@ def token_expires_at(payload: dict[str, Any]) -> datetime | None:
 
 
 def _timestamp_claim(payload: dict[str, Any], claim: str) -> datetime | None:
-    """Read a JOSE integer-timestamp claim as an aware UTC datetime."""
+    """Read a JWT integer-timestamp claim as an aware UTC datetime."""
     value = payload.get(claim)
     if value is None:
         return None
@@ -354,13 +355,13 @@ def decode_token_for_purpose(token: str, expected_purpose: str) -> dict[str, Any
     """Decode a JWT and require it to carry exactly ``expected_purpose``.
 
     Raises:
-        JWTError: If the token is invalid, expired, or issued for a different
+        InvalidTokenError: If the token is invalid, expired, or issued for a different
             purpose. The message is intentionally generic — callers map it to a
             single user-facing error and must not learn why it failed.
     """
     payload = decode_access_token(token)
     if token_purpose(payload) != expected_purpose:
-        raise JWTError("Unexpected token purpose")
+        raise InvalidTokenError("Unexpected token purpose")
     return payload
 
 
@@ -380,7 +381,7 @@ def decode_reset_token(token: str) -> dict[str, Any]:
     Refresh tokens are always rejected: they never leave the refresh endpoint.
 
     Raises:
-        JWTError: If the token is invalid, expired or not usable as a reset
+        InvalidTokenError: If the token is invalid, expired or not usable as a reset
             credential.
     """
     return decode_token_for_purposes(
@@ -394,9 +395,9 @@ def decode_token_for_purposes(
     """Decode a JWT and require its purpose to be one of ``allowed_purposes``.
 
     Raises:
-        JWTError: If the token is invalid, expired or of the wrong purpose.
+        InvalidTokenError: If the token is invalid, expired or of the wrong purpose.
     """
     payload = decode_access_token(token)
     if token_purpose(payload) not in allowed_purposes:
-        raise JWTError("Unexpected token purpose")
+        raise InvalidTokenError("Unexpected token purpose")
     return payload

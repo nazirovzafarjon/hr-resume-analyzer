@@ -15,7 +15,7 @@ import re
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from jose import JWTError
+from jwt import InvalidTokenError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -58,7 +58,7 @@ def user_id_from_authorization(header: str | None) -> int | None:
     try:
         payload = decode_token_for_purposes(header[7:].strip(), (TOKEN_PURPOSE_ACCESS,))
         return int(payload["sub"])
-    except (JWTError, KeyError, TypeError, ValueError):
+    except (InvalidTokenError, KeyError, TypeError, ValueError):
         return None
 
 

@@ -33,7 +33,7 @@ import logging
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from jose import JWTError
+from jwt import InvalidTokenError
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -194,7 +194,7 @@ def logout(
     """Revoke the current access token (and the refresh token when sent)."""
     try:
         access_payload = decode_token_for_purpose(credentials.credentials, TOKEN_PURPOSE_CANDIDATE_ACCESS)
-    except (JWTError, AttributeError):  # already validated by the dependency
+    except (InvalidTokenError, AttributeError):  # already validated by the dependency
         return None
     candidate_auth.logout(db, access_payload, payload.refresh_token if payload else None)
     return None
