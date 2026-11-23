@@ -162,6 +162,65 @@ jobs:
           npm run typecheck
 
       - name: Build Landing production bundle
+        env:
+          # Required by the build (canonical/hreflang/sitemap); any absolute URL works in CI.
+          VITE_SITE_URL: https://landing.example.com
         run: |
           cd landing
           npm run build
+
+      - name: Verify prerendered pages
+        run: |
+          cd landing/dist
+          for page in index.html ru/index.html en/index.html uz-cyrl/index.html privacy.html ru/terms.html 404.html ru/404.html sitemap.xml robots.txt og-image.png manifest.webmanifest apple-touch-icon.png; do
+            test -s "$page" || { echo "::error::missing dist/$page"; exit 1; }
+          done
+          if grep -l '<div id="root"></div>' index.html ru/index.html en/index.html uz-cyrl/index.html; then
+            echo "::error::pages above were not prerendered"; exit 1
+          fi
+          grep -q '<html lang="uz">' index.html
+          grep -q '<html lang="ru">' ru/index.html
+          grep -q '<html lang="uz-Cyrl">' uz-cyrl/index.html
+          # Visible, localized copy in the markup (not just in <head>).
+          grep -q 'beriladigan savollar</h2>' index.html
+          grep -q 'Частые вопросы</h2>' ru/index.html
+          grep -q 'hreflang="x-default" href="https://landing.example.com/"' ru/index.html
+          grep -q '<link rel="canonical" href="https://landing.example.com/ru/"' ru/index.html
+          grep -q '"@type":"FAQPage"' en/index.html
+          grep -q 'name="robots" content="noindex"' 404.html
+          grep -q 'Sitemap: https://landing.example.com/sitemap.xml' robots.txt
+          grep -c '<loc>' sitemap.xml | grep -qx 4
+
+      - name: Verify nginx routing (status codes, headers)
+        run: |
+          cd landing
+          docker run -d --name landing-nginx -p 8080:80 \
+            -v "$PWD/dist:/usr/share/nginx/html:ro" \
+            -v "$PWD/nginx.conf:/etc/nginx/conf.d/default.conf:ro" \
+            -v "$PWD/security-headers.conf:/etc/nginx/security-headers.conf:ro" \
+            nginx:1.27-alpine
+          for i in $(seq 1 20); do curl -fs -o /dev/null http://localhost:8080/ && break; sleep 0.5; done
+          check() {
+            code=$(curl -s -o /dev/null -w '%{http_code}' "http://localhost:8080$1")
+            echo "$1 -> $code"
+            [ "$code" = "$2" ] || { echo "::error::$1 returned $code, expected $2"; docker logs landing-nginx; exit 1; }
+          }
+          check / 200
+          check /ru/ 200
+          check /en/ 200
+          check /uz-cyrl/ 200
+          check /privacy 200
+          check /ru/terms 200
+          check /ru 301
+          check /sitemap.xml 200
+          check /robots.txt 200
+          check /og-image.png 200
+          check /manifest.webmanifest 200
+          check /does-not-exist 404
+          check /ru/does-not-exist 404
+          check /privacy.html 404
+          curl -s http://localhost:8080/ru/does-not-exist | grep -q '<html lang="ru">'
+          curl -sI http://localhost:8080/og-image.png | grep -qi '^x-content-type-options: nosniff'
+          curl -sI http://localhost:8080/sitemap.xml | grep -qi '^cache-control: public, max-age=3600'
+          curl -sI http://localhost:8080/ru/ | grep -qi '^x-frame-options: SAMEORIGIN'
+          docker rm -f landing-nginx

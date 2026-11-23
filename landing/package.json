@@ -6,7 +6,7 @@
   "description": "Resume Analyzer public landing site (React + Vite + TypeScript). Auth lives in the CRM app (crm/).",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "build": "tsc && vite build && vite build --ssr src/entry-server.tsx --outDir dist-ssr && node scripts/prerender.mjs",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit"
   },

@@ -23,28 +23,34 @@ function readPreference(): ThemePreference {
   return "system";
 }
 
-function systemTheme(): ResolvedTheme {
-  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-}
-
 const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
 
-/** Light / dark / system theme, applied as `data-theme` on <html>. */
+/**
+ * Light / dark / system theme, applied as `data-theme` on <html>.
+ *
+ * The first render always assumes "system" so it matches the prerendered
+ * markup; the stored preference is read right after hydration. Until then the
+ * inline script in index.html has already put the right `data-theme` on <html>,
+ * so nothing is written to the DOM before the real preference is known.
+ */
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setThemeState] = useState<ThemePreference>(readPreference);
-  const [system, setSystem] = useState<ResolvedTheme>(systemTheme);
-  const resolvedTheme = theme === "system" ? system : theme;
+  const [theme, setThemeState] = useState<ThemePreference>("system");
+  const [system, setSystem] = useState<ResolvedTheme | null>(null);
+  const resolvedTheme: ResolvedTheme = theme === "system" ? (system ?? "light") : theme;
 
   useEffect(() => {
+    setThemeState(readPreference());
     const query = window.matchMedia("(prefers-color-scheme: dark)");
-    const onChange = () => setSystem(query.matches ? "dark" : "light");
-    query.addEventListener("change", onChange);
-    return () => query.removeEventListener("change", onChange);
+    const update = () => setSystem(query.matches ? "dark" : "light");
+    update();
+    query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
   }, []);
 
   useEffect(() => {
+    if (system === null) return; // preference not read yet
     document.documentElement.setAttribute("data-theme", resolvedTheme);
-  }, [resolvedTheme]);
+  }, [resolvedTheme, system]);
 
   const setTheme = useCallback((next: ThemePreference) => {
     setThemeState(next);

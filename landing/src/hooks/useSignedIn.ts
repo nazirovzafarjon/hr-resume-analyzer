@@ -14,10 +14,12 @@ function readSignedIn(): boolean {
  * cache, so logging out in the CRM and coming back shows "Log in" again.
  */
 export function useSignedIn(): boolean {
-  const [signedIn, setSignedIn] = useState(readSignedIn);
+  // Starts signed-out so the first render matches the prerendered markup.
+  const [signedIn, setSignedIn] = useState(false);
 
   useEffect(() => {
     const update = () => setSignedIn(readSignedIn());
+    update();
     const onVisibility = () => document.visibilityState === "visible" && update();
     window.addEventListener("pageshow", update);
     document.addEventListener("visibilitychange", onVisibility);

@@ -4,31 +4,31 @@ import { appLinks } from "../../lib/config";
 
 /** Site footer: brand, grouped links and legal line. No social links until real accounts exist. */
 export default function Footer() {
-  const { t } = useI18n();
+  const { t, homeHref, href } = useI18n();
   const groups = [
     {
       title: t.footer.product,
       links: [
-        { href: "/#features", label: t.nav.forCompanies },
-        { href: "/#for-candidates", label: t.nav.forCandidates },
+        { href: `${homeHref}#features`, label: t.nav.forCompanies },
+        { href: `${homeHref}#for-candidates`, label: t.nav.forCandidates },
         { href: appLinks.candidateLogin, label: t.nav.candidatePortal },
-        { href: "/#how-it-works", label: t.footer.howItWorks },
-        { href: "/#analytics", label: t.footer.analytics },
+        { href: `${homeHref}#how-it-works`, label: t.footer.howItWorks },
+        { href: `${homeHref}#analytics`, label: t.footer.analytics },
       ],
     },
     {
       title: t.footer.company,
       links: [
-        { href: "/#solutions", label: t.footer.about },
-        { href: "/#contact", label: t.footer.contact },
-        { href: "/#faq", label: t.footer.faq },
+        { href: `${homeHref}#solutions`, label: t.footer.about },
+        { href: `${homeHref}#contact`, label: t.footer.contact },
+        { href: `${homeHref}#faq`, label: t.footer.faq },
       ],
     },
     {
       title: t.footer.legal,
       links: [
-        { href: "/privacy", label: t.footer.privacy },
-        { href: "/terms", label: t.footer.terms },
+        { href: href("privacy"), label: t.footer.privacy },
+        { href: href("terms"), label: t.footer.terms },
       ],
     },
   ];
@@ -54,7 +54,7 @@ export default function Footer() {
             </nav>
           ))}
         </div>
-        <p className="footer-bottom">
+        <p className="footer-bottom" suppressHydrationWarning>
           © {new Date().getFullYear()} {t.common.appName}. {t.footer.rights}
         </p>
       </div>

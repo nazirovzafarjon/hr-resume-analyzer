@@ -1,37 +1,16 @@
 import { useEffect } from "react";
-import { SITE_URL } from "../lib/config";
-
-function setMeta(selector: string, attribute: "name" | "property", key: string, content: string) {
-  let element = document.head.querySelector<HTMLMetaElement>(selector);
-  if (!element) {
-    element = document.createElement("meta");
-    element.setAttribute(attribute, key);
-    document.head.appendChild(element);
-  }
-  element.content = content;
-}
 
 /**
- * Keep <title>, the description and Open Graph tags in the active language,
- * and emit a canonical URL when VITE_SITE_URL is configured.
+ * Keep <title> and the description in step with the rendered page.
+ *
+ * Production pages already ship this (plus canonical, hreflang, Open Graph and
+ * JSON-LD) in their prerendered <head> — see src/seo.ts — so this mostly
+ * matters in the dev server, which serves the bare index.html.
  */
-export function useDocumentMeta(title: string, description: string, path = "/") {
+export function useDocumentMeta(title: string, description: string) {
   useEffect(() => {
     document.title = title;
-    setMeta('meta[name="description"]', "name", "description", description);
-    setMeta('meta[property="og:title"]', "property", "og:title", title);
-    setMeta('meta[property="og:description"]', "property", "og:description", description);
-
-    if (SITE_URL) {
-      const url = `${SITE_URL}${path}`;
-      setMeta('meta[property="og:url"]', "property", "og:url", url);
-      let canonical = document.head.querySelector<HTMLLinkElement>('link[rel="canonical"]');
-      if (!canonical) {
-        canonical = document.createElement("link");
-        canonical.rel = "canonical";
-        document.head.appendChild(canonical);
-      }
-      canonical.href = url;
-    }
-  }, [title, description, path]);
+    const meta = document.head.querySelector<HTMLMetaElement>('meta[name="description"]');
+    if (meta) meta.content = description;
+  }, [title, description]);
 }
