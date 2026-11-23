@@ -3,7 +3,8 @@
 from datetime import datetime, timedelta, timezone
 
 import pytest
-from jose import JWTError, jwt
+import jwt
+from jwt import InvalidTokenError
 
 from app.core.config import settings
 from app.core.security import (
@@ -73,23 +74,23 @@ class TestJwt:
         assert "exp" in payload
 
     def test_decode_rejects_garbage_token(self):
-        with pytest.raises(JWTError):
+        with pytest.raises(InvalidTokenError):
             decode_access_token("this.is.not.a.jwt")
 
     def test_decode_rejects_token_signed_with_another_secret(self):
         token = jwt.encode({"sub": "1", "exp": 9999999999}, "another-secret", algorithm="HS256")
-        with pytest.raises(JWTError):
+        with pytest.raises(InvalidTokenError):
             decode_access_token(token)
 
     def test_decode_rejects_tampered_token(self):
         token = create_access_token(subject=1)
         tampered = token[:-4] + "abcd"
-        with pytest.raises(JWTError):
+        with pytest.raises(InvalidTokenError):
             decode_access_token(tampered)
 
     def test_decode_rejects_expired_token(self):
         token = create_access_token(subject=1, expires_delta=timedelta(minutes=-10))
-        with pytest.raises(JWTError):
+        with pytest.raises(InvalidTokenError):
             decode_access_token(token)
 
 
@@ -132,9 +133,9 @@ class TestTokenPurposes:
         assert decode_token_for_purpose(token, TOKEN_PURPOSE_REFRESH)["sub"] == "3"
 
     def test_decode_for_purpose_rejects_other_purposes(self):
-        with pytest.raises(JWTError):
+        with pytest.raises(InvalidTokenError):
             decode_token_for_purpose(create_access_token(subject=3), TOKEN_PURPOSE_REFRESH)
-        with pytest.raises(JWTError):
+        with pytest.raises(InvalidTokenError):
             decode_token_for_purpose(
                 create_password_reset_token(subject=3), TOKEN_PURPOSE_REFRESH
             )
@@ -142,7 +143,7 @@ class TestTokenPurposes:
     def test_reset_credential_accepts_reset_and_access_only(self):
         assert decode_reset_token(create_password_reset_token(subject=3))["sub"] == "3"
         assert decode_reset_token(create_access_token(subject=3))["sub"] == "3"
-        with pytest.raises(JWTError):
+        with pytest.raises(InvalidTokenError):
             decode_reset_token(create_refresh_token(subject=3))
 
     def test_every_token_gets_a_unique_id(self):

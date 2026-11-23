@@ -5,7 +5,7 @@ Reuses the platform's security primitives (bcrypt hashing, signed JWTs, the
 ``app.models.candidate_account`` for why candidates have their own identity.
 
 "Sign out everywhere" after a password change/reset uses the account's
-``password_changed_at``: tokens issued before it are rejected. JOSE stores
+``password_changed_at``: tokens issued before it are rejected. PyJWT stores
 ``iat`` in whole seconds, so the cutoff is rounded up to the next second (no
 token from the same second survives) and the fresh pair is stamped with that
 same instant (it must not be caught by its own cutoff).
@@ -15,7 +15,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from jose import JWTError
+from jwt import InvalidTokenError
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -161,7 +161,7 @@ def verify_email(db: Session, token: str) -> CandidateAccount:
     try:
         payload = decode_candidate_email_verification_token(token)
         candidate_id = int(payload["sub"])
-    except (JWTError, KeyError, TypeError, ValueError) as exc:
+    except (InvalidTokenError, KeyError, TypeError, ValueError) as exc:
         raise invalid from exc
 
     if is_token_revoked(token_id(payload), db=db):
@@ -265,7 +265,7 @@ def refresh(db: Session, refresh_token: str) -> CandidateTokens:
     try:
         payload = decode_token_for_purpose(refresh_token, TOKEN_PURPOSE_CANDIDATE_REFRESH)
         candidate_id = int(payload["sub"])
-    except (JWTError, KeyError, TypeError, ValueError) as exc:
+    except (InvalidTokenError, KeyError, TypeError, ValueError) as exc:
         raise invalid from exc
     if is_token_revoked(token_id(payload), db=db):
         raise invalid
@@ -284,7 +284,7 @@ def logout(db: Session, access_payload: dict[str, Any], refresh_token: str | Non
         return
     try:
         payload = decode_token_for_purpose(refresh_token, TOKEN_PURPOSE_CANDIDATE_REFRESH)
-    except JWTError:
+    except InvalidTokenError:
         return
     if payload.get("sub") == access_payload.get("sub"):
         revoke_token(token_id(payload), expires_at=token_expires_at(payload), db=db)
@@ -353,7 +353,7 @@ def reset_password(db: Session, token: str, new_password: str) -> tuple[Candidat
     try:
         payload = decode_token_for_purpose(token, TOKEN_PURPOSE_CANDIDATE_RESET)
         candidate_id = int(payload["sub"])
-    except (JWTError, KeyError, TypeError, ValueError) as exc:
+    except (InvalidTokenError, KeyError, TypeError, ValueError) as exc:
         raise invalid from exc
     if is_token_revoked(token_id(payload), db=db):
         raise invalid

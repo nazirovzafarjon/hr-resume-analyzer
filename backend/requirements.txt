@@ -17,7 +17,9 @@ pydantic-settings
 email-validator
 
 # Authentication & security
-python-jose[cryptography]
+# JWT signing/verification (HS256). Replaces python-jose, which is unmaintained
+# and pulls in the vulnerable `ecdsa` package (CVE-2024-23342).
+PyJWT
 # Fernet encryption of HR users' own AI provider keys (app.core.encryption)
 cryptography
 bcrypt

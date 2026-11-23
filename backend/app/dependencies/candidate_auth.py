@@ -10,7 +10,7 @@ client is never used for authorization.
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from jose import JWTError
+from jwt import InvalidTokenError
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -35,7 +35,7 @@ def candidate_from_token(db: Session, token: str) -> CandidateAccount:
     try:
         payload = decode_token_for_purpose(token, TOKEN_PURPOSE_CANDIDATE_ACCESS)
         candidate_id = int(payload["sub"])
-    except (JWTError, KeyError, TypeError, ValueError):
+    except (InvalidTokenError, KeyError, TypeError, ValueError):
         raise _UNAUTHORIZED from None
     if is_token_revoked(payload.get("jti"), db=db):
         raise _UNAUTHORIZED
