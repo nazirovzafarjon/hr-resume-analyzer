@@ -2,7 +2,10 @@ import { Globe } from "lucide-react";
 import Menu from "./Menu";
 import { LANGUAGES, useI18n, type Language } from "../../i18n";
 
-/** Interface language selector; switching re-renders the page instantly. */
+/**
+ * Interface language selector. Each language has its own URL, so choosing one
+ * navigates to the same page in that language (and remembers the choice).
+ */
 export default function LanguageMenu({ align }: { align?: "start" | "end" }) {
   const { language, setLanguage, t } = useI18n();
   const current = LANGUAGES.find((item) => item.code === language);

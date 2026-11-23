@@ -1,29 +1,31 @@
 <!doctype html>
-<html lang="en">
+<html lang="uz">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
     <meta name="color-scheme" content="light dark" />
     <meta name="theme-color" content="#fafaf9" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#0b0b0d" media="(prefers-color-scheme: dark)" />
-    <title>Resume Analyzer — Smarter Hiring for HR Teams</title>
-    <meta
-      name="description"
-      content="Resume Analyzer helps HR teams publish vacancies, collect applications, analyze resumes against job requirements and manage candidates, interviews and hiring decisions in one place."
-    />
-    <meta property="og:type" content="website" />
-    <meta property="og:site_name" content="Resume Analyzer" />
-    <meta property="og:title" content="Resume Analyzer — Smarter Hiring for HR Teams" />
-    <meta
-      property="og:description"
-      content="Publish vacancies, collect applications, analyze resumes against job requirements and keep your hiring workflow organized."
-    />
-    <meta name="twitter:card" content="summary" />
     <!--
-      Theme bootstrap — same storage keys and logic as the CRM (crm/index.html),
-      so the first paint already uses the persisted theme and, when both apps share
-      an origin, the preference carries over between them.
+      Title, description, canonical, hreflang, Open Graph and JSON-LD are
+      generated per language and page at build time (src/seo.ts) and replace
+      everything between the app-head markers. The title below is only what
+      the dev server shows.
+    -->
+    <!--app-head--><title>Resume Analyzer</title><!--/app-head-->
+    <!--
+      Bootstrap that must run before first paint:
+      - Theme: same storage keys and logic as the CRM (crm/index.html), so the
+        first paint already uses the persisted theme and, when both apps share
+        an origin, the preference carries over between them.
+      - Language: every language has its own URL (src/lib/routes.ts). A visitor
+        who picked a language before (here or in the CRM) and lands on an
+        unprefixed Uzbek page is sent to the same page in their language.
+        Only an explicit stored choice redirects — never the browser locale —
+        so crawlers always get the page at the URL they asked for.
     -->
     <script>
       (function () {
@@ -40,23 +42,21 @@
               : "light";
           }
           document.documentElement.setAttribute("data-theme", resolved);
-          var lang = localStorage.getItem("resume-analyzer-language");
-          if (lang) {
-            document.documentElement.lang =
-              lang === "kiril" ? "uz-Cyrl" : lang === "uz" ? "uz" : lang;
+
+          var prefixes = { ru: "/ru", en: "/en", kiril: "/uz-cyrl" };
+          var prefix = prefixes[localStorage.getItem("resume-analyzer-language")];
+          var path = location.pathname.replace(/\/+$/, "") || "/";
+          if (prefix && (path === "/" || path === "/privacy" || path === "/terms")) {
+            location.replace(prefix + (path === "/" ? "/" : path) + location.search + location.hash);
           }
         } catch (e) {
-          /* localStorage can throw in private mode — fall back to CSS defaults. */
+          /* localStorage can throw in private mode — fall back to defaults. */
         }
       })();
     </script>
   </head>
   <body>
     <div id="root"></div>
-    <noscript>
-      Resume Analyzer helps HR teams manage vacancies, applications, resume analysis,
-      interviews and hiring decisions. Please enable JavaScript to view this page.
-    </noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

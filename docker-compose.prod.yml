@@ -134,6 +134,13 @@ services:
     build:
       context: ./landing
       dockerfile: Dockerfile
+      # Inlined into the static build. VITE_SITE_URL (public URL of the landing,
+      # e.g. https://example.com) is required — the image build fails without it.
+      args:
+        VITE_SITE_URL: ${VITE_SITE_URL:-}
+        VITE_APP_URL: ${VITE_APP_URL:-}
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-}
+        VITE_CONTACT_EMAIL: ${VITE_CONTACT_EMAIL:-}
     container_name: resume-analyzer-landing
     restart: unless-stopped
     deploy:

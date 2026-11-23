@@ -20,7 +20,7 @@ const DESKTOP_QUERY = "(min-width: 1024px)";
  * company's application link and need an obvious way back to their portal.
  */
 export default function Navbar() {
-  const { t } = useI18n();
+  const { t, homeHref } = useI18n();
   const signedIn = useSignedIn();
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
@@ -29,11 +29,11 @@ export default function Navbar() {
 
   // Both audiences are visible from the first glance.
   const links = [
-    { href: "/#features", label: t.nav.forCompanies },
-    { href: "/#for-candidates", label: t.nav.forCandidates },
-    { href: "/#how-it-works", label: t.nav.howItWorks },
-    { href: "/#faq", label: t.nav.faq },
-    { href: "/#contact", label: t.nav.contact },
+    { href: `${homeHref}#features`, label: t.nav.forCompanies },
+    { href: `${homeHref}#for-candidates`, label: t.nav.forCandidates },
+    { href: `${homeHref}#how-it-works`, label: t.nav.howItWorks },
+    { href: `${homeHref}#faq`, label: t.nav.faq },
+    { href: `${homeHref}#contact`, label: t.nav.contact },
   ];
 
   useEffect(() => {

@@ -1,2 +1,5 @@
 User-agent: *
 Allow: /
+
+# The Sitemap URL is completed with VITE_SITE_URL at build time (scripts/prerender.mjs).
+Sitemap: %SITE_URL%/sitemap.xml

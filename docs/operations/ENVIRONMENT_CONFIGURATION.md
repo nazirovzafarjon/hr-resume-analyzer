@@ -84,4 +84,4 @@ This document provides a comprehensive audit of all configuration variables acro
 | :--- | :---: | :--- | :--- | :--- |
 | `VITE_APP_URL` | 🟢 | **Mandatory** | `https://app.yourcompany.com` | Destination URL for "Log in" and "Get started" buttons. |
 | `VITE_API_BASE_URL` | 🟢 | **Mandatory** | `https://app.yourcompany.com/api` | API endpoint for public contact inquiries. |
-| `VITE_SITE_URL` | 🟢 | Recommended | `https://yourcompany.com` | Canonical OpenGraph / SEO root URL. |
+| `VITE_SITE_URL` | 🟢 | **Mandatory** | `https://yourcompany.com` | Public URL of the landing. The build fails without it: canonical, hreflang, Open Graph, JSON-LD and `sitemap.xml` are prerendered from it. Passed as a Docker build arg via `docker-compose.prod.yml`. |

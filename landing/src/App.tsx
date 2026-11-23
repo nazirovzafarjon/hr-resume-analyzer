@@ -6,22 +6,22 @@ import { useI18n } from "./i18n";
 
 /**
  * The site has one real page plus two legal placeholders, so a router
- * dependency isn't worth it: the path is read once and links are plain
- * anchors. Log in / Get started leave for the CRM's own auth pages.
+ * dependency isn't worth it: the page comes from the URL (lib/routes.ts) and
+ * links are plain anchors. Log in / Get started leave for the CRM's own auth
+ * pages.
  */
 function Page() {
-  const { t } = useI18n();
-  const path = window.location.pathname.replace(/\/+$/, "") || "/";
+  const { t, page } = useI18n();
 
-  switch (path) {
-    case "/":
+  switch (page) {
+    case "home":
       return <LandingPage />;
-    case "/privacy":
-      return <SimplePage path={path} title={t.legal.privacyTitle} text={t.legal.placeholder} back={t.legal.back} />;
-    case "/terms":
-      return <SimplePage path={path} title={t.legal.termsTitle} text={t.legal.placeholder} back={t.legal.back} />;
-    default:
-      return <SimplePage path={path} title={t.notFound.title} text={t.notFound.text} back={t.notFound.back} />;
+    case "privacy":
+      return <SimplePage title={t.legal.privacyTitle} text={t.legal.placeholder} back={t.legal.back} />;
+    case "terms":
+      return <SimplePage title={t.legal.termsTitle} text={t.legal.placeholder} back={t.legal.back} />;
+    case "notFound":
+      return <SimplePage title={t.notFound.title} text={t.notFound.text} back={t.notFound.back} />;
   }
 }
 
