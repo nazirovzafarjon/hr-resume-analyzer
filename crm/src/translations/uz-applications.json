@@ -39,6 +39,7 @@
     "moveToCandidate": "Nomzodlar ro'yxatiga o'tkazish",
     "noAnalysis": "AI tahlili qayd etilmagan",
     "reAnalyze": "AI bilan qayta tahlil qilish",
+    "analysisStillRunning": "Tahlil odatdagidan uzoqroq davom etmoqda. Natijani ko'rish uchun sahifani keyinroq yangilang.",
     "refreshAnalysis": "Tahlilni yangilash",
     "runAnalysis": "AI tahlilini ishga tushirish",
     "submittedAnswers": "Yuborilgan ariza javoblari",

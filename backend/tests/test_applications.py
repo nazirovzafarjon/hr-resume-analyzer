@@ -291,6 +291,59 @@ class TestAnalyzeApplication:
         assert get_res.status_code == 200
         assert get_res.json()["name"] == "Jane Doe"
 
+    def test_queued_analysis_reports_analyzing_and_refuses_duplicates(self, client, sample_application):
+        """Before a worker picks the run up, the API already says "analyzing"
+        and a second click is refused instead of queuing a second paid run."""
+        from unittest.mock import AsyncMock, patch
+
+        url = f"/api/applications/{sample_application['id']}/analyze?force=true"
+        with patch("app.services.outbox.dispatch_event") as dispatch, patch(
+            "app.services.application_analysis.analyze_application",
+            new_callable=AsyncMock,
+        ) as mock_analyze:
+            first = client.post(url, headers=sample_application["headers"])
+            second = client.post(url, headers=sample_application["headers"])
+
+        assert first.status_code == 200
+        assert first.json()["analysis_status"] == "analyzing"
+        assert second.status_code == 409
+        assert dispatch.call_count == 1
+        assert mock_analyze.call_count == 0
+        payload = dispatch.call_args.args[0].payload
+        assert payload["claimed_at"]
+
+    def test_worker_runs_its_own_claim_but_not_a_stranger(self, client, sample_application, db_session):
+        """The queued task proceeds past the in-flight guard only with the
+        claim token the API stored."""
+        from unittest.mock import AsyncMock, patch
+        from app.models.application import Application
+        from app.schemas.application_analysis import ApplicationAnalysis
+        from app.tasks.ai_analysis import analyze_single_application_task
+
+        url = f"/api/applications/{sample_application['id']}/analyze?force=true"
+        with patch("app.services.outbox.dispatch_event") as dispatch:
+            client.post(url, headers=sample_application["headers"])
+        payload = dispatch.call_args.args[0].payload
+
+        with patch(
+            "app.services.application_analysis.analyze_application",
+            new_callable=AsyncMock,
+        ) as mock_analyze:
+            mock_analyze.return_value = ApplicationAnalysis(**SAMPLE_ANALYSIS_DATA)
+            stranger = analyze_single_application_task.apply(
+                kwargs={**payload, "claimed_at": "2000-01-01T00:00:00+00:00"}
+            ).get()
+            assert stranger["status"] == "in_progress"
+            assert mock_analyze.call_count == 0
+
+            owner = analyze_single_application_task.apply(kwargs=payload).get()
+            assert owner["status"] == "completed"
+            assert mock_analyze.call_count == 1
+
+        db_session.expire_all()
+        application = db_session.get(Application, sample_application["id"])
+        assert application.analysis_status.value == "completed"
+
     def test_analyze_other_users_application_returns_404(self, client, sample_application, other_user):
         response = client.post(
             f"/api/applications/{sample_application['id']}/analyze",

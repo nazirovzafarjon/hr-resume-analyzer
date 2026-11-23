@@ -22,7 +22,13 @@ from app.schemas.application import ApplicationCreate, ApplicationUpdate
 _SORT_ORDERS = {
     "newest": (Application.submitted_at.desc(), Application.id.desc()),
     "oldest": (Application.submitted_at.asc(), Application.id.asc()),
-    "match": (Application.ai_score.desc(), Application.submitted_at.desc()),
+    # Unscored rows last and an id tiebreaker, so skip/limit pages never
+    # overlap or drop rows with equal scores.
+    "match": (
+        Application.ai_score.desc().nulls_last(),
+        Application.submitted_at.desc(),
+        Application.id.desc(),
+    ),
 }
 
 

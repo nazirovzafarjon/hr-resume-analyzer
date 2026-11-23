@@ -6,6 +6,7 @@
  */
 
 import { apiRequest } from "./apiClient";
+import { fetchAllPages } from "./pagination";
 import type {
   Candidate,
   CandidateDetail,
@@ -40,9 +41,25 @@ function buildQuery(params?: WorkerFilterParams): string {
   return queryString ? `?${queryString}` : "";
 }
 
-/** Fetch applications (and candidates) with optional filtering. */
+/** Largest page the backend serves for `/applications` (its `limit` maximum). */
+const APPLICATIONS_PAGE_SIZE = 200;
+
+/**
+ * Fetch applications (and candidates) with optional filtering.
+ *
+ * Without an explicit `skip`/`limit` every matching row is returned (read page
+ * by page): the list pages filter and count on the client, so a single capped
+ * response would silently hide everything past it.
+ */
 export async function fetchWorkers(params?: WorkerFilterParams): Promise<Candidate[]> {
-  return apiRequest<Candidate[]>(`/applications${buildQuery(params)}`, { auth: true });
+  if (params?.skip !== undefined || params?.limit !== undefined) {
+    return apiRequest<Candidate[]>(`/applications${buildQuery(params)}`, { auth: true });
+  }
+  return fetchAllPages(
+    (skip, limit) =>
+      apiRequest<Candidate[]>(`/applications${buildQuery({ ...params, skip, limit })}`, { auth: true }),
+    APPLICATIONS_PAGE_SIZE,
+  );
 }
 
 /** Fetch candidates (applications with candidate_at set). */

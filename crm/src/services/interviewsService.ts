@@ -1,4 +1,5 @@
 import { apiRequest } from "./apiClient";
+import { fetchAllPages } from "./pagination";
 import type { Interview, InterviewStatusFilter } from "../types/application";
 
 /** Counts of interviews per status, powering the metric cards. */
@@ -29,13 +30,23 @@ type ListParams = {
   search?: string;
 };
 
-/** Fetch the current user's interviews with the optional status/search filters. */
+/** Largest page the backend serves for `/interviews` (its `limit` maximum). */
+const INTERVIEWS_PAGE_SIZE = 500;
+
+/**
+ * Fetch all of the current user's interviews matching the optional
+ * status/search filters (read page by page, so nothing past the backend's
+ * per-request cap is dropped).
+ */
 export async function fetchInterviews(params: ListParams = {}): Promise<Interview[]> {
-  const query = new URLSearchParams();
-  if (params.status) query.set("status", params.status);
-  if (params.search) query.set("search", params.search);
-  const qs = query.toString();
-  return apiRequest<Interview[]>(`/interviews${qs ? `?${qs}` : ""}`, { auth: true });
+  return fetchAllPages((skip, limit) => {
+    const query = new URLSearchParams();
+    if (params.status) query.set("status", params.status);
+    if (params.search) query.set("search", params.search);
+    query.set("skip", String(skip));
+    query.set("limit", String(limit));
+    return apiRequest<Interview[]>(`/interviews?${query.toString()}`, { auth: true });
+  }, INTERVIEWS_PAGE_SIZE);
 }
 
 /** Fetch interview counts by status for the metric cards. */

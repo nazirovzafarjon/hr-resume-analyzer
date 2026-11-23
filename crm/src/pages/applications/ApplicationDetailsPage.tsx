@@ -1,4 +1,4 @@
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Sparkles, UserPlus, Trash2, CheckCircle2, AlertCircle, RefreshCw, Languages } from "lucide-react";
 import { useTranslatedAnalysis } from "../../hooks/useTranslatedAnalysis";
@@ -10,6 +10,7 @@ import {
   deleteWorker,
 } from "../../services/applicationsService";
 import { formatDate } from "../../utils/date";
+import { ApiError } from "../../utils/apiError";
 import PageHeader from "../../components/ui/PageHeader";
 import BackButton from "../../components/ui/BackButton";
 import PageMeta from "../../components/seo/PageMeta";
@@ -35,6 +36,11 @@ import type {
 } from "../../types/candidate";
 
 /** /applications/:id — single submitted application with AI analysis and candidate pipeline actions. */
+/** How often a queued/running AI analysis is re-checked. */
+const ANALYSIS_POLL_INTERVAL_MS = 3000;
+/** Stop polling after this long (matches the backend's stale-run window). */
+const ANALYSIS_POLL_TIMEOUT_MS = 10 * 60 * 1000;
+
 export default function ApplicationDetailsPage() {
   const { t } = useLanguage();
   const notify = useNotify();
@@ -49,6 +55,9 @@ export default function ApplicationDetailsPage() {
   const [converting, setConverting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [pollTimedOut, setPollTimedOut] = useState(false);
+  // Set when this user started the run, so the outcome is announced once.
+  const awaitingResult = useRef(false);
 
   const appStatusOptions: { value: ApplicationStatus; label: string }[] = [
     { value: "new", label: t("statusMeta.application.new") || "New" },
@@ -115,6 +124,59 @@ export default function ApplicationDetailsPage() {
     };
   }, [id, t]);
 
+  // The API only queues the analysis (a worker runs it), so while the row says
+  // "analyzing" — after a click here or an automatic run on submission —
+  // re-fetch it until the real outcome is stored.
+  const analysisStatus = application?.analysis_status;
+  const applicationId = application?.id;
+  useEffect(() => {
+    if (applicationId === undefined || analysisStatus !== "analyzing") return;
+    let cancelled = false;
+    let timer: number | undefined;
+    const startedAt = Date.now();
+    setPollTimedOut(false);
+
+    const schedule = () => {
+      if (Date.now() - startedAt > ANALYSIS_POLL_TIMEOUT_MS) {
+        setPollTimedOut(true);
+        return;
+      }
+      timer = window.setTimeout(tick, ANALYSIS_POLL_INTERVAL_MS);
+    };
+    const tick = async () => {
+      try {
+        const fresh = await getWorker(applicationId);
+        if (cancelled) return;
+        if (fresh.analysis_status === "analyzing") {
+          schedule();
+          return;
+        }
+        setApplication(fresh);
+        if (awaitingResult.current) {
+          awaitingResult.current = false;
+          if (fresh.analysis_status === "failed") {
+            notify.error(t("toast.analysisFailed") || "AI analysis failed", fresh.analysis_error || undefined);
+          } else if (fresh.analysis_status === "completed") {
+            notify.success(t("toast.analysisComplete") || "AI analysis complete");
+          }
+        }
+      } catch {
+        // A transient error: keep checking until the timeout.
+        if (!cancelled) schedule();
+      }
+    };
+    schedule();
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+    // `notify`/`t` are read when the result lands; they must not restart polling.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [applicationId, analysisStatus]);
+
+  /** True while a run is being requested or is queued/running on a worker. */
+  const analysisBusy = analyzing || analysisStatus === "analyzing";
+
   const handleStatusChange = async (newStatus: string) => {
     if (!application) return;
     try {
@@ -138,17 +200,30 @@ export default function ApplicationDetailsPage() {
     try {
       const updated = await analyzeWorker(application.id, force);
       setApplication(updated);
-      // A provider failure (e.g. a rate limit) still answers 200 with the
-      // failure recorded on the application, so check the outcome.
-      if (updated.analysis_status === "failed") {
+      // Normally the run is only queued ("analyzing") and the polling effect
+      // reports the outcome. A provider/config failure detected up front
+      // still answers 200 with the failure recorded, so check the outcome.
+      if (updated.analysis_status === "analyzing") {
+        awaitingResult.current = true;
+      } else if (updated.analysis_status === "failed") {
         notify.error(
           t("toast.analysisFailed") || "AI analysis failed",
           updated.analysis_error || undefined,
         );
-      } else {
+      } else if (updated.analysis_status === "completed") {
         notify.success(t("toast.analysisComplete") || "AI analysis complete");
       }
     } catch (err: unknown) {
+      if (err instanceof ApiError && err.status === 409) {
+        // Someone (or an earlier click) already started a run: follow it.
+        awaitingResult.current = true;
+        try {
+          setApplication(await getWorker(application.id));
+        } catch {
+          /* the next poll or a reload catches up */
+        }
+        return;
+      }
       const msg = err instanceof Error ? err.message : t("toast.analysisFailed") || "AI analysis failed";
       setActionError(msg);
       notify.error(t("toast.analysisFailed") || "AI analysis failed", msg);
@@ -266,7 +341,7 @@ export default function ApplicationDetailsPage() {
             <Button
               variant="secondary"
               onClick={() => handleRunAnalysis(true)}
-              disabled={analyzing}
+              disabled={analysisBusy}
               icon={<RefreshCw size={14} />}
             >
               {analyzing ? (t("common.loading") || "Retrying…") : (t("common.retry") || "Retry AI Analysis")}
@@ -315,7 +390,7 @@ export default function ApplicationDetailsPage() {
             <Button
               variant="secondary"
               onClick={() => handleRunAnalysis(true)}
-              disabled={analyzing}
+              disabled={analysisBusy}
               icon={<Sparkles size={15} />}
             >
               {analyzing
@@ -376,7 +451,7 @@ export default function ApplicationDetailsPage() {
               <Button
                 variant="secondary"
                 onClick={() => handleRunAnalysis(true)}
-                disabled={analyzing}
+                disabled={analysisBusy}
                 icon={<RefreshCw size={14} />}
               >
                 {analyzing ? (t("common.loading") || "Analyzing…") : (t("applications.refreshAnalysis") || "Refresh Analysis")}
@@ -389,6 +464,7 @@ export default function ApplicationDetailsPage() {
           <div className="loading-state">
             <Sparkles size={18} style={{ marginRight: "8px", verticalAlign: "middle", animation: "spin 2s linear infinite" }} />
             {t("applications.analyzing") || "Analyzing resume against job requirements…"}
+            {pollTimedOut && <p className="muted-note">{t("applications.analysisStillRunning")}</p>}
           </div>
         ) : !analysis ? (
           <EmptyState
@@ -398,7 +474,7 @@ export default function ApplicationDetailsPage() {
               <Button
                 variant="primary"
                 onClick={() => handleRunAnalysis(true)}
-                disabled={analyzing}
+                disabled={analysisBusy}
                 icon={<Sparkles size={15} />}
               >
                 {t("applications.runAnalysis") || "Run AI Analysis"}

@@ -155,6 +155,41 @@ def _is_run_active(application: Application) -> bool:
     return _utcnow() - started < timedelta(seconds=STALE_ANALYSIS_SECONDS)
 
 
+def claim_run(application: Application) -> str:
+    """Mark a queued analysis as in flight and return its claim token.
+
+    Called by the API before the run is handed to a worker, so the UI sees
+    "analyzing" straight away and a second click (or a second recruiter) is
+    refused by :func:`_is_run_active` while the task waits in the queue. The
+    token is the claim's start time; the worker passes it back to
+    :func:`run_analysis` to prove the claim is its own. The caller commits.
+    """
+    claimed = _utcnow()
+    application.analysis_status = AnalysisStatus.ANALYZING
+    application.analysis_started_at = claimed
+    application.analysis_error = None
+    return claimed.isoformat()
+
+
+def owns_claim(application: Application, claimed_at: str | None) -> bool:
+    """True when ``claimed_at`` is the claim currently stored on the row."""
+    if not claimed_at or application.analysis_status != AnalysisStatus.ANALYZING:
+        return False
+    started = application.analysis_started_at
+    if started is None:
+        return False
+    try:
+        token = datetime.fromisoformat(claimed_at)
+    except ValueError:
+        return False
+    if started.tzinfo is None:
+        started = started.replace(tzinfo=timezone.utc)
+    if token.tzinfo is None:
+        token = token.replace(tzinfo=timezone.utc)
+    # Tolerate storage rounding; claims are seconds apart in practice.
+    return abs(started - token) < timedelta(milliseconds=1)
+
+
 def _mark_failed(db: Session, application: Application, message: str | None) -> None:
     """Persist a failed analysis attempt (the application itself is kept)."""
     application.analysis_status = AnalysisStatus.FAILED
@@ -207,7 +242,13 @@ def _record_outcome(
     )
 
 
-async def run_analysis(db: Session, application: Application, *, force: bool = False) -> Application:
+async def run_analysis(
+    db: Session,
+    application: Application,
+    *,
+    force: bool = False,
+    claimed_at: str | None = None,
+) -> Application:
     """Analyse one application and store the structured result.
 
     The job requirements, the submitted form answers and the extracted resume
@@ -221,6 +262,9 @@ async def run_analysis(db: Session, application: Application, *, force: bool = F
         force: When ``False`` (default) an application that already has a stored
             analysis is returned as-is, so the provider is never called
             implicitly (page loads must not trigger AI).
+        claimed_at: Claim token from :func:`claim_run` when the API already
+            marked this run as in flight; lets the worker proceed past the
+            in-progress guard for its own claim only.
 
     Raises:
         AnalysisInProgressError: A run is already in flight for this row.
@@ -237,7 +281,7 @@ async def run_analysis(db: Session, application: Application, *, force: bool = F
         )
         return application
 
-    if _is_run_active(application):
+    if _is_run_active(application) and not owns_claim(application, claimed_at):
         raise AnalysisInProgressError()
 
     # Credentials first (the job owner's; see app.services.ai.provider). With
