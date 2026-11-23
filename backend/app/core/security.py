@@ -304,7 +304,16 @@ def decode_access_token(token: str) -> dict[str, Any]:
     Raises:
         InvalidTokenError: If the token is malformed, expired or has an invalid signature.
     """
-    return jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+    # ``iat`` is a revocation marker here, not a validity bound: tokens issued
+    # right after a password change carry an ``iat`` up to one second in the
+    # future (see ``app.core.token_registry``), which PyJWT would otherwise
+    # reject as "not yet valid". Signature and ``exp`` are still verified.
+    return jwt.decode(
+        token,
+        settings.SECRET_KEY,
+        algorithms=[settings.ALGORITHM],
+        options={"verify_iat": False},
+    )
 
 
 def token_purpose(payload: dict[str, Any]) -> str:
