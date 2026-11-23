@@ -72,7 +72,7 @@ graph TB
     end
 
     subgraph Persistence["Data Layer"]
-        Postgres[(PostgreSQL Database<br/>19 Tables | Alembic Migrations)]
+        Postgres[("PostgreSQL Database<br/>19 Tables | Alembic Migrations")]
         Storage[("Local File Storage (uploads/)<br/>Profile Avatars | Candidate Resumes")]
     end
 
