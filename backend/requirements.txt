@@ -32,6 +32,8 @@ pypdf2
 # Background task processing & caching (Celery + Redis)
 celery
 redis
+# Celery monitoring dashboard (the `flower` service in docker-compose.yml, port 5555)
+flower
 
 # PostgreSQL DBAPI driver
 psycopg[binary]
