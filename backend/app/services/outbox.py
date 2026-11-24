@@ -20,7 +20,7 @@ from app.tasks.ai_analysis import (
     dispatch_batch_analysis_task,
 )
 from app.tasks.exports import generate_export_task
-from app.tasks.notifications import send_email_task
+from app.tasks.notifications import send_email_task, send_telegram_task
 
 logger = logging.getLogger(__name__)
 
@@ -56,6 +56,8 @@ def dispatch_event(event: OutboxEvent) -> None:
         dispatch_batch_analysis_task.delay(**payload)
     elif event_type == "send_email":
         send_email_task.delay(**payload)
+    elif event_type == "send_telegram":
+        send_telegram_task.delay(**payload)
     elif event_type == "generate_export":
         generate_export_task.delay(**payload)
     else:

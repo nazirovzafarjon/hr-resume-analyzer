@@ -219,6 +219,8 @@ class Settings(BaseSettings):
     TELEGRAM_BOT_USERNAME: str = ""
     # Lifetime of the single-use token inside the deep link.
     TELEGRAM_LINK_TOKEN_EXPIRE_MINUTES: int = Field(default=10, ge=1, le=60)
+    # IANA time zone for dates shown in bot messages (interview times etc.).
+    TELEGRAM_TIMEZONE: str = "Asia/Tashkent"
 
     @property
     def telegram_configured(self) -> bool:

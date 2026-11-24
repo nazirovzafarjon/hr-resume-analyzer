@@ -19,6 +19,7 @@ logger = logging.getLogger("app.bot")
 
 COMMANDS = [
     BotCommand(command="start", description="Start / Boshlash"),
+    BotCommand(command="applications", description="My applications / Arizalarim"),
     BotCommand(command="status", description="Connected accounts / Ulangan akkauntlar"),
     BotCommand(command="unlink", description="Disconnect / Uzish"),
     BotCommand(command="help", description="Help / Yordam"),
@@ -37,7 +38,7 @@ async def main() -> None:
     await bot.delete_webhook(drop_pending_updates=False)
     logger.info("Telegram bot @%s started (polling)", settings.TELEGRAM_BOT_USERNAME)
     try:
-        await dispatcher.start_polling(bot, allowed_updates=["message"])
+        await dispatcher.start_polling(bot, allowed_updates=["message", "callback_query"])
     finally:
         await bot.session.close()
 

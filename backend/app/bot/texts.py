@@ -29,10 +29,25 @@ TEXTS: dict[str, dict[str, str]] = {
         "help": (
             "Komandalar:\n"
             "/start — boshlash\n"
+            "/applications — arizalarim va ularning holati\n"
             "/status — ulangan akkauntlar\n"
             "/unlink — Telegramni akkauntlardan uzish\n"
             "/help — yordam"
         ),
+        "status_changed": "📌 <b>Ariza holati yangilandi</b>\n\n<b>{position}</b> — {company}\n{emoji} {status}",
+        "application_received": "📨 <b>Arizangiz qabul qilindi</b>\n\n<b>{position}</b> — {company}\nHolat o'zgarganda shu yerga xabar beraman.",
+        "btn_details": "🔎 Batafsil",
+        "btn_open_site": "🌐 Saytda ochish",
+        "btn_back": "‹ Ro'yxatga",
+        "btn_prev": "‹ Oldingi",
+        "btn_next": "Keyingi ›",
+        "apps_header": "📋 <b>Arizalaringiz</b> ({total} ta) — {page}/{pages}",
+        "apps_empty": "Hali ariza topshirmagansiz. Saytda vakansiyaga ariza berishda akkauntingizga kirgan bo'ling — shunda ariza shu yerda ko'rinadi.",
+        "apps_not_candidate": "Bu komanda nomzodlar uchun. Saytda <b>Profil → Telegram</b> bo'limidan nomzod akkauntingizni ulang.",
+        "app_not_found": "Ariza topilmadi.",
+        "app_submitted": "Yuborilgan: {date}",
+        "app_next_interview": "🗓 Suhbat: <b>{date}</b>",
+        "app_timeline": "<b>Jarayon:</b>",
         "error": "Xatolik yuz berdi. Birozdan keyin qayta urinib ko'ring.",
     },
     "ru": {
@@ -57,10 +72,25 @@ TEXTS: dict[str, dict[str, str]] = {
         "help": (
             "Команды:\n"
             "/start — начать\n"
+            "/applications — мои заявки и их статус\n"
             "/status — подключённые аккаунты\n"
             "/unlink — отключить Telegram от аккаунтов\n"
             "/help — помощь"
         ),
+        "status_changed": "📌 <b>Статус заявки обновлён</b>\n\n<b>{position}</b> — {company}\n{emoji} {status}",
+        "application_received": "📨 <b>Ваша заявка получена</b>\n\n<b>{position}</b> — {company}\nЯ сообщу сюда, когда статус изменится.",
+        "btn_details": "🔎 Подробнее",
+        "btn_open_site": "🌐 Открыть на сайте",
+        "btn_back": "‹ К списку",
+        "btn_prev": "‹ Назад",
+        "btn_next": "Далее ›",
+        "apps_header": "📋 <b>Ваши заявки</b> ({total}) — {page}/{pages}",
+        "apps_empty": "У вас пока нет заявок. Откликайтесь на вакансии на сайте, войдя в аккаунт, — тогда заявки появятся здесь.",
+        "apps_not_candidate": "Эта команда для кандидатов. Подключите аккаунт кандидата в разделе <b>Профиль → Telegram</b> на сайте.",
+        "app_not_found": "Заявка не найдена.",
+        "app_submitted": "Отправлена: {date}",
+        "app_next_interview": "🗓 Собеседование: <b>{date}</b>",
+        "app_timeline": "<b>Этапы:</b>",
         "error": "Произошла ошибка. Попробуйте ещё раз чуть позже.",
     },
     "en": {
@@ -85,10 +115,25 @@ TEXTS: dict[str, dict[str, str]] = {
         "help": (
             "Commands:\n"
             "/start — start\n"
+            "/applications — my applications and their status\n"
             "/status — connected accounts\n"
             "/unlink — disconnect Telegram from your accounts\n"
             "/help — help"
         ),
+        "status_changed": "📌 <b>Application status updated</b>\n\n<b>{position}</b> — {company}\n{emoji} {status}",
+        "application_received": "📨 <b>Your application was received</b>\n\n<b>{position}</b> — {company}\nI'll message you here when its status changes.",
+        "btn_details": "🔎 Details",
+        "btn_open_site": "🌐 Open on the website",
+        "btn_back": "‹ Back to list",
+        "btn_prev": "‹ Previous",
+        "btn_next": "Next ›",
+        "apps_header": "📋 <b>Your applications</b> ({total}) — {page}/{pages}",
+        "apps_empty": "You have no applications yet. Apply on the website while signed in to your account and they will show up here.",
+        "apps_not_candidate": "This command is for candidates. Connect your candidate account in <b>Profile → Telegram</b> on the website.",
+        "app_not_found": "Application not found.",
+        "app_submitted": "Submitted: {date}",
+        "app_next_interview": "🗓 Interview: <b>{date}</b>",
+        "app_timeline": "<b>Progress:</b>",
         "error": "Something went wrong. Please try again a bit later.",
     },
 }
@@ -97,3 +142,103 @@ TEXTS: dict[str, dict[str, str]] = {
 def t(language_code: str | None, key: str, **params: str) -> str:
     """Text ``key`` in the user's language, with ``params`` filled in."""
     return TEXTS[normalize_language(language_code)][key].format(**params)
+
+
+#: Candidate-facing status labels, worded exactly like the Candidate Portal.
+STATUS_LABELS: dict[str, dict[str, str]] = {
+    "uz": {
+        "submitted": "Ariza yuborildi",
+        "ai_review": "Rezyume tahlil qilinmoqda",
+        "hr_review": "HR ko'rib chiqmoqda",
+        "interview_invited": "Suhbatga taklif",
+        "interview_scheduled": "Suhbat belgilandi",
+        "decision_pending": "Qaror kutilmoqda",
+        "accepted": "Ariza qabul qilindi",
+        "rejected": "Ariza yopildi",
+        "withdrawn": "Ariza qaytarib olindi",
+    },
+    "ru": {
+        "submitted": "Заявка отправлена",
+        "ai_review": "Резюме анализируется",
+        "hr_review": "На рассмотрении HR",
+        "interview_invited": "Приглашение на собеседование",
+        "interview_scheduled": "Собеседование назначено",
+        "decision_pending": "Ожидается решение",
+        "accepted": "Заявка принята",
+        "rejected": "Заявка закрыта",
+        "withdrawn": "Заявка отозвана",
+    },
+    "en": {
+        "submitted": "Application submitted",
+        "ai_review": "Resume being reviewed",
+        "hr_review": "Under HR review",
+        "interview_invited": "Interview invitation",
+        "interview_scheduled": "Interview scheduled",
+        "decision_pending": "Decision pending",
+        "accepted": "Application accepted",
+        "rejected": "Application closed",
+        "withdrawn": "Application withdrawn",
+    },
+}
+
+STATUS_EMOJI: dict[str, str] = {
+    "submitted": "📨",
+    "ai_review": "🔍",
+    "hr_review": "👀",
+    "interview_invited": "📅",
+    "interview_scheduled": "🗓",
+    "decision_pending": "⏳",
+    "accepted": "🎉",
+    "rejected": "📁",
+    "withdrawn": "↩️",
+}
+
+#: Timeline step names (``services.candidate_portal.timeline`` keys).
+TIMELINE_LABELS: dict[str, dict[str, str]] = {
+    "uz": {
+        "submitted": "Ariza yuborildi",
+        "resume_review": "Rezyume tahlili",
+        "hr_review": "HR ko'rib chiqishi",
+        "interview": "Suhbat",
+        "decision": "Yakuniy qaror",
+        "decision_accepted": "Ariza qabul qilindi",
+        "decision_rejected": "Ariza yopildi",
+        "decision_withdrawn": "Ariza qaytarib olindi",
+    },
+    "ru": {
+        "submitted": "Заявка отправлена",
+        "resume_review": "Анализ резюме",
+        "hr_review": "Рассмотрение HR",
+        "interview": "Собеседование",
+        "decision": "Итоговое решение",
+        "decision_accepted": "Заявка принята",
+        "decision_rejected": "Заявка закрыта",
+        "decision_withdrawn": "Заявка отозвана",
+    },
+    "en": {
+        "submitted": "Application submitted",
+        "resume_review": "Resume review",
+        "hr_review": "HR review",
+        "interview": "Interview",
+        "decision": "Final decision",
+        "decision_accepted": "Application accepted",
+        "decision_rejected": "Application closed",
+        "decision_withdrawn": "Application withdrawn",
+    },
+}
+
+TIMELINE_STATE_EMOJI: dict[str, str] = {
+    "done": "✅",
+    "current": "🔄",
+    "upcoming": "⚪",
+    "skipped": "➖",
+    "unavailable": "⚠️",
+}
+
+
+def status_label(language_code: str | None, status: str) -> str:
+    return STATUS_LABELS[normalize_language(language_code)][status]
+
+
+def timeline_label(language_code: str | None, key: str) -> str:
+    return TIMELINE_LABELS[normalize_language(language_code)][key]

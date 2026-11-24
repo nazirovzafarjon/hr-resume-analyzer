@@ -250,6 +250,12 @@ services:
       - SENTRY_DSN=${SENTRY_DSN:-}
       - LOG_FORMAT=json
       - DEBUG=false
+      # Telegram notifications are delivered from this worker.
+      - FRONTEND_BASE_URL=${FRONTEND_BASE_URL:-}
+      - TELEGRAM_ENABLED=${TELEGRAM_ENABLED:-false}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+      - TELEGRAM_BOT_USERNAME=${TELEGRAM_BOT_USERNAME:-}
+      - TELEGRAM_TIMEZONE=${TELEGRAM_TIMEZONE:-Asia/Tashkent}
     command: ["celery", "-A", "app.core.celery_app", "worker", "-Q", "notifications", "-c", "2", "-l", "info", "-n", "worker_notifications@%h", "--max-tasks-per-child=100", "--max-memory-per-child=250000"]
     deploy:
       resources:
@@ -385,6 +391,7 @@ services:
       - TELEGRAM_ENABLED=${TELEGRAM_ENABLED:-false}
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
       - TELEGRAM_BOT_USERNAME=${TELEGRAM_BOT_USERNAME:-}
+      - TELEGRAM_TIMEZONE=${TELEGRAM_TIMEZONE:-Asia/Tashkent}
     healthcheck:
       disable: true
     command: ["python", "-m", "app.bot"]
