@@ -81,18 +81,45 @@ export default function AppLayout({
     setSidebarOpen(false);
   }, [location.pathname]);
 
+  // The drawer only exists below the 900px breakpoint. If the viewport grows
+  // past it (rotation, resizing, devtools) while the drawer is open, close it
+  // so no stale drawer state lingers into the desktop layout.
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const desktop = window.matchMedia("(min-width: 901px)");
+    const handleChange = () => {
+      if (!desktop.matches) return;
+      setSidebarOpen(false);
+      // A session started on a narrow screen never read the saved rail
+      // preference; apply it now that the rail exists.
+      setCollapsed(prefersCollapsed());
+    };
+    desktop.addEventListener("change", handleChange);
+    return () => desktop.removeEventListener("change", handleChange);
+  }, []);
+
   // Mobile drawer: focus moves into it on open; Escape closes it and returns
-  // focus to the menu button, so keyboard users are never stranded.
+  // focus to the menu button, so keyboard users are never stranded. The page
+  // behind it does not scroll while it is open.
   useEffect(() => {
     if (!sidebarOpen) return;
-    document.querySelector<HTMLElement>(".sidebar--open .sidebar-link")?.focus();
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    // Wait a frame: the drawer becomes visible (and focusable) on open.
+    const focusFrame = window.requestAnimationFrame(() => {
+      document.querySelector<HTMLElement>(".sidebar--open .sidebar-link")?.focus();
+    });
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key !== "Escape") return;
       setSidebarOpen(false);
       document.querySelector<HTMLElement>(".header-menu-button")?.focus();
     }
     window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+    return () => {
+      window.cancelAnimationFrame(focusFrame);
+      window.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = previousOverflow;
+    };
   }, [sidebarOpen]);
 
   // Global keyboard shortcut: Ctrl/Cmd + K opens the command palette.

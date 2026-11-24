@@ -152,8 +152,10 @@
 
   /* Layering */
   --z-sticky: 20;
-  --z-sidebar: 100;
-  --z-backdrop: 200;
+  /* The drawer backdrop sits under the sidebar: the open drawer must stay
+     clickable while the backdrop dims (and closes on) everything else. */
+  --z-backdrop: 100;
+  --z-sidebar: 200;
   --z-dropdown: 300;
   --z-modal: 400;
   --z-palette: 500;
