@@ -131,7 +131,12 @@ export default function Header({
         <p className="header-title">{title}</p>
       </div>
 
-      <button type="button" className="header-search" onClick={onOpenPalette}>
+      <button
+        type="button"
+        className="header-search"
+        onClick={onOpenPalette}
+        aria-label={t("palette.placeholder")}
+      >
         <Search size={16} aria-hidden="true" />
         <span className="header-search-label">{t("palette.placeholder")}</span>
         <kbd>⌘K</kbd>

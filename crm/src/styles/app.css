@@ -310,6 +310,12 @@
   animation: overlay-in var(--transition-base) ease-out;
 }
 
+/* The drawer only exists below 900px; never let its backdrop cover the
+   desktop layout (e.g. the window was widened while the drawer was open). */
+@media (min-width: 901px) {
+  .sidebar-backdrop { display: none; }
+}
+
 /* ---------------------------------------------------------------------------
    3. Top bar
    ------------------------------------------------------------------------ */
@@ -3016,13 +3022,19 @@
 @media (max-width: 900px) {
   .sidebar {
     width: var(--sidebar-width);
+    max-width: 85vw;
     transform: translateX(-100%);
     box-shadow: none;
+    /* Closed drawer is off-screen: keep its links out of the Tab order too. */
+    visibility: hidden;
+    transition: transform var(--transition-base), visibility 0s linear var(--transition-base);
   }
 
   .sidebar.sidebar--open {
     transform: translateX(0);
     box-shadow: var(--shadow-xl);
+    visibility: visible;
+    transition: transform var(--transition-base), visibility 0s;
   }
 
   /* The collapsed rail is a desktop-only affordance. */
@@ -3050,7 +3062,17 @@
 
   .header-menu-button { display: inline-flex; }
   .app-header { padding: 0 var(--space-lg); }
-  .header-search { display: none; }
+  /* Touch devices have no Ctrl/Cmd+K: keep search reachable as an icon. */
+  .header-search {
+    width: 36px;
+    flex: none;
+    justify-content: center;
+    margin-left: auto;
+    padding: 0;
+  }
+  .header-search-label,
+  .header-search kbd { display: none; }
+  .header-search + .header-actions { margin-left: 0; }
 }
 
 /* Mobile */
