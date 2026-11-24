@@ -32,10 +32,27 @@ _SORT_ORDERS = {
 }
 
 
-def _record_status(db: Session, application: Application) -> None:
-    """Append the application's current status to its history (same commit)."""
+def _record_status(
+    db: Session, application: Application, previous_status: ApplicationStatus | None = None
+):
+    """Append the application's current status to its history (same commit).
+
+    Also queues the candidate's Telegram notification in the same transaction
+    and returns its outbox event (or ``None``); publish it after the commit.
+    """
     status = application.application_status or ApplicationStatus.NEW
     db.add(ApplicationStatusHistory(application_id=application.id, status=ApplicationStatus(status).value))
+    # Imported here: the notifier pulls in the outbox -> Celery tasks -> this module.
+    from app.services.telegram import notifier
+
+    return notifier.queue_status_change(db, application, previous_status)
+
+
+def _publish_notification(db: Session, event) -> None:
+    if event is not None:
+        from app.services.telegram import notifier
+
+        notifier.publish(db, event)
 
 
 def create_application(
@@ -54,9 +71,10 @@ def create_application(
     )
     db.add(application)
     db.flush()
-    _record_status(db, application)
+    event = _record_status(db, application)
     db.commit()
     db.refresh(application)
+    _publish_notification(db, event)
     return application
 
 
@@ -160,10 +178,12 @@ def update_application(db: Session, application: Application, payload: Applicati
     previous_status = application.application_status
     for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(application, field, value)
+    event = None
     if application.application_status != previous_status:
-        _record_status(db, application)
+        event = _record_status(db, application, previous_status)
     db.commit()
     db.refresh(application)
+    _publish_notification(db, event)
     return application
 
 

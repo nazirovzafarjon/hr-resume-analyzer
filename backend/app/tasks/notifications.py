@@ -148,3 +148,42 @@ def send_email_task(
             "recipient": recipient,
             "error": str(exc),
         }
+
+
+@celery_app.task(
+    bind=True,
+    name="app.tasks.notifications.send_telegram_task",
+    max_retries=5,
+    acks_late=True,
+)
+def send_telegram_task(self: Task, **payload: Any) -> dict[str, Any]:
+    """Deliver one queued Telegram notification (see ``services.telegram.notifier``).
+
+    The message is rendered now, from current data, in the chat's language.
+    A blocked bot (403) deactivates the link; rate limits and transient
+    failures are retried; other Bot API rejections are logged and dropped.
+    """
+    from app.core.database import SessionLocal
+    from app.services.telegram import client, notifier
+
+    with SessionLocal() as db:
+        message = notifier.build_message(db, payload)
+        if message is None:
+            return {"status": "skipped"}
+        try:
+            client.send_message(message.chat_id, message.text, buttons=message.buttons)
+        except client.TelegramBlockedError:
+            notifier.mark_blocked(db, message.link_id)
+            logger.info("Telegram link id=%s blocked the bot; deactivated", message.link_id)
+            return {"status": "blocked"}
+        except client.TelegramRetryAfterError as exc:
+            raise self.retry(exc=exc, countdown=exc.retry_after)
+        except client.TelegramTransientError as exc:
+            if self.request.retries < self.max_retries:
+                raise self.retry(exc=exc, countdown=5 * (2 ** self.request.retries))
+            logger.error("Telegram delivery failed after retries: %s", exc)
+            return {"status": "failed", "error": str(exc)}
+        except client.TelegramBadRequestError as exc:
+            logger.error("Telegram rejected the message for link id=%s: %s", message.link_id, exc)
+            return {"status": "rejected", "error": str(exc)}
+    return {"status": "sent"}
