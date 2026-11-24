@@ -107,7 +107,7 @@ def _clean_tables(_prepare_database):
                 "applications, jobs, users, contact_messages, audit_logs, system_errors, "
                 "ai_analysis_runs, platform_settings, revoked_tokens, session_cutoffs, "
                 "candidate_accounts, application_status_history, email_verifications, "
-                "pending_registrations "
+                "pending_registrations, telegram_links, telegram_link_tokens "
                 "RESTART IDENTITY CASCADE"
             )
         )

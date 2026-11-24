@@ -46,3 +46,6 @@ python-docx
 # Observability & Monitoring (Phase 1 Production Foundation)
 prometheus-client
 sentry-sdk[fastapi]
+
+# Telegram bot process (python -m app.bot, the `bot` service in docker-compose)
+aiogram>=3.20,<4

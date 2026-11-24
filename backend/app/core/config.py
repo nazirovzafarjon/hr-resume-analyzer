@@ -209,6 +209,24 @@ class Settings(BaseSettings):
             return self.REDIS_URL[:-2] + "/1"
         return self.REDIS_URL
 
+    # Telegram bot (account linking + notifications)
+    # Off by default: with TELEGRAM_ENABLED false the link endpoints answer
+    # 503 and the bot process refuses to start, so nothing else changes.
+    TELEGRAM_ENABLED: bool = False
+    # Token from @BotFather. Secret: never log it or send it to the frontend.
+    TELEGRAM_BOT_TOKEN: str = ""
+    # Bot username without "@", used to build https://t.me/<bot>?start=<token>.
+    TELEGRAM_BOT_USERNAME: str = ""
+    # Lifetime of the single-use token inside the deep link.
+    TELEGRAM_LINK_TOKEN_EXPIRE_MINUTES: int = Field(default=10, ge=1, le=60)
+
+    @property
+    def telegram_configured(self) -> bool:
+        """True when the bot is switched on and has its token and username."""
+        return bool(
+            self.TELEGRAM_ENABLED and self.TELEGRAM_BOT_TOKEN and self.TELEGRAM_BOT_USERNAME
+        )
+
     # Profile images (local storage, served from the /uploads static mount)
     # Directory that stores uploaded files (profile images), relative to the
     # directory the backend is started from.

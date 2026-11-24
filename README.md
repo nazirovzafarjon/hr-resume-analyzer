@@ -1302,6 +1302,11 @@ New HR and candidate registrations undergo two-phase verification:
    - Development fallback: When `RESEND_API_KEY` is not provided, email links and codes are logged directly to the server console.
 3. **AI LLM Providers**:
    - Direct asynchronous HTTP integration with OpenRouter, Groq, Google Gemini, Anthropic, OpenAI, DeepSeek, and custom OpenAI-compatible endpoints.
+4. **Telegram Bot** (optional, `backend/app/bot/`, aiogram 3):
+   - HR users link Telegram in **Settings → Telegram**, candidates in **Profile → Telegram**. The page issues a single-use deep link (`https://t.me/<bot>?start=<token>`, valid `TELEGRAM_LINK_TOKEN_EXPIRE_MINUTES`); the bot consumes the token from `/start` and stores a `telegram_links` row. Only a SHA-256 digest of the token is kept, and accounts are never matched by phone number or username.
+   - Bot commands: `/start`, `/status`, `/unlink`, `/help` (private chats only; replies in Uzbek, Russian or English from the Telegram language).
+   - Setup: create a bot with @BotFather, set `TELEGRAM_ENABLED=true`, `TELEGRAM_BOT_TOKEN` and `TELEGRAM_BOT_USERNAME` in `backend/.env`, then start the opt-in service with `docker compose --profile telegram up -d`. With the bot disabled the API answers `503` for new links and the candidate card stays hidden.
+   - Phase 1 covers account linking only; application and status notifications are added in later phases.
 
 ---
 

@@ -49,5 +49,23 @@
     "error": "Ошибка",
     "warning": "Предупреждение",
     "info": "Информация"
+  },
+  "telegram": {
+    "title": "Telegram",
+    "subtitleHr": "Получайте уведомления о новых заявках в Telegram.",
+    "subtitleCandidate": "Получайте уведомления в Telegram, когда меняется статус ваших заявок.",
+    "notConfigured": "Telegram-бот ещё не настроен на сервере.",
+    "howTo": "Нажмите кнопку — откроется Telegram, там нажмите «Start». Ссылка действует 10 минут.",
+    "waiting": "Нажмите «Start» в Telegram. Подключение появится здесь автоматически.",
+    "connect": "Подключить Telegram",
+    "newLink": "Новая ссылка",
+    "openAgain": "Открыть Telegram снова",
+    "linkedAs": "Подключено: {name}",
+    "blocked": "Бот заблокирован — перезапустите его в Telegram, чтобы получать уведомления.",
+    "disconnect": "Отключить",
+    "connected": "Telegram подключён",
+    "disconnected": "Telegram отключён",
+    "connectFailed": "Не удалось создать ссылку",
+    "disconnectFailed": "Не удалось отключить"
   }
 }
