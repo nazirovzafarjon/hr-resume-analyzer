@@ -54,6 +54,13 @@ services:
         condition: service_healthy
     ports:
       - "8000:8000"
+    # Backend settings from backend/.env (OAuth, email, AI, ...). The image
+    # never contains .env (.dockerignore), so without this those values are
+    # empty in the container. Keys under `environment:` below win, which
+    # keeps the container-network URLs (postgres, redis, /app/uploads).
+    env_file:
+      - path: ./backend/.env
+        required: false
     environment:
       - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-resume_analyzer}
       - REDIS_URL=redis://redis:6379/0
@@ -85,6 +92,9 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    env_file:
+      - path: ./backend/.env
+        required: false
     environment:
       - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-resume_analyzer}
       - REDIS_URL=redis://redis:6379/0
@@ -114,6 +124,9 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    env_file:
+      - path: ./backend/.env
+        required: false
     environment:
       - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-resume_analyzer}
       - REDIS_URL=redis://redis:6379/0
@@ -143,6 +156,9 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    env_file:
+      - path: ./backend/.env
+        required: false
     environment:
       - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-resume_analyzer}
       - REDIS_URL=redis://redis:6379/0
@@ -169,6 +185,9 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    env_file:
+      - path: ./backend/.env
+        required: false
     environment:
       - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-resume_analyzer}
       - REDIS_URL=redis://redis:6379/0
@@ -197,6 +216,9 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    env_file:
+      - path: ./backend/.env
+        required: false
     environment:
       - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-resume_analyzer}
       - REDIS_URL=redis://redis:6379/0
@@ -224,6 +246,9 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    env_file:
+      - path: ./backend/.env
+        required: false
     environment:
       - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-resume_analyzer}
       - REDIS_URL=redis://redis:6379/0
