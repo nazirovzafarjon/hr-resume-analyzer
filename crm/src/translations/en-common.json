@@ -49,5 +49,23 @@
     "error": "Error",
     "warning": "Warning",
     "info": "Info"
+  },
+  "telegram": {
+    "title": "Telegram",
+    "subtitleHr": "Get notified about new applications in Telegram.",
+    "subtitleCandidate": "Get notified in Telegram when the status of your applications changes.",
+    "notConfigured": "The Telegram bot is not configured on the server yet.",
+    "howTo": "Press the button to open Telegram, then press “Start” there. The link is valid for 10 minutes.",
+    "waiting": "Press “Start” in Telegram. The connection will show up here automatically.",
+    "connect": "Connect Telegram",
+    "newLink": "New link",
+    "openAgain": "Open Telegram again",
+    "linkedAs": "Connected: {name}",
+    "blocked": "The bot is blocked — restart it in Telegram to receive notifications.",
+    "disconnect": "Disconnect",
+    "connected": "Telegram connected",
+    "disconnected": "Telegram disconnected",
+    "connectFailed": "Could not create the link",
+    "disconnectFailed": "Could not disconnect"
   }
 }

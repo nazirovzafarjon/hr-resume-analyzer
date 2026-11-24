@@ -49,5 +49,23 @@
     "error": "Xatolik",
     "warning": "Ogohlantirish",
     "info": "Ma'lumot"
+  },
+  "telegram": {
+    "title": "Telegram",
+    "subtitleHr": "Yangi arizalar haqida Telegram orqali xabar oling.",
+    "subtitleCandidate": "Arizalaringiz holati o'zgarganda Telegram orqali xabar oling.",
+    "notConfigured": "Telegram bot hali serverda sozlanmagan.",
+    "howTo": "Tugmani bosing, Telegram ochiladi — u yerda «Start» ni bosing. Havola 10 daqiqa amal qiladi.",
+    "waiting": "Telegramda «Start» ni bosing. Ulanish shu yerda avtomatik ko'rinadi.",
+    "connect": "Telegramni ulash",
+    "newLink": "Yangi havola",
+    "openAgain": "Telegramni qayta ochish",
+    "linkedAs": "Ulangan: {name}",
+    "blocked": "Bot bloklangan — xabar kelishi uchun Telegramda botni qayta ishga tushiring.",
+    "disconnect": "Uzish",
+    "connected": "Telegram ulandi",
+    "disconnected": "Telegram uzildi",
+    "connectFailed": "Havola yaratib bo'lmadi",
+    "disconnectFailed": "Uzib bo'lmadi"
   }
 }

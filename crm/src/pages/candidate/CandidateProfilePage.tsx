@@ -7,6 +7,7 @@ import PageMeta from "../../components/seo/PageMeta";
 import PasswordInput from "../../components/auth/PasswordInput";
 import { candidateImageUrl } from "../../components/candidate/portalFormat";
 import { PortalLoading } from "../../components/candidate/PortalStates";
+import TelegramLinkCard from "../../components/settings/TelegramLinkCard";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { useNotify } from "../../contexts/ToastContext";
 import { useCandidateAuth } from "../../context/CandidateAuthContext";
@@ -228,6 +229,8 @@ export default function CandidateProfilePage() {
             <p className="portal-muted">{t("portal.profile.googleOnlyNotice")}</p>
           </Card>
         )}
+
+        <TelegramLinkCard kind="candidate" hideWhenDisabled />
       </div>
     </div>
   );

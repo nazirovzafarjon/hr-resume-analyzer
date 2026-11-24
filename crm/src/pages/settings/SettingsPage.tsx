@@ -1,6 +1,6 @@
 import { useEffect, useState, type ChangeEvent } from "react";
 import { useSearchParams } from "react-router-dom";
-import { User, Palette, Globe, Shield, Sun, Moon, Monitor, Check, Upload, Trash2, Bot } from "lucide-react";
+import { User, Palette, Globe, Shield, Sun, Moon, Monitor, Check, Upload, Trash2, Bot, Send } from "lucide-react";
 import PageHeader from "../../components/ui/PageHeader";
 import PageMeta from "../../components/seo/PageMeta";
 import Card from "../../components/ui/Card";
@@ -10,6 +10,7 @@ import PasswordInput from "../../components/auth/PasswordInput";
 import PasswordRequirements from "../../components/auth/PasswordRequirements";
 import AuthMessage from "../../components/auth/AuthMessage";
 import AIProviderSettings from "../../components/settings/AIProviderSettings";
+import TelegramLinkCard from "../../components/settings/TelegramLinkCard";
 import ErrorState from "../../components/ui/ErrorState";
 import { Skeleton, SkeletonText } from "../../components/ui/Skeleton";
 import Tabs from "../../components/ui/Tabs";
@@ -47,9 +48,9 @@ function initialsOf(fullName: string): string {
     .join("");
 }
 
-type TabKey = "profile" | "appearance" | "language" | "security" | "ai";
+type TabKey = "profile" | "appearance" | "language" | "security" | "ai" | "telegram";
 
-const TAB_KEYS: readonly TabKey[] = ["profile", "appearance", "language", "security", "ai"];
+const TAB_KEYS: readonly TabKey[] = ["profile", "appearance", "language", "security", "ai", "telegram"];
 
 function isTabKey(value: string | null): value is TabKey {
   return value !== null && (TAB_KEYS as readonly string[]).includes(value);
@@ -285,6 +286,7 @@ export default function SettingsPage() {
     { key: "language", label: t("settings.language") || "Language", icon: <Globe size={16} /> },
     { key: "security", label: t("settings.password") || "Security", icon: <Shield size={16} /> },
     { key: "ai", label: t("settings.aiProvider.tab"), icon: <Bot size={16} /> },
+    { key: "telegram", label: t("telegram.title"), icon: <Send size={16} /> },
   ];
 
   const themes: { key: Theme; label: string; icon: typeof Sun; desc: string }[] = [
@@ -550,6 +552,8 @@ export default function SettingsPage() {
       )}
 
       {activeTab === "ai" && <AIProviderSettings />}
+
+      {activeTab === "telegram" && <TelegramLinkCard kind="hr" />}
     </div>
   );
 }

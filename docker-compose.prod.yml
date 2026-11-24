@@ -96,6 +96,9 @@ services:
       - SENTRY_ENVIRONMENT=production
       - LOG_FORMAT=json
       - DEBUG=false
+      - TELEGRAM_ENABLED=${TELEGRAM_ENABLED:-false}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+      - TELEGRAM_BOT_USERNAME=${TELEGRAM_BOT_USERNAME:-}
     volumes:
       - uploads-data:/app/uploads
     healthcheck:
@@ -349,6 +352,42 @@ services:
       - LOG_FORMAT=json
       - DEBUG=false
     command: ["celery", "-A", "app.core.celery_app", "beat", "-l", "info"]
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+        reservations:
+          cpus: "0.1"
+          memory: 64M
+
+  # Telegram bot (long polling). Opt-in: `docker compose -f docker-compose.prod.yml --profile telegram up -d`.
+  bot:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: resume-analyzer-bot
+    profiles: ["telegram"]
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-resume_analyzer}
+      - REDIS_URL=redis://redis:6379/0
+      - SECRET_KEY=${SECRET_KEY}
+      - SENTRY_DSN=${SENTRY_DSN:-}
+      - LOG_FORMAT=json
+      - DEBUG=false
+      - FRONTEND_BASE_URL=${FRONTEND_BASE_URL:-}
+      - TELEGRAM_ENABLED=${TELEGRAM_ENABLED:-false}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+      - TELEGRAM_BOT_USERNAME=${TELEGRAM_BOT_USERNAME:-}
+    healthcheck:
+      disable: true
+    command: ["python", "-m", "app.bot"]
     deploy:
       resources:
         limits:

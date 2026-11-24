@@ -49,5 +49,23 @@
     "error": "Хатолик",
     "warning": "Огоҳлантириш",
     "info": "Маълумот"
+  },
+  "telegram": {
+    "title": "Telegram",
+    "subtitleHr": "Янги аризалар ҳақида Telegram орқали хабар олинг.",
+    "subtitleCandidate": "Аризаларингиз ҳолати ўзгарганда Telegram орқали хабар олинг.",
+    "notConfigured": "Telegram бот ҳали серверда созланмаган.",
+    "howTo": "Тугмани босинг, Telegram очилади — у ерда «Start» ни босинг. Ҳавола 10 дақиқа амал қилади.",
+    "waiting": "Telegramда «Start» ни босинг. Уланиш шу ерда автоматик кўринади.",
+    "connect": "Telegramни улаш",
+    "newLink": "Янги ҳавола",
+    "openAgain": "Telegramни қайта очиш",
+    "linkedAs": "Уланган: {name}",
+    "blocked": "Бот блокланган — хабар келиши учун Telegramда ботни қайта ишга туширинг.",
+    "disconnect": "Узиш",
+    "connected": "Telegram уланди",
+    "disconnected": "Telegram узилди",
+    "connectFailed": "Ҳавола яратиб бўлмади",
+    "disconnectFailed": "Узиб бўлмади"
   }
 }
