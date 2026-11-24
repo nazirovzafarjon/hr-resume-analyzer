@@ -45,6 +45,7 @@
   color: var(--color-text-secondary);
   font-size: var(--text-base);
   font-weight: var(--font-medium);
+  white-space: nowrap;
   transition:
     color var(--transition-fast),
     background-color var(--transition-fast);
@@ -63,13 +64,18 @@
 
 .navbar-actions .btn {
   margin-left: 2px;
+  white-space: nowrap;
 }
 
 .navbar-toggle {
   margin-left: auto;
 }
 
-@media (min-width: 1024px) {
+/* The full bar (5 links + language, theme and 3 CTAs) only fits on one line
+   from ~1200px — in Russian/Uzbek the labels are longer still. Below that
+   everything lives in the menu panel, so nothing ever wraps. Keep in sync
+   with DESKTOP_QUERY in Navbar.tsx. */
+@media (min-width: 1200px) {
   .navbar-links,
   .navbar-actions {
     display: flex;
@@ -78,6 +84,21 @@
   .navbar-toggle,
   .mobile-menu {
     display: none !important;
+  }
+}
+
+/* Between 1200px and 1360px the bar is tight: trim spacing, not content. */
+@media (min-width: 1200px) and (max-width: 1359px) {
+  .navbar-inner {
+    gap: var(--space-md);
+  }
+
+  .navbar-links {
+    gap: 0;
+  }
+
+  .navbar-links a {
+    padding-inline: 9px;
   }
 }
 

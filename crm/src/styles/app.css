@@ -1307,6 +1307,35 @@
   margin-top: var(--space-sm);
 }
 
+/* Analysis failed (e.g. AI not set up): the error plus the two ways forward. */
+.job-form-error {
+  display: grid;
+  gap: var(--space-xs);
+  margin-top: var(--space-md);
+  padding: var(--space-md);
+  border: 1px solid color-mix(in srgb, var(--color-danger) 35%, transparent);
+  border-radius: var(--radius-md);
+  background-color: color-mix(in srgb, var(--color-danger) 8%, transparent);
+}
+
+.job-form-error .field-error,
+.job-form-error .form-section-hint {
+  margin: 0;
+}
+
+.job-form-error-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-md);
+  margin-top: var(--space-xs);
+}
+
+.job-form-error-link {
+  color: var(--color-primary);
+  font-weight: var(--font-medium);
+}
+
 /* Job create flow — compact, non-interactive progress indicator. */
 .create-steps {
   display: flex;

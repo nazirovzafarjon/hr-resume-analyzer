@@ -7,11 +7,12 @@ import { useI18n } from "../../i18n";
 import { appLinks } from "../../lib/config";
 import { useSignedIn } from "../../hooks/useSignedIn";
 
-const DESKTOP_QUERY = "(min-width: 1024px)";
+// Keep in sync with the navbar breakpoint in styles/landing.css.
+const DESKTOP_QUERY = "(min-width: 1200px)";
 
 /**
  * Sticky top navigation. Transparent over the hero, gains a surface and a
- * hairline border once the page scrolls. Below 1024px the links, preferences
+ * hairline border once the page scrolls. Below 1200px the links, preferences
  * and CTAs move into a disclosure panel behind the menu button.
  *
  * Visitors with a CRM session see "Open workspace" instead of the log in /
