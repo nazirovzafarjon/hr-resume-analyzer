@@ -149,6 +149,8 @@ export const routes: RouteObject[] = [
   { path: "/dashboard", element: protectedPage(<DashboardPage />) },
   { path: "/jobs", element: protectedPage(<JobListPage />) },
   { path: "/jobs/create", element: protectedPage(<JobCreatePage />) },
+  // Common guess for the create URL; without this it reaches /jobs/:id as "Not found".
+  { path: "/jobs/new", element: <Navigate to="/jobs/create" replace /> },
   { path: "/jobs/:id", element: protectedPage(<JobDetailsPage />) },
   { path: "/jobs/:id/edit", element: protectedPage(<JobEditPage />) },
   { path: "/candidates", element: protectedPage(<CandidatesPage />) },

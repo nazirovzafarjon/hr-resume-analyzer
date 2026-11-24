@@ -31,6 +31,8 @@ type ApplicationFormBuilderProps = {
   errors?: string[] | null;
   /** Job presentation fields for the "Preview form" action; omit to hide it. */
   previewJobInfo?: PublicJobInfo;
+  /** Overrides the default subtitle, which says AI drafted the questions. */
+  subtitle?: string;
 };
 
 function blankPreviewValues(fields: ApplicationFieldDef[]): ApplicationValues {
@@ -46,6 +48,7 @@ export default function ApplicationFormBuilder({
   onFieldsChange,
   errors,
   previewJobInfo,
+  subtitle,
 }: ApplicationFormBuilderProps) {
   const { t } = useLanguage();
   const [editorOpen, setEditorOpen] = useState(false);
@@ -91,7 +94,8 @@ export default function ApplicationFormBuilder({
         <div>
           <h2 className="card-title">{t("applicationForm.builderTitle") || "Review application form"}</h2>
           <p className="card-subtitle">
-            {t("applicationForm.builderSubtitle") ||
+            {subtitle ||
+              t("applicationForm.builderSubtitle") ||
               "Customize the information candidates will submit. AI drafted these questions — you have the final say: edit, retype, reorder, add or delete."}
           </p>
         </div>

@@ -367,8 +367,10 @@ figure {
    ------------------------------------------------------------------------ */
 .logo {
   display: inline-flex;
+  flex-shrink: 0;
   align-items: center;
   gap: 10px;
+  white-space: nowrap;
   color: var(--color-text);
   font-weight: var(--font-semibold);
   letter-spacing: var(--tracking-tight);

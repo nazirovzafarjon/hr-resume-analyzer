@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Check } from "lucide-react";
 import { analyzeVacancy, createJob, publishApplicationForm } from "../../services/jobsService";
 import { buildDefaultApplicationFields, reviewFieldsFromAnalysis, validateApplicationFields } from "../../utils/applicationFields";
@@ -53,7 +53,10 @@ export default function JobCreatePage() {
   const [analysisError, setAnalysisError] = useState<string | null>(null);
   const [publishing, setPublishing] = useState(false);
   const [createdJobId, setCreatedJobId] = useState<number | null>(null);
+  // True when HR skipped AI: the review step then shows no AI summary card.
+  const [manualEntry, setManualEntry] = useState(false);
   const mountedRef = useRef(true);
+  const formRef = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -61,6 +64,15 @@ export default function JobCreatePage() {
       mountedRef.current = false;
     };
   }, []);
+
+  // A failed analysis returns to the (re-mounted) input form with the error
+  // panel at its very bottom — bring it into view so the way forward is seen.
+  useEffect(() => {
+    if (step !== "input" || !analysisError) return;
+    formRef.current
+      ?.querySelector(".job-form-error")
+      ?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [step, analysisError]);
 
   function buildVacancyContent(): string {
     const parts: string[] = [];
@@ -87,30 +99,31 @@ export default function JobCreatePage() {
     setFileText(await file.text());
   }
 
+  /**
+   * Validates the basics together so every problem surfaces at once, then
+   * moves focus to the first invalid field — on a long form the error would
+   * otherwise sit off-screen while the user looks at the submit button.
+   */
+  function validateBasics(): boolean {
+    const nextCompanyError = company.trim().length < 2 ? t("jobs.companyNameError") : undefined;
+    const nextPositionError = position.trim().length < 2 ? t("jobs.positionError") : undefined;
+    setCompanyError(nextCompanyError);
+    setPositionError(nextPositionError);
+    setAnalysisError(null);
+    if (!nextCompanyError && !nextPositionError) return true;
+    // Wait for React to render aria-invalid before looking for the field.
+    requestAnimationFrame(() => {
+      const field = formRef.current?.querySelector<HTMLElement>('[aria-invalid="true"]');
+      field?.scrollIntoView({ behavior: "smooth", block: "center" });
+      field?.focus({ preventScroll: true });
+    });
+    return false;
+  }
+
   function handleAnalyse() {
+    if (!validateBasics()) return;
     const content = buildVacancyContent();
-    // Validate everything together so all problems surface at once, not one
-    // analyse-click at a time.
-    let hasError = false;
-    if (!content.trim()) {
-      setAnalysisError(t("jobs.analysisErrorEmpty"));
-      hasError = true;
-    } else {
-      setAnalysisError(null);
-    }
-    if (company.trim().length < 2) {
-      setCompanyError(t("jobs.companyNameError"));
-      hasError = true;
-    } else {
-      setCompanyError(undefined);
-    }
-    if (position.trim().length < 2) {
-      setPositionError(t("jobs.positionError"));
-      hasError = true;
-    } else {
-      setPositionError(undefined);
-    }
-    if (hasError) return;
+    setManualEntry(false);
 
     setAnalyzing(true);
     setStep("processing");
@@ -131,6 +144,25 @@ export default function JobCreatePage() {
       .finally(() => {
         if (mountedRef.current) setAnalyzing(false);
       });
+  }
+
+  /** Skips AI: the review step is filled straight from what HR typed. */
+  function handleContinueWithoutAi() {
+    if (!validateBasics()) return;
+    setAnalysis({
+      company_name: company.trim(),
+      position: position.trim(),
+      description: [description.trim(), fileText.trim()].filter(Boolean).join("\n\n"),
+      required_skills: skills.join(", "),
+      required_experience: experience.trim(),
+      application_fields: null,
+    });
+    setFormFields(buildDefaultApplicationFields());
+    setManualEntry(true);
+    setStep("review");
+    // The AI path passes through the short "processing" card and lands at the
+    // top; do the same here instead of leaving the user mid-page.
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   async function handleCreateJob() {
@@ -254,6 +286,8 @@ export default function JobCreatePage() {
         {step === "input" && (
           <Card>
             <form
+              ref={formRef}
+              noValidate
               className="job-form"
               onSubmit={(e) => {
                 e.preventDefault();
@@ -345,15 +379,27 @@ export default function JobCreatePage() {
                   size="md"
                   isDirty={isDirty}
                 />
+                <Button variant="secondary" onClick={handleContinueWithoutAi} disabled={analyzing}>
+                  {t("jobs.continueWithoutAi")}
+                </Button>
                 <Button onClick={handleAnalyse} loading={analyzing} disabled={analyzing}>
                   {analyzing ? t("jobs.analysing") : t("jobs.analyseButton")}
                 </Button>
               </div>
-              {analysisError && (
-                <p className="field-error" role="alert">
-                  {analysisError}
-                </p>
-              )}
+              {analysisError ? (
+                <div className="job-form-error" role="alert">
+                  <p className="field-error">{analysisError}</p>
+                  <p className="form-section-hint">{t("jobs.continueWithoutAiHint")}</p>
+                  <div className="job-form-error-actions">
+                    <Button variant="secondary" size="sm" onClick={handleContinueWithoutAi}>
+                      {t("jobs.continueWithoutAi")}
+                    </Button>
+                    <Link className="job-form-error-link" to="/settings?tab=ai">
+                      {t("jobs.openAiSettings")}
+                    </Link>
+                  </div>
+                </div>
+              ) : null}
             </form>
           </Card>
         )}
@@ -366,8 +412,8 @@ export default function JobCreatePage() {
 
         {(step === "review" || step === "published") && analysis && (
           <div className="stack">
-            <JobAIAnalysisCard analysis={analysis} />
-            <Card title={t("jobs.reviewTitle")} subtitle={t("jobs.reviewSubtitle")}>
+            {!manualEntry && <JobAIAnalysisCard analysis={analysis} />}
+            <Card title={t("jobs.reviewTitle")} subtitle={t(manualEntry ? "jobs.reviewSubtitleManual" : "jobs.reviewSubtitle")}>
               <TextInput
                 label={t("jobs.companyName")}
                 required
@@ -416,6 +462,7 @@ export default function JobCreatePage() {
               onFieldsChange={setFormFields}
               errors={step === "review" ? validateApplicationFields(formFields) : undefined}
               previewJobInfo={previewJobInfo}
+              subtitle={manualEntry ? t("applicationForm.builderSubtitleManual") : undefined}
             />
             {step === "published" && token && (
               <>

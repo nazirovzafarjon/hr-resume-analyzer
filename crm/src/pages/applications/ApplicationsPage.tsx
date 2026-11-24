@@ -127,6 +127,9 @@ export default function ApplicationsPage() {
         action={
           <Button
             icon={<Sparkles size={16} />}
+            // Nothing to analyse until the first application arrives.
+            disabled={loading || applications.length === 0}
+            title={!loading && applications.length === 0 ? t("applications.noApplications") : undefined}
             onClick={() => {
               setSelectedJobId(jobFilter !== "all" ? Number(jobFilter) : undefined);
               setAutoAnalyzeOpen(true);

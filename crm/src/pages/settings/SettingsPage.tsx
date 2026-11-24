@@ -1,4 +1,5 @@
 import { useEffect, useState, type ChangeEvent } from "react";
+import { useSearchParams } from "react-router-dom";
 import { User, Palette, Globe, Shield, Sun, Moon, Monitor, Check, Upload, Trash2, Bot } from "lucide-react";
 import PageHeader from "../../components/ui/PageHeader";
 import PageMeta from "../../components/seo/PageMeta";
@@ -48,6 +49,12 @@ function initialsOf(fullName: string): string {
 
 type TabKey = "profile" | "appearance" | "language" | "security" | "ai";
 
+const TAB_KEYS: readonly TabKey[] = ["profile", "appearance", "language", "security", "ai"];
+
+function isTabKey(value: string | null): value is TabKey {
+  return value !== null && (TAB_KEYS as readonly string[]).includes(value);
+}
+
 /** /settings — the signed-in HR user's account, appearance, language and security. */
 export default function SettingsPage() {
   const { signIn } = useAuth();
@@ -55,7 +62,13 @@ export default function SettingsPage() {
   const { language, setLanguage, t } = useLanguage();
   const notify = useNotify();
 
-  const [activeTab, setActiveTab] = useState<TabKey>("profile");
+  // `?tab=ai` (etc.) deep-links to a tab, e.g. from the job form's
+  // "Set up AI provider" link; the URL follows tab changes so reloads stay put.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedTab = searchParams.get("tab");
+  const activeTab: TabKey = isTabKey(requestedTab) ? requestedTab : "profile";
+  const setActiveTab = (key: TabKey) =>
+    setSearchParams(key === "profile" ? {} : { tab: key }, { replace: true });
 
   // Loaded profile + page state.
   const [profile, setProfile] = useState<UserProfile | null>(null);
