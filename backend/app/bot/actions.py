@@ -11,6 +11,8 @@ from __future__ import annotations
 import html
 import logging
 from dataclasses import dataclass, field
+from datetime import date, datetime, time, timedelta, timezone
+from urllib.parse import urlparse
 
 from sqlalchemy.orm import contains_eager
 
@@ -22,14 +24,18 @@ from app.bot.texts import (
     status_label,
     t,
     timeline_label,
+    weekday_label,
 )
 from app.core.config import settings
 from app.core.database import SessionLocal
 from app.crud import application as application_crud
+from app.crud import interview as interview_crud
 from app.models.application import AnalysisStatus, Application, ApplicationStatus
+from app.models.interview import Interview, InterviewStatus
 from app.models.job import Job
 from app.models.telegram_link import TelegramAccountKind
 from app.schemas.application import ApplicationUpdate
+from app.schemas.interview import InterviewCreate, InterviewUpdate
 from app.services import audit, candidate_portal
 from app.services.telegram import linking, notifier
 from app.services.telegram.linking import TelegramProfile
@@ -96,10 +102,15 @@ Buttons = list[list[dict[str, str]]]
 
 @dataclass(frozen=True)
 class Reply:
-    """A message to send or edit: HTML text plus inline keyboard rows."""
+    """A message to send or edit: HTML text plus inline keyboard rows.
+
+    ``awaiting_input`` asks the handler to treat the user's next plain text
+    message as the answer (the meeting link, phase 6).
+    """
 
     text: str
     buttons: Buttons = field(default_factory=list)
+    awaiting_input: bool = False
 
 
 def _candidate_for(db, profile: TelegramProfile):
@@ -299,8 +310,15 @@ def _hr_card(lang: str, application: Application, page: int, notice: str | None 
         t(lang, "hr_app_status", status=hr_status_label(lang, status)),
         _ai_line(lang, application),
     ]
+    upcoming = _next_interview(application)
+    if upcoming is not None:
+        lines.append(t(lang, "app_next_interview", date=notifier.format_date(upcoming.scheduled_at, with_time=True)))
 
     buttons: Buttons = []
+    if status not in _CLOSED_STATUSES:
+        buttons.append(
+            [{"text": t(lang, "btn_schedule"), "callback_data": f"hr:iv:{application.id}:{page}"}]
+        )
     # A withdrawn application is the candidate's decision: HR cannot move it.
     if status != ApplicationStatus.WITHDRAWN.value:
         targets = [target for target in HR_TARGETS if target.value != status]
@@ -430,6 +448,339 @@ def hr_set_status(
         )
         application = _owned_application(db, user, application_id)
         return _hr_card(lang, application, page, notice=t(lang, "hr_status_set", status=label))
+
+
+# ---------------------------------------------------------------------------
+# HR: schedule an interview from the bot (phase 6)
+# ---------------------------------------------------------------------------
+#
+# Card -> day (hr:iv) -> time (hr:ivd) -> review with duration (hr:ivt)
+# -> create (hr:ivok). Every step carries its choices in the callback data,
+# so nothing is kept between taps; only the optional meeting link afterwards
+# waits for a text message (hr:ivlink, see ``Reply.awaiting_input``).
+# Times are picked in ``TELEGRAM_TIMEZONE`` and stored in UTC.
+
+#: Days offered in the day picker.
+SCHEDULE_DAYS = 7
+#: Start times offered (local time): every 30 minutes, 09:00-18:30.
+SLOT_TIMES = tuple(time(hour, minute) for hour in range(9, 19) for minute in (0, 30))
+#: Durations offered on the review card, in minutes.
+DURATIONS = (30, 45, 60, 90)
+DEFAULT_DURATION = 60
+#: A slot must start at least this far ahead to be offered or booked.
+MIN_LEAD = timedelta(minutes=15)
+#: Statuses that end the process: no new interviews for them.
+_CLOSED_STATUSES = {
+    ApplicationStatus.WITHDRAWN.value,
+    ApplicationStatus.HIRED.value,
+    ApplicationStatus.REJECTED.value,
+}
+_DAY_FORMAT = "%Y%m%d"
+_SLOT_FORMAT = "%Y%m%d%H%M"
+
+
+def _now() -> datetime:
+    """Current UTC time (a function so tests can move the clock)."""
+    return datetime.now(timezone.utc)
+
+
+def _local_now() -> datetime:
+    return _now().astimezone(notifier.local_timezone())
+
+
+def _as_utc(value: datetime) -> datetime:
+    return value.replace(tzinfo=timezone.utc) if value.tzinfo is None else value.astimezone(timezone.utc)
+
+
+def _next_interview(application: Application) -> Interview | None:
+    """The application's soonest upcoming interview that is still ahead."""
+    now = _now()
+    upcoming = [
+        interview
+        for interview in application.interviews or []
+        if interview.status == InterviewStatus.UPCOMING and _as_utc(interview.scheduled_at) > now
+    ]
+    return min(upcoming, key=lambda interview: _as_utc(interview.scheduled_at), default=None)
+
+
+def _free_slots(day: date) -> list[datetime]:
+    """The day's start times (local, aware) that are still far enough ahead."""
+    tz = notifier.local_timezone()
+    earliest = _local_now() + MIN_LEAD
+    slots = [datetime.combine(day, slot, tzinfo=tz) for slot in SLOT_TIMES]
+    return [slot for slot in slots if slot >= earliest]
+
+
+def _bookable_days() -> list[date]:
+    """The next ``SCHEDULE_DAYS`` days that still have a free slot."""
+    today = _local_now().date()
+    days = [today + timedelta(days=offset) for offset in range(SCHEDULE_DAYS + 1)]
+    return [day for day in days if _free_slots(day)][:SCHEDULE_DAYS]
+
+
+def _parse_day(value: str) -> date | None:
+    try:
+        day = datetime.strptime(value, _DAY_FORMAT).date()
+    except ValueError:
+        return None
+    return day if day in _bookable_days() else None
+
+
+def _parse_slot(value: str) -> datetime | None:
+    """A ``YYYYMMDDHHMM`` slot as a local aware datetime, if it is still bookable."""
+    try:
+        naive = datetime.strptime(value, _SLOT_FORMAT)
+    except ValueError:
+        return None
+    if naive.time() not in SLOT_TIMES:
+        return None
+    slot = naive.replace(tzinfo=notifier.local_timezone())
+    return slot if slot >= _local_now() + MIN_LEAD else None
+
+
+def _load_schedulable(db, profile: TelegramProfile, application_id: int, page: int):
+    """``(user, application, None)`` or ``(None, None, error reply)``."""
+    lang = profile.language_code
+    user = _hr_for(db, profile)
+    if user is None:
+        return None, None, Reply(t(lang, "hr_not_hr"))
+    application = _owned_application(db, user, application_id)
+    if application is None:
+        return None, None, Reply(t(lang, "app_not_found"), [_back_to_list(lang, page)])
+    if _current_status(application) in _CLOSED_STATUSES:
+        return None, None, _hr_card(lang, application, page, notice=t(lang, "iv_closed"))
+    return user, application, None
+
+
+def _schedule_heading(lang: str, application: Application) -> str:
+    return t(
+        lang,
+        "iv_heading",
+        name=html.escape(application.name or "—"),
+        position=html.escape(application.job.position),
+    )
+
+
+def _day_label(lang: str, day: date) -> str:
+    return f"{weekday_label(lang, day.weekday())}, {day.strftime('%d.%m')}"
+
+
+def hr_schedule_days(profile: TelegramProfile, application_id: int, page: int = 0, notice: str | None = None) -> Reply:
+    """Step 1: pick a day."""
+    lang = profile.language_code
+    with SessionLocal() as db:
+        _, application, error = _load_schedulable(db, profile, application_id, page)
+        if error is not None:
+            return error
+        heading = _schedule_heading(lang, application)
+
+    lines = [notice, ""] if notice else []
+    lines += [heading, "", t(lang, "iv_pick_day", tz=html.escape(settings.TELEGRAM_TIMEZONE))]
+    days = [
+        {"text": _day_label(lang, day), "callback_data": f"hr:ivd:{application_id}:{day.strftime(_DAY_FORMAT)}:{page}"}
+        for day in _bookable_days()
+    ]
+    buttons: Buttons = [days[i : i + 3] for i in range(0, len(days), 3)]
+    buttons.append([{"text": t(lang, "btn_cancel"), "callback_data": f"hr:app:{application_id}:{page}"}])
+    return Reply("\n".join(lines), buttons)
+
+
+def hr_schedule_times(profile: TelegramProfile, application_id: int, day_value: str, page: int = 0) -> Reply:
+    """Step 2: pick a start time on the chosen day."""
+    lang = profile.language_code
+    day = _parse_day(day_value)
+    if day is None:
+        return hr_schedule_days(profile, application_id, page, notice=t(lang, "iv_slot_gone"))
+    with SessionLocal() as db:
+        _, application, error = _load_schedulable(db, profile, application_id, page)
+        if error is not None:
+            return error
+        heading = _schedule_heading(lang, application)
+
+    lines = [heading, "", t(lang, "iv_pick_time", day=_day_label(lang, day))]
+    slots = [
+        {
+            "text": slot.strftime("%H:%M"),
+            "callback_data": f"hr:ivt:{application_id}:{slot.strftime(_SLOT_FORMAT)}:{DEFAULT_DURATION}:{page}",
+        }
+        for slot in _free_slots(day)
+    ]
+    buttons: Buttons = [slots[i : i + 4] for i in range(0, len(slots), 4)]
+    buttons.append([{"text": t(lang, "btn_back_step"), "callback_data": f"hr:iv:{application_id}:{page}"}])
+    return Reply("\n".join(lines), buttons)
+
+
+def hr_schedule_review(
+    profile: TelegramProfile, application_id: int, slot_value: str, duration: int, page: int = 0
+) -> Reply:
+    """Step 3: the summary, with the duration to choose and the confirm button."""
+    lang = profile.language_code
+    slot = _parse_slot(slot_value)
+    if slot is None or duration not in DURATIONS:
+        return hr_schedule_days(profile, application_id, page, notice=t(lang, "iv_slot_gone"))
+    with SessionLocal() as db:
+        user, application, error = _load_schedulable(db, profile, application_id, page)
+        if error is not None:
+            return error
+        heading = _schedule_heading(lang, application)
+        interviewer = html.escape(user.full_name or user.email)
+
+    text = "\n".join(
+        [
+            heading,
+            "",
+            f"🕒 <b>{notifier.format_date(slot, with_time=True)}</b>",
+            t(lang, "iv_duration", minutes=str(duration)),
+            t(lang, "iv_interviewer", name=interviewer),
+            "",
+            t(lang, "iv_review_hint"),
+        ]
+    )
+    durations = [
+        {
+            "text": f"{'✓ ' if minutes == duration else ''}{t(lang, 'iv_minutes', minutes=str(minutes))}",
+            "callback_data": f"hr:ivt:{application_id}:{slot_value}:{minutes}:{page}",
+        }
+        for minutes in DURATIONS
+    ]
+    buttons: Buttons = [
+        durations,
+        [{"text": t(lang, "btn_iv_confirm"), "callback_data": f"hr:ivok:{application_id}:{slot_value}:{duration}:{page}"}],
+        [{"text": t(lang, "btn_back_step"), "callback_data": f"hr:ivd:{application_id}:{slot_value[:8]}:{page}"}],
+    ]
+    return Reply(text, buttons)
+
+
+def hr_schedule_confirm(
+    profile: TelegramProfile, application_id: int, slot_value: str, duration: int, page: int = 0
+) -> Reply:
+    """Step 4: create the interview, exactly like ``POST /api/interviews``.
+
+    The HR user is the interviewer and the owner; the creation is audited as
+    ``CREATE_INTERVIEW`` with ``via: telegram``. A second tap on the same
+    button finds the interview it already created instead of booking twice.
+    Reminders follow from the regular reminder scan.
+    """
+    lang = profile.language_code
+    slot = _parse_slot(slot_value)
+    if slot is None or duration not in DURATIONS:
+        return hr_schedule_days(profile, application_id, page, notice=t(lang, "iv_slot_gone"))
+    scheduled_at = slot.astimezone(timezone.utc)
+
+    with SessionLocal() as db:
+        user, application, error = _load_schedulable(db, profile, application_id, page)
+        if error is not None:
+            return error
+        interview = (
+            db.query(Interview)
+            .filter(
+                Interview.candidate_id == application.id,
+                Interview.status == InterviewStatus.UPCOMING,
+                Interview.scheduled_at == scheduled_at,
+            )
+            .first()
+        )
+        if interview is None:
+            interview = interview_crud.create_interview(
+                db,
+                InterviewCreate(
+                    candidate_id=application.id,
+                    interviewer=user.full_name or user.email,
+                    scheduled_at=scheduled_at,
+                    duration_minutes=duration,
+                ),
+                application.job.owner_id,
+            )
+            audit.record(
+                db,
+                audit.AuditAction.CREATE_INTERVIEW,
+                resource_type=audit.AuditResource.INTERVIEW,
+                resource_id=interview.id,
+                actor=user,
+                details={"candidate_id": application.id, "via": "telegram"},
+            )
+            logger.info(
+                "Interview scheduled from Telegram: interview_id=%s application_id=%s user_id=%s",
+                interview.id,
+                application.id,
+                user.id,
+            )
+        return _scheduled_reply(lang, interview, application, page, t(lang, "iv_scheduled"))
+
+
+def _scheduled_reply(lang: str, interview: Interview, application: Application, page: int, title: str) -> Reply:
+    lines = [
+        title,
+        "",
+        _schedule_heading(lang, application),
+        f"🕒 <b>{notifier.format_date(interview.scheduled_at, with_time=True)}</b>",
+        t(lang, "iv_duration", minutes=str(interview.duration_minutes)),
+    ]
+    if interview.meeting_link:
+        lines.append(f"🔗 {html.escape(interview.meeting_link)}")
+    lines += ["", t(lang, "iv_reminders_hint")]
+    link_key = "btn_change_link" if interview.meeting_link else "btn_add_link"
+    buttons: Buttons = [
+        [{"text": t(lang, link_key), "callback_data": f"hr:ivlink:{interview.id}:{page}"}],
+        [{"text": t(lang, "btn_to_card"), "callback_data": f"hr:app:{application.id}:{page}"}],
+    ]
+    return Reply("\n".join(lines), buttons)
+
+
+def _owned_upcoming_interview(db, user, interview_id: int) -> Interview | None:
+    interview = interview_crud.get_interview_by_id(db, interview_id, user.id)
+    if interview is None or interview.status != InterviewStatus.UPCOMING:
+        return None
+    if _as_utc(interview.scheduled_at) <= _now():
+        return None
+    return interview
+
+
+def hr_meeting_link_prompt(profile: TelegramProfile, interview_id: int, page: int = 0) -> Reply:
+    """Ask for the meeting link; the next text message is the answer."""
+    lang = profile.language_code
+    with SessionLocal() as db:
+        user = _hr_for(db, profile)
+        if user is None:
+            return Reply(t(lang, "hr_not_hr"))
+        if _owned_upcoming_interview(db, user, interview_id) is None:
+            return Reply(t(lang, "iv_not_found"), [_back_to_list(lang, page)])
+    return Reply(t(lang, "iv_link_prompt"), awaiting_input=True)
+
+
+def _clean_meeting_link(text: str) -> str | None:
+    value = (text or "").strip()
+    if not value or len(value) > 1024 or any(ch.isspace() for ch in value):
+        return None
+    parsed = urlparse(value)
+    if parsed.scheme not in ("http", "https") or not parsed.netloc:
+        return None
+    return value
+
+
+def hr_set_meeting_link(profile: TelegramProfile, interview_id: int, text: str, page: int = 0) -> Reply:
+    """Store the meeting link like ``PATCH /api/interviews/{id}`` (audited)."""
+    lang = profile.language_code
+    link = _clean_meeting_link(text)
+    if link is None:
+        return Reply(t(lang, "iv_link_invalid"), awaiting_input=True)
+    with SessionLocal() as db:
+        user = _hr_for(db, profile)
+        if user is None:
+            return Reply(t(lang, "hr_not_hr"))
+        interview = _owned_upcoming_interview(db, user, interview_id)
+        if interview is None:
+            return Reply(t(lang, "iv_not_found"), [_back_to_list(lang, page)])
+        interview = interview_crud.update_interview(db, interview, InterviewUpdate(meeting_link=link))
+        audit.record(
+            db,
+            audit.AuditAction.UPDATE_INTERVIEW,
+            resource_type=audit.AuditResource.INTERVIEW,
+            resource_id=interview.id,
+            actor=user,
+            details={"fields": ["meeting_link"], "via": "telegram"},
+        )
+        return _scheduled_reply(lang, interview, interview.candidate, page, t(lang, "iv_link_saved"))
 
 
 # ---------------------------------------------------------------------------

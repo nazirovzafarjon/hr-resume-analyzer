@@ -192,7 +192,7 @@ class OutgoingMessage:
     buttons: list[list[dict[str, str]]] = field(default_factory=list)
 
 
-def _timezone():
+def local_timezone():
     try:
         return ZoneInfo(settings.TELEGRAM_TIMEZONE)
     except (ZoneInfoNotFoundError, ValueError):
@@ -205,7 +205,7 @@ def format_date(value: datetime | None, *, with_time: bool = False) -> str:
         return "—"
     if value.tzinfo is None:
         value = value.replace(tzinfo=timezone.utc)
-    local = value.astimezone(_timezone())
+    local = value.astimezone(local_timezone())
     return local.strftime("%d.%m.%Y %H:%M" if with_time else "%d.%m.%Y")
 
 
