@@ -17,6 +17,7 @@ from sqlalchemy.orm import contains_eager
 from app.bot.texts import (
     STATUS_EMOJI,
     TIMELINE_STATE_EMOJI,
+    hr_action_label,
     hr_status_label,
     status_label,
     t,
@@ -24,10 +25,12 @@ from app.bot.texts import (
 )
 from app.core.config import settings
 from app.core.database import SessionLocal
+from app.crud import application as application_crud
 from app.models.application import AnalysisStatus, Application, ApplicationStatus
 from app.models.job import Job
 from app.models.telegram_link import TelegramAccountKind
-from app.services import candidate_portal
+from app.schemas.application import ApplicationUpdate
+from app.services import audit, candidate_portal
 from app.services.telegram import linking, notifier
 from app.services.telegram.linking import TelegramProfile
 
@@ -266,38 +269,164 @@ def _ai_line(lang: str, application: Application) -> str:
     return t(lang, "hr_ai_none")
 
 
+def _owned_application(db, user, application_id: int) -> Application | None:
+    """The application if it belongs to one of the HR user's own jobs."""
+    return (
+        db.query(Application)
+        .join(Application.job)
+        .filter(Application.id == application_id, Job.owner_id == user.id)
+        .options(contains_eager(Application.job))
+        .one_or_none()
+    )
+
+
+def _current_status(application: Application) -> str:
+    return ApplicationStatus(application.application_status or ApplicationStatus.NEW).value
+
+
+def _hr_card(lang: str, application: Application, page: int, notice: str | None = None) -> Reply:
+    """Applicant, status, AI match and the status buttons (phase 4)."""
+    status = _current_status(application)
+    lines = []
+    if notice:
+        lines += [notice, ""]
+    lines += [
+        f"👤 <b>{html.escape(application.name or '—')}</b>",
+        f"✉️ {html.escape(application.email or '—')}",
+        "",
+        f"<b>{html.escape(application.job.position)}</b> — {html.escape(application.job.company_name)}",
+        t(lang, "app_submitted", date=notifier.format_date(application.submitted_at, with_time=True)),
+        t(lang, "hr_app_status", status=hr_status_label(lang, status)),
+        _ai_line(lang, application),
+    ]
+
+    buttons: Buttons = []
+    # A withdrawn application is the candidate's decision: HR cannot move it.
+    if status != ApplicationStatus.WITHDRAWN.value:
+        targets = [target for target in HR_TARGETS if target.value != status]
+        actions_row = [
+            {
+                "text": hr_action_label(lang, target.value),
+                "callback_data": f"hr:set:{application.id}:{target.value}:{page}",
+            }
+            for target in targets
+        ]
+        buttons += [actions_row[i : i + 2] for i in range(0, len(actions_row), 2)]
+    url = notifier.crm_url(application.id)
+    if url:
+        buttons.append([{"text": t(lang, "btn_open_crm"), "url": url}])
+    buttons.append([{"text": t(lang, "btn_back"), "callback_data": f"hr:new:{page}"}])
+    return Reply("\n".join(lines), buttons)
+
+
 def hr_application_detail(profile: TelegramProfile, application_id: int, page: int = 0) -> Reply:
     """One application to the HR's own job: applicant, status and AI match."""
     lang = profile.language_code
-    back = [{"text": t(lang, "btn_back"), "callback_data": f"hr:new:{page}"}]
     with SessionLocal() as db:
         user = _hr_for(db, profile)
         if user is None:
             return Reply(t(lang, "hr_not_hr"))
         # Scoped to the HR's own jobs: another owner's application id finds nothing.
-        application = (
-            db.query(Application)
-            .join(Application.job)
-            .filter(Application.id == application_id, Job.owner_id == user.id)
-            .options(contains_eager(Application.job))
-            .one_or_none()
-        )
+        application = _owned_application(db, user, application_id)
         if application is None:
-            return Reply(t(lang, "app_not_found"), [back])
-        status = ApplicationStatus(application.application_status or ApplicationStatus.NEW).value
-        lines = [
-            f"👤 <b>{html.escape(application.name or '—')}</b>",
-            f"✉️ {html.escape(application.email or '—')}",
-            "",
-            f"<b>{html.escape(application.job.position)}</b> — {html.escape(application.job.company_name)}",
-            t(lang, "app_submitted", date=notifier.format_date(application.submitted_at, with_time=True)),
-            t(lang, "hr_app_status", status=hr_status_label(lang, status)),
-            _ai_line(lang, application),
-        ]
+            return Reply(t(lang, "app_not_found"), [_back_to_list(lang, page)])
+        return _hr_card(lang, application, page)
 
-    buttons: Buttons = []
-    url = notifier.crm_url(application_id)
-    if url:
-        buttons.append([{"text": t(lang, "btn_open_crm"), "url": url}])
-    buttons.append(back)
-    return Reply("\n".join(lines), buttons)
+
+def _back_to_list(lang: str, page: int) -> list[dict[str, str]]:
+    return [{"text": t(lang, "btn_back"), "callback_data": f"hr:new:{page}"}]
+
+
+# ---------------------------------------------------------------------------
+# HR: change the status from the bot (phase 4)
+# ---------------------------------------------------------------------------
+
+#: Statuses HR can set from the bot, in button order. ``new`` is never a
+#: target and ``withdrawn`` belongs to the candidate.
+HR_TARGETS = (
+    ApplicationStatus.REVIEWING,
+    ApplicationStatus.SHORTLISTED,
+    ApplicationStatus.INTERVIEW,
+    ApplicationStatus.HIRED,
+    ApplicationStatus.REJECTED,
+)
+#: Final decisions ask "are you sure?" first.
+CONFIRM_TARGETS = {ApplicationStatus.HIRED, ApplicationStatus.REJECTED}
+
+
+def hr_set_status(
+    profile: TelegramProfile,
+    application_id: int,
+    target: str,
+    page: int = 0,
+    *,
+    confirmed: bool = False,
+) -> Reply:
+    """Move an application, exactly like ``PATCH /api/applications/{id}``.
+
+    The same CRUD call writes the status history and queues the candidate's
+    notification; the change is audited with the HR user as the actor.
+    Hiring and rejecting first return a confirmation card.
+    """
+    lang = profile.language_code
+    try:
+        status = ApplicationStatus(target)
+    except ValueError:
+        return Reply(t(lang, "error"))
+    if status not in HR_TARGETS:
+        return Reply(t(lang, "error"))
+
+    with SessionLocal() as db:
+        user = _hr_for(db, profile)
+        if user is None:
+            return Reply(t(lang, "hr_not_hr"))
+        application = _owned_application(db, user, application_id)
+        if application is None:
+            return Reply(t(lang, "app_not_found"), [_back_to_list(lang, page)])
+        current = _current_status(application)
+        if current == ApplicationStatus.WITHDRAWN.value:
+            return _hr_card(lang, application, page)
+        if current == status.value:
+            # A second tap on an old keyboard: nothing to change.
+            return _hr_card(lang, application, page)
+
+        label = hr_status_label(lang, status.value)
+        if status in CONFIRM_TARGETS and not confirmed:
+            text = t(
+                lang,
+                "hr_confirm",
+                name=html.escape(application.name or "—"),
+                position=html.escape(application.job.position),
+                status=label,
+            )
+            return Reply(
+                text,
+                [
+                    [{"text": t(lang, "btn_confirm"), "callback_data": f"hr:ok:{application.id}:{status.value}:{page}"}],
+                    [{"text": t(lang, "btn_cancel"), "callback_data": f"hr:app:{application.id}:{page}"}],
+                ],
+            )
+
+        application = application_crud.update_application(
+            db, application, ApplicationUpdate(application_status=status)
+        )
+        audit.record(
+            db,
+            audit.AuditAction.UPDATE_APPLICATION,
+            resource_type=audit.AuditResource.APPLICATION,
+            resource_id=application.id,
+            actor=user,
+            details={
+                "fields": ["application_status"],
+                "application_status": status.value,
+                "via": "telegram",
+            },
+        )
+        logger.info(
+            "Application status changed from Telegram: application_id=%s status=%s user_id=%s",
+            application.id,
+            status.value,
+            user.id,
+        )
+        application = _owned_application(db, user, application_id)
+        return _hr_card(lang, application, page, notice=t(lang, "hr_status_set", status=label))

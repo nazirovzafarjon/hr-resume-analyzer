@@ -1309,8 +1309,9 @@ New HR and candidate registrations undergo two-phase verification:
    - `/applications` lists the candidate's applications (5 per page) with the same status wording as the Candidate Portal; each card shows the status, the next interview and the progress timeline. Dates use `TELEGRAM_TIMEZONE` (default `Asia/Tashkent`).
    - HR notifications: an application that arrives through the public apply form or the public apply endpoint notifies the job's owner (only that HR user) with the applicant's name, the job and the time, plus a **Details** button and, on a public host, an **Open in CRM** link. Applications HR enters by hand are not announced.
    - `/new` (HR) lists unreviewed (`new`) applications to the HR user's own jobs, 5 per page; each card shows the applicant's name and email, the HR status (CRM wording) and the AI match score once analysed. The bot always uses the HR workspace scope, also for admins.
+   - HR actions: the card has buttons to move the application to Reviewing, Shortlisted, Interview, Hired or Rejected (the current status and withdrawn applications get none). Hiring and rejecting ask for confirmation first. A change goes through the same CRUD call as `PATCH /api/applications/{id}`, so the status history and the candidate's Telegram notification follow, and it is audited as `UPDATE_APPLICATION` with the HR user as actor and `via: telegram`.
    - Setup: create a bot with @BotFather, set `TELEGRAM_ENABLED=true`, `TELEGRAM_BOT_TOKEN` and `TELEGRAM_BOT_USERNAME` in `backend/.env`, then start the opt-in service with `docker compose --profile telegram up -d`. With the bot disabled the API answers `503` for new links and the candidate card stays hidden.
-   - Not yet covered: changing application status from the bot (HR actions), interview reminders, notification preferences, webhook mode.
+   - Not yet covered: interview reminders, notification preferences, webhook mode.
 
 ---
 
