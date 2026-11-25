@@ -230,7 +230,7 @@ def test_booked_interview_gets_reminders(hr, job):
     _book(application_id)
     with SessionLocal() as db:
         events = notifier.scan_interview_reminders(db, now=SLOT_UTC - timedelta(hours=23))
-    assert [e.payload["audience"] for e in events] == ["hr"]
+        assert [e.payload["audience"] for e in events] == ["hr"]
 
 
 # --- meeting link ----------------------------------------------------------------
