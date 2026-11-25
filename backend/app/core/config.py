@@ -221,6 +221,12 @@ class Settings(BaseSettings):
     TELEGRAM_LINK_TOKEN_EXPIRE_MINUTES: int = Field(default=10, ge=1, le=60)
     # IANA time zone for dates shown in bot messages (interview times etc.).
     TELEGRAM_TIMEZONE: str = "Asia/Tashkent"
+    # Webhook mode (production). Empty URL = long polling (local development).
+    # The URL is public HTTPS, e.g. https://hr.example.com/telegram/webhook;
+    # the secret is checked on every update (X-Telegram-Bot-Api-Secret-Token).
+    TELEGRAM_WEBHOOK_URL: str = ""
+    TELEGRAM_WEBHOOK_SECRET: str = ""
+    TELEGRAM_WEBHOOK_PORT: int = Field(default=8081, ge=1, le=65535)
 
     @property
     def telegram_configured(self) -> bool:

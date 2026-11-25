@@ -104,6 +104,30 @@ async def on_new(message: Message) -> None:
     await message.answer(reply.text, reply_markup=_keyboard(reply.buttons), disable_web_page_preview=True)
 
 
+@router.message(Command("settings"))
+async def on_settings(message: Message) -> None:
+    if message.from_user is None:
+        return
+    profile = _profile(message)
+    reply = await _run(profile, actions.settings_page, profile)
+    await message.answer(reply.text, reply_markup=_keyboard(reply.buttons), disable_web_page_preview=True)
+
+
+@router.callback_query(F.data.startswith("cfg:"))
+async def on_settings_callback(query: CallbackQuery) -> None:
+    """``cfg:<kind>:<key>`` flips one notification switch of this user's own link."""
+    if query.message is None:
+        await query.answer()
+        return
+    profile = _profile(query.message, query.from_user)
+    parts = query.data.split(":")
+    if len(parts) != 3:
+        await query.answer()
+        return
+    reply = await _run(profile, actions.toggle_setting, profile, parts[1], parts[2])
+    await _show(query, reply)
+
+
 @router.callback_query(F.data.startswith("hr:"))
 async def on_hr_callback(query: CallbackQuery) -> None:
     """HR callbacks.
