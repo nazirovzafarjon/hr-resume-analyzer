@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from functools import partial
 from typing import Callable
 
 from aiogram import F, Router
@@ -105,7 +106,13 @@ async def on_new(message: Message) -> None:
 
 @router.callback_query(F.data.startswith("hr:"))
 async def on_hr_callback(query: CallbackQuery) -> None:
-    """HR list pages (``hr:new:<page>``) and cards (``hr:app:<id>:<page>``)."""
+    """HR callbacks.
+
+    * ``hr:new:<page>`` -- page of unreviewed applications
+    * ``hr:app:<id>:<page>`` -- one application's card
+    * ``hr:set:<id>:<status>:<page>`` -- change the status (final decisions ask first)
+    * ``hr:ok:<id>:<status>:<page>`` -- confirmed final decision
+    """
     if query.message is None:
         await query.answer()
         return
@@ -116,6 +123,15 @@ async def on_hr_callback(query: CallbackQuery) -> None:
             reply = await _run(profile, actions.hr_new_page, profile, int(parts[2]))
         elif parts[1] == "app":
             reply = await _run(profile, actions.hr_application_detail, profile, int(parts[2]), int(parts[3]))
+        elif parts[1] in ("set", "ok"):
+            reply = await _run(
+                profile,
+                partial(actions.hr_set_status, confirmed=parts[1] == "ok"),
+                profile,
+                int(parts[2]),
+                parts[3],
+                int(parts[4]),
+            )
         else:
             raise ValueError(parts[1])
     except (IndexError, ValueError):

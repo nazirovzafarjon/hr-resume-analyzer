@@ -59,6 +59,10 @@ TEXTS: dict[str, dict[str, str]] = {
         "hr_ai_none": "🤖 AI tahlili hali o'tkazilmagan",
         "hr_ai_running": "🤖 AI tahlili davom etmoqda",
         "hr_ai_failed": "🤖 AI tahlili amalga oshmadi",
+        "hr_confirm": "👤 <b>{name}</b> — {position}\n\nHolat «<b>{status}</b>» ga o'zgartirilsinmi? Bu yakuniy qaror; nomzod Telegram'ga ulangan bo'lsa, unga xabar boradi.",
+        "hr_status_set": "✅ Holat o'zgartirildi: <b>{status}</b>",
+        "btn_confirm": "✅ Ha, tasdiqlayman",
+        "btn_cancel": "‹ Bekor qilish",
         "error": "Xatolik yuz berdi. Birozdan keyin qayta urinib ko'ring.",
     },
     "ru": {
@@ -113,6 +117,10 @@ TEXTS: dict[str, dict[str, str]] = {
         "hr_ai_none": "🤖 Анализ ИИ ещё не проводился",
         "hr_ai_running": "🤖 Идёт анализ ИИ",
         "hr_ai_failed": "🤖 Анализ ИИ не удался",
+        "hr_confirm": "👤 <b>{name}</b> — {position}\n\nИзменить статус на «<b>{status}</b>»? Это итоговое решение; если кандидат подключил Telegram, он получит уведомление.",
+        "hr_status_set": "✅ Статус изменён: <b>{status}</b>",
+        "btn_confirm": "✅ Да, подтверждаю",
+        "btn_cancel": "‹ Отмена",
         "error": "Произошла ошибка. Попробуйте ещё раз чуть позже.",
     },
     "en": {
@@ -167,6 +175,10 @@ TEXTS: dict[str, dict[str, str]] = {
         "hr_ai_none": "🤖 No AI analysis yet",
         "hr_ai_running": "🤖 AI analysis in progress",
         "hr_ai_failed": "🤖 AI analysis failed",
+        "hr_confirm": "👤 <b>{name}</b> — {position}\n\nChange the status to “<b>{status}</b>”? This is a final decision; if the candidate connected Telegram, they will be notified.",
+        "hr_status_set": "✅ Status changed: <b>{status}</b>",
+        "btn_confirm": "✅ Yes, confirm",
+        "btn_cancel": "‹ Cancel",
         "error": "Something went wrong. Please try again a bit later.",
     },
 }
@@ -311,3 +323,33 @@ HR_STATUS_LABELS: dict[str, dict[str, str]] = {
 
 def hr_status_label(language_code: str | None, status: str) -> str:
     return HR_STATUS_LABELS[normalize_language(language_code)][status]
+
+
+#: Buttons on the HR card that move an application (phase 4).
+HR_ACTION_LABELS: dict[str, dict[str, str]] = {
+    "uz": {
+        "reviewing": "👀 Ko'rib chiqishni boshlash",
+        "shortlisted": "⭐ Tanlash",
+        "interview": "📅 Suhbatga",
+        "hired": "🎉 Ishga olish",
+        "rejected": "❌ Rad etish",
+    },
+    "ru": {
+        "reviewing": "👀 Начать проверку",
+        "shortlisted": "⭐ В отбор",
+        "interview": "📅 На собеседование",
+        "hired": "🎉 Принять",
+        "rejected": "❌ Отклонить",
+    },
+    "en": {
+        "reviewing": "👀 Start review",
+        "shortlisted": "⭐ Shortlist",
+        "interview": "📅 Interview",
+        "hired": "🎉 Hire",
+        "rejected": "❌ Reject",
+    },
+}
+
+
+def hr_action_label(language_code: str | None, status: str) -> str:
+    return HR_ACTION_LABELS[normalize_language(language_code)][status]
