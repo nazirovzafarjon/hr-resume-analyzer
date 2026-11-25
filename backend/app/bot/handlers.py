@@ -10,6 +10,8 @@ from typing import Callable
 from aiogram import F, Router
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import Command, CommandObject, CommandStart
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
 from app.bot import actions
@@ -128,22 +130,80 @@ async def on_settings_callback(query: CallbackQuery) -> None:
     await _show(query, reply)
 
 
+class MeetingLink(StatesGroup):
+    """Waiting for the meeting link of ``interview_id`` (kept in the FSM data).
+
+    The default in-memory FSM storage is enough: the bot runs as one process,
+    and a restart only means the HR user taps "add link" again.
+    """
+
+    waiting = State()
+
+
+@router.message(Command("cancel"))
+async def on_cancel(message: Message, state: FSMContext) -> None:
+    if message.from_user is None:
+        return
+    waiting = await state.get_state()
+    await state.clear()
+    key = "cancelled" if waiting else "nothing_to_cancel"
+    await message.answer(t(message.from_user.language_code, key))
+
+
+@router.message(MeetingLink.waiting, F.text, ~F.text.startswith("/"))
+async def on_meeting_link(message: Message, state: FSMContext) -> None:
+    if message.from_user is None:
+        return
+    profile = _profile(message)
+    data = await state.get_data()
+    reply = await _run(
+        profile, actions.hr_set_meeting_link, profile, int(data["interview_id"]), message.text, int(data["page"])
+    )
+    if not reply.awaiting_input:
+        await state.clear()
+    await message.answer(reply.text, reply_markup=_keyboard(reply.buttons), disable_web_page_preview=True)
+
+
 @router.callback_query(F.data.startswith("hr:"))
-async def on_hr_callback(query: CallbackQuery) -> None:
+async def on_hr_callback(query: CallbackQuery, state: FSMContext) -> None:
     """HR callbacks.
 
     * ``hr:new:<page>`` -- page of unreviewed applications
     * ``hr:app:<id>:<page>`` -- one application's card
     * ``hr:set:<id>:<status>:<page>`` -- change the status (final decisions ask first)
     * ``hr:ok:<id>:<status>:<page>`` -- confirmed final decision
+    * ``hr:iv:<id>:<page>`` -- schedule an interview: pick a day
+    * ``hr:ivd:<id>:<YYYYMMDD>:<page>`` -- pick a time on that day
+    * ``hr:ivt:<id>:<YYYYMMDDHHMM>:<minutes>:<page>`` -- review, choose the duration
+    * ``hr:ivok:<id>:<YYYYMMDDHHMM>:<minutes>:<page>`` -- create the interview
+    * ``hr:ivlink:<interview id>:<page>`` -- ask for the meeting link
     """
     if query.message is None:
         await query.answer()
         return
     profile = _profile(query.message, query.from_user)
+    # Any other button abandons a pending meeting-link question.
+    await state.clear()
     try:
         parts = query.data.split(":")
-        if parts[1] == "new":
+        if parts[1] == "iv":
+            reply = await _run(profile, actions.hr_schedule_days, profile, int(parts[2]), int(parts[3]))
+        elif parts[1] == "ivd":
+            reply = await _run(profile, actions.hr_schedule_times, profile, int(parts[2]), parts[3], int(parts[4]))
+        elif parts[1] in ("ivt", "ivok"):
+            step = actions.hr_schedule_review if parts[1] == "ivt" else actions.hr_schedule_confirm
+            reply = await _run(profile, step, profile, int(parts[2]), parts[3], int(parts[4]), int(parts[5]))
+        elif parts[1] == "ivlink":
+            interview_id, page = int(parts[2]), int(parts[3])
+            reply = await _run(profile, actions.hr_meeting_link_prompt, profile, interview_id, page)
+            if reply.awaiting_input:
+                await state.set_state(MeetingLink.waiting)
+                await state.update_data(interview_id=interview_id, page=page)
+                # Keep the card; ask in a new message the answer goes under.
+                await query.message.answer(reply.text)
+                await query.answer()
+                return
+        elif parts[1] == "new":
             reply = await _run(profile, actions.hr_new_page, profile, int(parts[2]))
         elif parts[1] == "app":
             reply = await _run(profile, actions.hr_application_detail, profile, int(parts[2]), int(parts[3]))
