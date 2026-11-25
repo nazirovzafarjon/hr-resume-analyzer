@@ -1304,11 +1304,13 @@ New HR and candidate registrations undergo two-phase verification:
    - Direct asynchronous HTTP integration with OpenRouter, Groq, Google Gemini, Anthropic, OpenAI, DeepSeek, and custom OpenAI-compatible endpoints.
 4. **Telegram Bot** (optional, `backend/app/bot/`, aiogram 3):
    - HR users link Telegram in **Settings → Telegram**, candidates in **Profile → Telegram**. The page issues a single-use deep link (`https://t.me/<bot>?start=<token>`, valid `TELEGRAM_LINK_TOKEN_EXPIRE_MINUTES`); the bot consumes the token from `/start` and stores a `telegram_links` row. Only a SHA-256 digest of the token is kept, and accounts are never matched by phone number or username.
-   - Bot commands: `/start`, `/status`, `/applications`, `/unlink`, `/help` (private chats only; replies in Uzbek, Russian or English from the Telegram language).
+   - Bot commands: `/start`, `/status`, `/applications`, `/new`, `/unlink`, `/help` (private chats only; replies in Uzbek, Russian or English from the Telegram language).
    - Candidate notifications: when an application submitted from a signed-in candidate account is received or its candidate-facing status changes, a `send_telegram` outbox event is written in the same transaction and delivered by `send_telegram_task` on the `notifications` queue. Internal HR moves (e.g. `reviewing -> shortlisted`) send nothing; a blocked bot (HTTP 403) deactivates the link, 429/5xx are retried.
    - `/applications` lists the candidate's applications (5 per page) with the same status wording as the Candidate Portal; each card shows the status, the next interview and the progress timeline. Dates use `TELEGRAM_TIMEZONE` (default `Asia/Tashkent`).
+   - HR notifications: an application that arrives through the public apply form or the public apply endpoint notifies the job's owner (only that HR user) with the applicant's name, the job and the time, plus a **Details** button and, on a public host, an **Open in CRM** link. Applications HR enters by hand are not announced.
+   - `/new` (HR) lists unreviewed (`new`) applications to the HR user's own jobs, 5 per page; each card shows the applicant's name and email, the HR status (CRM wording) and the AI match score once analysed. The bot always uses the HR workspace scope, also for admins.
    - Setup: create a bot with @BotFather, set `TELEGRAM_ENABLED=true`, `TELEGRAM_BOT_TOKEN` and `TELEGRAM_BOT_USERNAME` in `backend/.env`, then start the opt-in service with `docker compose --profile telegram up -d`. With the bot disabled the API answers `503` for new links and the candidate card stays hidden.
-   - Not yet covered: HR notifications and actions, interview reminders, notification preferences, webhook mode.
+   - Not yet covered: changing application status from the bot (HR actions), interview reminders, notification preferences, webhook mode.
 
 ---
 

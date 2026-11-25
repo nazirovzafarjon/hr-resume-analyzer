@@ -20,6 +20,7 @@ logger = logging.getLogger("app.bot")
 COMMANDS = [
     BotCommand(command="start", description="Start / Boshlash"),
     BotCommand(command="applications", description="My applications / Arizalarim"),
+    BotCommand(command="new", description="New applications (HR) / Yangi arizalar"),
     BotCommand(command="status", description="Connected accounts / Ulangan akkauntlar"),
     BotCommand(command="unlink", description="Disconnect / Uzish"),
     BotCommand(command="help", description="Help / Yordam"),

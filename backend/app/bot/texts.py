@@ -30,6 +30,7 @@ TEXTS: dict[str, dict[str, str]] = {
             "Komandalar:\n"
             "/start — boshlash\n"
             "/applications — arizalarim va ularning holati\n"
+            "/new — ko'rib chiqilmagan arizalar (HR)\n"
             "/status — ulangan akkauntlar\n"
             "/unlink — Telegramni akkauntlardan uzish\n"
             "/help — yordam"
@@ -48,6 +49,16 @@ TEXTS: dict[str, dict[str, str]] = {
         "app_submitted": "Yuborilgan: {date}",
         "app_next_interview": "🗓 Suhbat: <b>{date}</b>",
         "app_timeline": "<b>Jarayon:</b>",
+        "new_application": "🆕 <b>Yangi ariza</b>\n\n<b>{position}</b> — {company}\n👤 {name}\n🕒 {date}",
+        "btn_open_crm": "🌐 CRM'da ochish",
+        "hr_new_header": "🆕 <b>Ko'rib chiqilmagan arizalar</b> ({total} ta) — {page}/{pages}",
+        "hr_new_empty": "Ko'rib chiqilmagan ariza yo'q. 🎉",
+        "hr_not_hr": "Bu komanda HR uchun. Saytda <b>Sozlamalar → Telegram</b> bo'limidan HR akkauntingizni ulang.",
+        "hr_app_status": "Holat: <b>{status}</b>",
+        "hr_ai_score": "🤖 AI moslik: <b>{score}%</b>",
+        "hr_ai_none": "🤖 AI tahlili hali o'tkazilmagan",
+        "hr_ai_running": "🤖 AI tahlili davom etmoqda",
+        "hr_ai_failed": "🤖 AI tahlili amalga oshmadi",
         "error": "Xatolik yuz berdi. Birozdan keyin qayta urinib ko'ring.",
     },
     "ru": {
@@ -73,6 +84,7 @@ TEXTS: dict[str, dict[str, str]] = {
             "Команды:\n"
             "/start — начать\n"
             "/applications — мои заявки и их статус\n"
+            "/new — нерассмотренные заявки (HR)\n"
             "/status — подключённые аккаунты\n"
             "/unlink — отключить Telegram от аккаунтов\n"
             "/help — помощь"
@@ -91,6 +103,16 @@ TEXTS: dict[str, dict[str, str]] = {
         "app_submitted": "Отправлена: {date}",
         "app_next_interview": "🗓 Собеседование: <b>{date}</b>",
         "app_timeline": "<b>Этапы:</b>",
+        "new_application": "🆕 <b>Новая заявка</b>\n\n<b>{position}</b> — {company}\n👤 {name}\n🕒 {date}",
+        "btn_open_crm": "🌐 Открыть в CRM",
+        "hr_new_header": "🆕 <b>Нерассмотренные заявки</b> ({total}) — {page}/{pages}",
+        "hr_new_empty": "Нерассмотренных заявок нет. 🎉",
+        "hr_not_hr": "Эта команда для HR. Подключите HR-аккаунт в разделе <b>Настройки → Telegram</b> на сайте.",
+        "hr_app_status": "Статус: <b>{status}</b>",
+        "hr_ai_score": "🤖 Соответствие (ИИ): <b>{score}%</b>",
+        "hr_ai_none": "🤖 Анализ ИИ ещё не проводился",
+        "hr_ai_running": "🤖 Идёт анализ ИИ",
+        "hr_ai_failed": "🤖 Анализ ИИ не удался",
         "error": "Произошла ошибка. Попробуйте ещё раз чуть позже.",
     },
     "en": {
@@ -116,6 +138,7 @@ TEXTS: dict[str, dict[str, str]] = {
             "Commands:\n"
             "/start — start\n"
             "/applications — my applications and their status\n"
+            "/new — unreviewed applications (HR)\n"
             "/status — connected accounts\n"
             "/unlink — disconnect Telegram from your accounts\n"
             "/help — help"
@@ -134,6 +157,16 @@ TEXTS: dict[str, dict[str, str]] = {
         "app_submitted": "Submitted: {date}",
         "app_next_interview": "🗓 Interview: <b>{date}</b>",
         "app_timeline": "<b>Progress:</b>",
+        "new_application": "🆕 <b>New application</b>\n\n<b>{position}</b> — {company}\n👤 {name}\n🕒 {date}",
+        "btn_open_crm": "🌐 Open in CRM",
+        "hr_new_header": "🆕 <b>Unreviewed applications</b> ({total}) — {page}/{pages}",
+        "hr_new_empty": "No unreviewed applications. 🎉",
+        "hr_not_hr": "This command is for HR. Connect your HR account in <b>Settings → Telegram</b> on the website.",
+        "hr_app_status": "Status: <b>{status}</b>",
+        "hr_ai_score": "🤖 AI match: <b>{score}%</b>",
+        "hr_ai_none": "🤖 No AI analysis yet",
+        "hr_ai_running": "🤖 AI analysis in progress",
+        "hr_ai_failed": "🤖 AI analysis failed",
         "error": "Something went wrong. Please try again a bit later.",
     },
 }
@@ -242,3 +275,39 @@ def status_label(language_code: str | None, status: str) -> str:
 
 def timeline_label(language_code: str | None, key: str) -> str:
     return TIMELINE_LABELS[normalize_language(language_code)][key]
+
+
+#: HR pipeline status labels, worded exactly like the CRM.
+HR_STATUS_LABELS: dict[str, dict[str, str]] = {
+    "uz": {
+        "new": "Yangi",
+        "reviewing": "Ko'rib chiqilmoqda",
+        "shortlisted": "Tanlangan",
+        "interview": "Suhbat",
+        "hired": "Ishga olindi",
+        "rejected": "Rad etilgan",
+        "withdrawn": "Qaytarib olingan",
+    },
+    "ru": {
+        "new": "Новая",
+        "reviewing": "На проверке",
+        "shortlisted": "В отборе",
+        "interview": "Собеседование",
+        "hired": "Принят",
+        "rejected": "Отклонена",
+        "withdrawn": "Отозвана",
+    },
+    "en": {
+        "new": "New",
+        "reviewing": "Reviewing",
+        "shortlisted": "Shortlisted",
+        "interview": "Interview",
+        "hired": "Hired",
+        "rejected": "Rejected",
+        "withdrawn": "Withdrawn",
+    },
+}
+
+
+def hr_status_label(language_code: str | None, status: str) -> str:
+    return HR_STATUS_LABELS[normalize_language(language_code)][status]

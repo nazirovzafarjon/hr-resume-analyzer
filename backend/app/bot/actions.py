@@ -12,9 +12,20 @@ import html
 import logging
 from dataclasses import dataclass, field
 
-from app.bot.texts import STATUS_EMOJI, TIMELINE_STATE_EMOJI, status_label, t, timeline_label
+from sqlalchemy.orm import contains_eager
+
+from app.bot.texts import (
+    STATUS_EMOJI,
+    TIMELINE_STATE_EMOJI,
+    hr_status_label,
+    status_label,
+    t,
+    timeline_label,
+)
 from app.core.config import settings
 from app.core.database import SessionLocal
+from app.models.application import AnalysisStatus, Application, ApplicationStatus
+from app.models.job import Job
 from app.models.telegram_link import TelegramAccountKind
 from app.services import candidate_portal
 from app.services.telegram import linking, notifier
@@ -170,5 +181,123 @@ def application_detail(profile: TelegramProfile, application_id: int, page: int 
     url = notifier.portal_url(summary.id)
     if url:
         buttons.append([{"text": t(lang, "btn_open_site"), "url": url}])
+    buttons.append(back)
+    return Reply("\n".join(lines), buttons)
+
+
+# ---------------------------------------------------------------------------
+# HR: /new (phase 3)
+# ---------------------------------------------------------------------------
+
+
+def _hr_for(db, profile: TelegramProfile):
+    """The active, verified HR user linked to this Telegram user, or ``None``.
+
+    The bot is the HR workspace: an HR user (admins included) only ever sees
+    applications to the jobs they own here, never the organisation-wide scope.
+    """
+    for link in linking.links_for_telegram_user(db, profile.telegram_user_id):
+        if link.kind == TelegramAccountKind.HR:
+            user = linking.owner_of(db, link)
+            if user is not None and user.is_active and user.is_email_verified:
+                return user
+    return None
+
+
+def _owned_new_applications(db, owner_id: int):
+    return (
+        db.query(Application)
+        .join(Application.job)
+        .filter(Job.owner_id == owner_id, Application.application_status == ApplicationStatus.NEW)
+        .options(contains_eager(Application.job))
+    )
+
+
+def hr_new_page(profile: TelegramProfile, page: int = 0) -> Reply:
+    """Paginated list of unreviewed (``new``) applications to the HR's jobs."""
+    lang = profile.language_code
+    with SessionLocal() as db:
+        user = _hr_for(db, profile)
+        if user is None:
+            return Reply(t(lang, "hr_not_hr"))
+        query = _owned_new_applications(db, user.id)
+        total = query.count()
+        if total == 0:
+            return Reply(t(lang, "hr_new_empty"))
+        pages = (total + PAGE_SIZE - 1) // PAGE_SIZE
+        page = min(max(page, 0), pages - 1)
+        chunk = (
+            query.order_by(Application.submitted_at.desc(), Application.id.desc())
+            .offset(page * PAGE_SIZE)
+            .limit(PAGE_SIZE)
+            .all()
+        )
+        rows = [
+            (a.id, a.name or "—", a.job.position, a.job.company_name, a.submitted_at)
+            for a in chunk
+        ]
+
+    lines = [t(lang, "hr_new_header", total=str(total), page=str(page + 1), pages=str(pages)), ""]
+    buttons: Buttons = []
+    for number, (app_id, name, position, company, submitted) in enumerate(rows, start=page * PAGE_SIZE + 1):
+        lines.append(
+            f"{number}. <b>{html.escape(name)}</b>\n"
+            f"    {html.escape(position)} — {html.escape(company)} · {notifier.format_date(submitted)}"
+        )
+        buttons.append([{"text": f"{number}. {name[:48]}", "callback_data": f"hr:app:{app_id}:{page}"}])
+    nav = []
+    if page > 0:
+        nav.append({"text": t(lang, "btn_prev"), "callback_data": f"hr:new:{page - 1}"})
+    if page < pages - 1:
+        nav.append({"text": t(lang, "btn_next"), "callback_data": f"hr:new:{page + 1}"})
+    if nav:
+        buttons.append(nav)
+    return Reply("\n".join(lines), buttons)
+
+
+def _ai_line(lang: str, application: Application) -> str:
+    state = application.analysis_status
+    if state == AnalysisStatus.COMPLETED:
+        return t(lang, "hr_ai_score", score=str(round(application.ai_score or 0)))
+    if state == AnalysisStatus.ANALYZING:
+        return t(lang, "hr_ai_running")
+    if state == AnalysisStatus.FAILED:
+        return t(lang, "hr_ai_failed")
+    return t(lang, "hr_ai_none")
+
+
+def hr_application_detail(profile: TelegramProfile, application_id: int, page: int = 0) -> Reply:
+    """One application to the HR's own job: applicant, status and AI match."""
+    lang = profile.language_code
+    back = [{"text": t(lang, "btn_back"), "callback_data": f"hr:new:{page}"}]
+    with SessionLocal() as db:
+        user = _hr_for(db, profile)
+        if user is None:
+            return Reply(t(lang, "hr_not_hr"))
+        # Scoped to the HR's own jobs: another owner's application id finds nothing.
+        application = (
+            db.query(Application)
+            .join(Application.job)
+            .filter(Application.id == application_id, Job.owner_id == user.id)
+            .options(contains_eager(Application.job))
+            .one_or_none()
+        )
+        if application is None:
+            return Reply(t(lang, "app_not_found"), [back])
+        status = ApplicationStatus(application.application_status or ApplicationStatus.NEW).value
+        lines = [
+            f"👤 <b>{html.escape(application.name or '—')}</b>",
+            f"✉️ {html.escape(application.email or '—')}",
+            "",
+            f"<b>{html.escape(application.job.position)}</b> — {html.escape(application.job.company_name)}",
+            t(lang, "app_submitted", date=notifier.format_date(application.submitted_at, with_time=True)),
+            t(lang, "hr_app_status", status=hr_status_label(lang, status)),
+            _ai_line(lang, application),
+        ]
+
+    buttons: Buttons = []
+    url = notifier.crm_url(application_id)
+    if url:
+        buttons.append([{"text": t(lang, "btn_open_crm"), "url": url}])
     buttons.append(back)
     return Reply("\n".join(lines), buttons)

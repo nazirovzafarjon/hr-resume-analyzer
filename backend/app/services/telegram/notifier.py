@@ -1,10 +1,14 @@
-"""Candidate notifications about their applications (Telegram bot phase 2).
+"""Telegram notifications about applications.
+
+* Candidates hear about their applications' status (bot phase 2).
+* HR users hear about new applications to their own jobs (bot phase 3).
 
 Two halves:
 
-* **Queueing** (``queue_status_change``) runs inside the database transaction
-  that changes an application's status and records a ``send_telegram`` outbox
-  event, so the notification exists exactly when the status change commits.
+* **Queueing** (``queue_status_change``, ``queue_new_application``) runs inside
+  the database transaction that creates or changes an application and records
+  a ``send_telegram`` outbox event, so the notification exists exactly when
+  that change commits.
 * **Building** (``build_message``) runs later in the Celery task: it reloads
   the application and the link, and renders the text in the chat's language.
 
@@ -35,7 +39,10 @@ from app.schemas.candidate import CandidateStatus
 logger = logging.getLogger(__name__)
 
 EVENT_TYPE = "send_telegram"
+#: Candidate: one of their applications changed status (or was received).
 APPLICATION_STATUS = "application_status"
+#: HR: a new application arrived for one of their jobs (phase 3).
+NEW_APPLICATION = "new_application"
 
 #: HR pipeline status -> what the candidate sees (cf. candidate_portal.candidate_status).
 _CANDIDATE_FACING: dict[ApplicationStatus, CandidateStatus] = {
@@ -63,6 +70,14 @@ def _candidate_link(db: Session, candidate_account_id: int) -> TelegramLink | No
             TelegramLink.kind == TelegramAccountKind.CANDIDATE,
             TelegramLink.candidate_account_id == candidate_account_id,
         )
+        .one_or_none()
+    )
+
+
+def _hr_link(db: Session, user_id: int) -> TelegramLink | None:
+    return (
+        db.query(TelegramLink)
+        .filter(TelegramLink.kind == TelegramAccountKind.HR, TelegramLink.user_id == user_id)
         .one_or_none()
     )
 
@@ -104,6 +119,31 @@ def queue_status_change(
             "status": current.value,
             "created": previous_status is None,
         },
+    )
+
+
+def queue_new_application(db: Session, application: Application) -> OutboxEvent | None:
+    """Record the "new application" notification for the job's HR owner.
+
+    Only the owner of the job is told (never other HR users); nothing is
+    queued when the bot is off or the owner has no active HR link. The caller
+    commits.
+    """
+    if not settings.telegram_configured:
+        return None
+    job = application.job
+    if job is None:
+        return None
+    link = _hr_link(db, job.owner_id)
+    if link is None or not link.is_active:
+        return None
+
+    from app.services.outbox import record_outbox_event  # avoid an import cycle
+
+    return record_outbox_event(
+        db,
+        EVENT_TYPE,
+        {"notification": NEW_APPLICATION, "application_id": application.id},
     )
 
 
@@ -154,13 +194,23 @@ def format_date(value: datetime | None, *, with_time: bool = False) -> str:
     return local.strftime("%d.%m.%Y %H:%M" if with_time else "%d.%m.%Y")
 
 
-def portal_url(application_id: int) -> str | None:
-    """Candidate Portal page of the application, if Telegram can open it."""
+def _site_url(path: str) -> str | None:
+    """``FRONTEND_BASE_URL`` + ``path``, or ``None`` when Telegram would refuse it."""
     base = settings.FRONTEND_BASE_URL.rstrip("/")
     parsed = urlparse(base)
     if parsed.scheme not in ("http", "https") or (parsed.hostname or "") in _LOCAL_HOSTS:
         return None
-    return f"{base}/candidate/applications/{application_id}"
+    return f"{base}{path}"
+
+
+def portal_url(application_id: int) -> str | None:
+    """Candidate Portal page of the application, if Telegram can open it."""
+    return _site_url(f"/candidate/applications/{application_id}")
+
+
+def crm_url(application_id: int) -> str | None:
+    """HR CRM page of the application, if Telegram can open it."""
+    return _site_url(f"/applications/{application_id}")
 
 
 def application_buttons(lang: str, application_id: int, page: int = 0) -> list[list[dict[str, str]]]:
@@ -172,11 +222,52 @@ def application_buttons(lang: str, application_id: int, page: int = 0) -> list[l
     return rows
 
 
+def hr_application_buttons(lang: str, application_id: int, page: int = 0) -> list[list[dict[str, str]]]:
+    """HR card in the bot and, when reachable, the application in the CRM."""
+    rows = [[{"text": t(lang, "btn_details"), "callback_data": f"hr:app:{application_id}:{page}"}]]
+    url = crm_url(application_id)
+    if url:
+        rows.append([{"text": t(lang, "btn_open_crm"), "url": url}])
+    return rows
+
+
 def build_message(db: Session, payload: dict) -> OutgoingMessage | None:
     """Render a queued notification, or ``None`` when it should be dropped."""
-    if payload.get("notification") != APPLICATION_STATUS:
-        logger.warning("Unknown Telegram notification type: %s", payload.get("notification"))
+    kind = payload.get("notification")
+    if kind == APPLICATION_STATUS:
+        return _build_status_message(db, payload)
+    if kind == NEW_APPLICATION:
+        return _build_new_application_message(db, payload)
+    logger.warning("Unknown Telegram notification type: %s", kind)
+    return None
+
+
+def _build_new_application_message(db: Session, payload: dict) -> OutgoingMessage | None:
+    application = db.get(Application, payload.get("application_id"))
+    if application is None or application.job is None:
         return None
+    # Re-read at send time: the job may have changed hands or the HR unlinked.
+    link = _hr_link(db, application.job.owner_id)
+    if link is None or not link.is_active or not link_owner_active(db, link):
+        return None
+    lang = link.language
+    text = t(
+        lang,
+        "new_application",
+        position=html.escape(application.job.position),
+        company=html.escape(application.job.company_name),
+        name=html.escape(application.name or "—"),
+        date=format_date(application.submitted_at, with_time=True),
+    )
+    return OutgoingMessage(
+        link_id=link.id,
+        chat_id=link.chat_id,
+        text=text,
+        buttons=hr_application_buttons(lang, application.id),
+    )
+
+
+def _build_status_message(db: Session, payload: dict) -> OutgoingMessage | None:
     application = db.get(Application, payload.get("application_id"))
     if application is None or application.candidate_account_id is None:
         return None
