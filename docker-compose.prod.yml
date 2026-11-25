@@ -392,6 +392,12 @@ services:
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
       - TELEGRAM_BOT_USERNAME=${TELEGRAM_BOT_USERNAME:-}
       - TELEGRAM_TIMEZONE=${TELEGRAM_TIMEZONE:-Asia/Tashkent}
+      # Webhook mode behind nginx (/telegram/webhook); leave the URL empty to poll.
+      - TELEGRAM_WEBHOOK_URL=${TELEGRAM_WEBHOOK_URL:-}
+      - TELEGRAM_WEBHOOK_SECRET=${TELEGRAM_WEBHOOK_SECRET:-}
+      - TELEGRAM_WEBHOOK_PORT=8081
+    expose:
+      - "8081"
     healthcheck:
       disable: true
     command: ["python", "-m", "app.bot"]

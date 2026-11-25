@@ -126,6 +126,12 @@ celery_app.conf.beat_schedule = {
         "schedule": 30.0,
         "options": {"queue": "default"},
     },
+    # Telegram interview reminders (24h / 1h before); a no-op while the bot is off.
+    "send-telegram-interview-reminders-every-5m": {
+        "task": "app.tasks.notifications.send_interview_reminders_task",
+        "schedule": 300.0,
+        "options": {"queue": "notifications"},
+    },
 }
 
 

@@ -91,6 +91,51 @@ class TelegramLink(Base):
     last_seen_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    # Notification preferences, changed from the bot's /settings (phase 5).
+    #: Candidate: status changes of their applications.
+    notify_status: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
+    #: HR: new applications to their jobs.
+    notify_new_applications: Mapped[bool] = mapped_column(
+        Boolean, default=True, server_default="true"
+    )
+    #: Both: reminders before an interview.
+    notify_reminders: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
+
+
+class TelegramReminderWindow(str, enum.Enum):
+    """How long before an interview a reminder goes out."""
+
+    DAY = "24h"
+    HOUR = "1h"
+
+
+class TelegramInterviewReminder(Base):
+    """One reminder window already handled for one interview time.
+
+    The row is written before the messages are queued, so the periodic scan
+    never sends the same reminder twice. ``scheduled_at`` is part of the key:
+    moving an interview arms its reminders again.
+    """
+
+    __tablename__ = "telegram_interview_reminders"
+    __table_args__ = (
+        UniqueConstraint(
+            "interview_id", "reminder_window", "scheduled_at", name="uq_telegram_interview_reminders"
+        ),
+        CheckConstraint(
+            "reminder_window IN ('24h', '1h')", name="ck_telegram_interview_reminders_window"
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    interview_id: Mapped[int] = mapped_column(
+        ForeignKey("interviews.id", ondelete="CASCADE"), index=True
+    )
+    reminder_window: Mapped[str] = mapped_column(String(8))
+    scheduled_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
 
 
 class TelegramLinkToken(Base):

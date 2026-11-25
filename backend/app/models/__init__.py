@@ -26,7 +26,13 @@ from app.models.job import Job
 from app.models.platform_settings import PlatformSettings
 from app.models.system_error import SystemErrorLog
 from app.models.pending_registration import PendingRegistration
-from app.models.telegram_link import TelegramAccountKind, TelegramLink, TelegramLinkToken
+from app.models.telegram_link import (
+    TelegramAccountKind,
+    TelegramInterviewReminder,
+    TelegramLink,
+    TelegramLinkToken,
+    TelegramReminderWindow,
+)
 from app.models.token_revocation import RevokedToken, SessionCutoff
 from app.models.user import User
 
@@ -56,6 +62,8 @@ __all__ = [
     "TelegramAccountKind",
     "TelegramLink",
     "TelegramLinkToken",
+    "TelegramInterviewReminder",
+    "TelegramReminderWindow",
     "OutboxEvent",
     "OutboxStatus",
     "AnalysisStatus",

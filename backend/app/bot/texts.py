@@ -31,6 +31,7 @@ TEXTS: dict[str, dict[str, str]] = {
             "/start — boshlash\n"
             "/applications — arizalarim va ularning holati\n"
             "/new — ko'rib chiqilmagan arizalar (HR)\n"
+            "/settings — xabarnoma sozlamalari\n"
             "/status — ulangan akkauntlar\n"
             "/unlink — Telegramni akkauntlardan uzish\n"
             "/help — yordam"
@@ -63,6 +64,16 @@ TEXTS: dict[str, dict[str, str]] = {
         "hr_status_set": "✅ Holat o'zgartirildi: <b>{status}</b>",
         "btn_confirm": "✅ Ha, tasdiqlayman",
         "btn_cancel": "‹ Bekor qilish",
+        "reminder_title": "⏰ <b>Suhbat eslatmasi</b>",
+        "reminder_day": "Suhbatga 24 soatdan kam vaqt qoldi.",
+        "reminder_hour": "Suhbat 1 soatdan keyin boshlanadi.",
+        "settings_header": "⚙️ <b>Xabarnoma sozlamalari</b>\nTugmani bosib yoqing yoki o'chiring.",
+        "settings_none": "Sozlash uchun avval akkauntingizni ulang. /start ni bosing.",
+        "settings_hr": "<b>HR</b>",
+        "settings_candidate": "<b>Nomzod</b>",
+        "pref_status": "Ariza holati o'zgarishi",
+        "pref_new_applications": "Yangi arizalar",
+        "pref_reminders": "Suhbat eslatmalari",
         "error": "Xatolik yuz berdi. Birozdan keyin qayta urinib ko'ring.",
     },
     "ru": {
@@ -89,6 +100,7 @@ TEXTS: dict[str, dict[str, str]] = {
             "/start — начать\n"
             "/applications — мои заявки и их статус\n"
             "/new — нерассмотренные заявки (HR)\n"
+            "/settings — настройки уведомлений\n"
             "/status — подключённые аккаунты\n"
             "/unlink — отключить Telegram от аккаунтов\n"
             "/help — помощь"
@@ -121,6 +133,16 @@ TEXTS: dict[str, dict[str, str]] = {
         "hr_status_set": "✅ Статус изменён: <b>{status}</b>",
         "btn_confirm": "✅ Да, подтверждаю",
         "btn_cancel": "‹ Отмена",
+        "reminder_title": "⏰ <b>Напоминание о собеседовании</b>",
+        "reminder_day": "До собеседования меньше 24 часов.",
+        "reminder_hour": "Собеседование начнётся через час.",
+        "settings_header": "⚙️ <b>Настройки уведомлений</b>\nНажмите, чтобы включить или выключить.",
+        "settings_none": "Сначала подключите аккаунт. Нажмите /start.",
+        "settings_hr": "<b>HR</b>",
+        "settings_candidate": "<b>Кандидат</b>",
+        "pref_status": "Изменения статуса заявки",
+        "pref_new_applications": "Новые заявки",
+        "pref_reminders": "Напоминания о собеседованиях",
         "error": "Произошла ошибка. Попробуйте ещё раз чуть позже.",
     },
     "en": {
@@ -147,6 +169,7 @@ TEXTS: dict[str, dict[str, str]] = {
             "/start — start\n"
             "/applications — my applications and their status\n"
             "/new — unreviewed applications (HR)\n"
+            "/settings — notification settings\n"
             "/status — connected accounts\n"
             "/unlink — disconnect Telegram from your accounts\n"
             "/help — help"
@@ -179,6 +202,16 @@ TEXTS: dict[str, dict[str, str]] = {
         "hr_status_set": "✅ Status changed: <b>{status}</b>",
         "btn_confirm": "✅ Yes, confirm",
         "btn_cancel": "‹ Cancel",
+        "reminder_title": "⏰ <b>Interview reminder</b>",
+        "reminder_day": "The interview is less than 24 hours away.",
+        "reminder_hour": "The interview starts in an hour.",
+        "settings_header": "⚙️ <b>Notification settings</b>\nTap a button to turn it on or off.",
+        "settings_none": "Connect your account first. Tap /start.",
+        "settings_hr": "<b>HR</b>",
+        "settings_candidate": "<b>Candidate</b>",
+        "pref_status": "Application status changes",
+        "pref_new_applications": "New applications",
+        "pref_reminders": "Interview reminders",
         "error": "Something went wrong. Please try again a bit later.",
     },
 }

@@ -187,3 +187,20 @@ def send_telegram_task(self: Task, **payload: Any) -> dict[str, Any]:
             logger.error("Telegram rejected the message for link id=%s: %s", message.link_id, exc)
             return {"status": "rejected", "error": str(exc)}
     return {"status": "sent"}
+
+
+@celery_app.task(name="app.tasks.notifications.send_interview_reminders_task")
+def send_interview_reminders_task() -> dict[str, Any]:
+    """Queue Telegram reminders for upcoming interviews (Celery beat, every 5 min).
+
+    Events are committed together with the "already reminded" rows, so a
+    publish failure here is recovered by the outbox task, never duplicated.
+    """
+    from app.core.database import SessionLocal
+    from app.services.telegram import notifier
+
+    with SessionLocal() as db:
+        events = notifier.scan_interview_reminders(db)
+        for event in events:
+            notifier.publish(db, event)
+    return {"queued": len(events)}

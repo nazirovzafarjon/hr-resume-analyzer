@@ -430,3 +430,55 @@ def hr_set_status(
         )
         application = _owned_application(db, user, application_id)
         return _hr_card(lang, application, page, notice=t(lang, "hr_status_set", status=label))
+
+
+# ---------------------------------------------------------------------------
+# /settings: notification preferences (phase 5)
+# ---------------------------------------------------------------------------
+
+#: Switches per account kind, in button order (column ``notify_<key>``).
+PREFERENCES: dict[TelegramAccountKind, tuple[str, ...]] = {
+    TelegramAccountKind.HR: ("new_applications", "reminders"),
+    TelegramAccountKind.CANDIDATE: ("status", "reminders"),
+}
+
+
+def settings_page(profile: TelegramProfile) -> Reply:
+    """Every switch of every account linked to this Telegram user."""
+    lang = profile.language_code
+    with SessionLocal() as db:
+        links = linking.links_for_telegram_user(db, profile.telegram_user_id)
+        if not links:
+            return Reply(t(lang, "settings_none"))
+        lines = [t(lang, "settings_header")]
+        buttons: Buttons = []
+        both = len(links) > 1
+        for link in sorted(links, key=lambda item: item.kind != TelegramAccountKind.HR):
+            heading = "settings_hr" if link.kind == TelegramAccountKind.HR else "settings_candidate"
+            lines += ["", t(lang, heading)]
+            for key in PREFERENCES[link.kind]:
+                mark = "✅" if getattr(link, f"notify_{key}") else "🔕"
+                label = f"{mark} {t(lang, f'pref_{key}')}"
+                lines.append(label)
+                # With two accounts linked, say which one the button belongs to.
+                suffix = f" · {'HR' if link.kind == TelegramAccountKind.HR else '👤'}" if both else ""
+                buttons.append([{"text": label + suffix, "callback_data": f"cfg:{link.kind.value}:{key}"}])
+    return Reply("\n".join(lines), buttons)
+
+
+def toggle_setting(profile: TelegramProfile, kind: str, key: str) -> Reply:
+    """Flip one switch on this Telegram user's own link, then redraw."""
+    try:
+        account_kind = TelegramAccountKind(kind)
+    except ValueError:
+        return Reply(t(profile.language_code, "error"))
+    if key not in PREFERENCES[account_kind]:
+        return Reply(t(profile.language_code, "error"))
+    with SessionLocal() as db:
+        for link in linking.links_for_telegram_user(db, profile.telegram_user_id):
+            if link.kind == account_kind:
+                column = f"notify_{key}"
+                setattr(link, column, not getattr(link, column))
+                db.commit()
+                break
+    return settings_page(profile)

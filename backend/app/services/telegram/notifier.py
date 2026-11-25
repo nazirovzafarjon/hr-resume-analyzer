@@ -23,7 +23,7 @@ from __future__ import annotations
 import html
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from urllib.parse import urlparse
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -33,7 +33,13 @@ from app.bot.texts import STATUS_EMOJI, status_label, t
 from app.core.config import settings
 from app.models.application import Application, ApplicationStatus
 from app.models.outbox import OutboxEvent
-from app.models.telegram_link import TelegramAccountKind, TelegramLink
+from app.models.interview import Interview, InterviewStatus
+from app.models.telegram_link import (
+    TelegramAccountKind,
+    TelegramInterviewReminder,
+    TelegramLink,
+    TelegramReminderWindow,
+)
 from app.schemas.candidate import CandidateStatus
 
 logger = logging.getLogger(__name__)
@@ -43,6 +49,15 @@ EVENT_TYPE = "send_telegram"
 APPLICATION_STATUS = "application_status"
 #: HR: a new application arrived for one of their jobs (phase 3).
 NEW_APPLICATION = "new_application"
+#: Candidate and HR: an interview is coming up (phase 5).
+INTERVIEW_REMINDER = "interview_reminder"
+
+#: How often ``scan_interview_reminders`` runs (Celery beat) and the windows.
+REMINDER_SCAN_SECONDS = 300
+_REMINDER_WINDOWS = {
+    TelegramReminderWindow.DAY: timedelta(hours=24),
+    TelegramReminderWindow.HOUR: timedelta(hours=1),
+}
 
 #: HR pipeline status -> what the candidate sees (cf. candidate_portal.candidate_status).
 _CANDIDATE_FACING: dict[ApplicationStatus, CandidateStatus] = {
@@ -105,7 +120,7 @@ def queue_status_change(
     if previous_status is not None and candidate_facing(previous_status) == current:
         return None
     link = _candidate_link(db, application.candidate_account_id)
-    if link is None or not link.is_active:
+    if link is None or not link.is_active or not link.notify_status:
         return None
 
     from app.services.outbox import record_outbox_event  # avoid an import cycle
@@ -135,7 +150,7 @@ def queue_new_application(db: Session, application: Application) -> OutboxEvent 
     if job is None:
         return None
     link = _hr_link(db, job.owner_id)
-    if link is None or not link.is_active:
+    if link is None or not link.is_active or not link.notify_new_applications:
         return None
 
     from app.services.outbox import record_outbox_event  # avoid an import cycle
@@ -238,6 +253,8 @@ def build_message(db: Session, payload: dict) -> OutgoingMessage | None:
         return _build_status_message(db, payload)
     if kind == NEW_APPLICATION:
         return _build_new_application_message(db, payload)
+    if kind == INTERVIEW_REMINDER:
+        return _build_reminder_message(db, payload)
     logger.warning("Unknown Telegram notification type: %s", kind)
     return None
 
@@ -248,7 +265,12 @@ def _build_new_application_message(db: Session, payload: dict) -> OutgoingMessag
         return None
     # Re-read at send time: the job may have changed hands or the HR unlinked.
     link = _hr_link(db, application.job.owner_id)
-    if link is None or not link.is_active or not link_owner_active(db, link):
+    if (
+        link is None
+        or not link.is_active
+        or not link.notify_new_applications
+        or not link_owner_active(db, link)
+    ):
         return None
     lang = link.language
     text = t(
@@ -272,7 +294,7 @@ def _build_status_message(db: Session, payload: dict) -> OutgoingMessage | None:
     if application is None or application.candidate_account_id is None:
         return None
     link = _candidate_link(db, application.candidate_account_id)
-    if link is None or not link.is_active:
+    if link is None or not link.is_active or not link.notify_status:
         return None
     owner = link_owner_active(db, link)
     if not owner:
@@ -315,3 +337,161 @@ def mark_blocked(db: Session, link_id: int) -> None:
         {TelegramLink.is_active: False}, synchronize_session=False
     )
     db.commit()
+
+
+# ---------------------------------------------------------------------------
+# Interview reminders (phase 5)
+# ---------------------------------------------------------------------------
+
+AUDIENCE_CANDIDATE = "candidate"
+AUDIENCE_HR = "hr"
+
+
+def _utcnow() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _as_utc(value: datetime) -> datetime:
+    return value.replace(tzinfo=timezone.utc) if value.tzinfo is None else value.astimezone(timezone.utc)
+
+
+def _reminder_window(time_left: timedelta) -> TelegramReminderWindow:
+    """The window an interview ``time_left`` away falls into (the closest one)."""
+    if time_left <= _REMINDER_WINDOWS[TelegramReminderWindow.HOUR]:
+        return TelegramReminderWindow.HOUR
+    return TelegramReminderWindow.DAY
+
+
+def _reminder_recipients(db: Session, interview: Interview) -> list[str]:
+    """Audiences that want this reminder: linked, active, switch on."""
+    audiences = []
+    application = interview.candidate
+    if application is not None and application.candidate_account_id is not None:
+        link = _candidate_link(db, application.candidate_account_id)
+        if link is not None and link.is_active and link.notify_reminders:
+            audiences.append(AUDIENCE_CANDIDATE)
+    link = _hr_link(db, interview.hr_id)
+    if link is not None and link.is_active and link.notify_reminders:
+        audiences.append(AUDIENCE_HR)
+    return audiences
+
+
+def scan_interview_reminders(db: Session, now: datetime | None = None) -> list[OutboxEvent]:
+    """Queue the reminders that are due and return their committed events.
+
+    Runs every ``REMINDER_SCAN_SECONDS`` (Celery beat). An upcoming interview
+    at most 24 hours away gets the "24h" reminder; at most one hour away, the
+    "1h" one. Each (interview, window, time) is handled once: the
+    ``TelegramInterviewReminder`` row commits together with the events.
+    """
+    if not settings.telegram_configured:
+        return []
+    now = now or _utcnow()
+    horizon = now + _REMINDER_WINDOWS[TelegramReminderWindow.DAY]
+    interviews = (
+        db.query(Interview)
+        .filter(
+            Interview.status == InterviewStatus.UPCOMING,
+            Interview.scheduled_at > now,
+            Interview.scheduled_at <= horizon,
+        )
+        .order_by(Interview.scheduled_at)
+        .all()
+    )
+
+    from app.services.outbox import record_outbox_event  # avoid an import cycle
+
+    events: list[OutboxEvent] = []
+    for interview in interviews:
+        scheduled_at = _as_utc(interview.scheduled_at)
+        window = _reminder_window(scheduled_at - now)
+        already = (
+            db.query(TelegramInterviewReminder.id)
+            .filter(
+                TelegramInterviewReminder.interview_id == interview.id,
+                TelegramInterviewReminder.reminder_window == window.value,
+                TelegramInterviewReminder.scheduled_at == scheduled_at,
+            )
+            .first()
+        )
+        if already:
+            continue
+        db.add(
+            TelegramInterviewReminder(
+                interview_id=interview.id, reminder_window=window.value, scheduled_at=scheduled_at
+            )
+        )
+        for audience in _reminder_recipients(db, interview):
+            events.append(
+                record_outbox_event(
+                    db,
+                    EVENT_TYPE,
+                    {
+                        "notification": INTERVIEW_REMINDER,
+                        "interview_id": interview.id,
+                        "window": window.value,
+                        "audience": audience,
+                        "scheduled_at": scheduled_at.isoformat(),
+                    },
+                )
+            )
+    db.commit()
+    return events
+
+
+def _meeting_line(link: str | None) -> str | None:
+    if not link:
+        return None
+    parsed = urlparse(link.strip())
+    if parsed.scheme not in ("http", "https") or not parsed.netloc:
+        return None
+    return f"🔗 {html.escape(link.strip())}"
+
+
+def _build_reminder_message(db: Session, payload: dict) -> OutgoingMessage | None:
+    interview = db.get(Interview, payload.get("interview_id"))
+    if interview is None or interview.status != InterviewStatus.UPCOMING:
+        return None
+    scheduled_at = _as_utc(interview.scheduled_at)
+    # Moved or already over since it was queued: this reminder is stale.
+    if scheduled_at.isoformat() != payload.get("scheduled_at") or scheduled_at <= _utcnow():
+        return None
+    application = interview.candidate
+    if application is None or application.job is None:
+        return None
+
+    audience = payload.get("audience")
+    if audience == AUDIENCE_CANDIDATE:
+        if application.candidate_account_id is None:
+            return None
+        link = _candidate_link(db, application.candidate_account_id)
+        buttons = application_buttons
+    elif audience == AUDIENCE_HR:
+        link = _hr_link(db, interview.hr_id)
+        buttons = hr_application_buttons
+    else:
+        return None
+    if link is None or not link.is_active or not link.notify_reminders or not link_owner_active(db, link):
+        return None
+
+    lang = link.language
+    lines = [
+        t(lang, "reminder_title"),
+        "",
+    ]
+    if audience == AUDIENCE_HR:
+        lines.append(f"👤 {html.escape(application.name or '—')}")
+    lines += [
+        f"<b>{html.escape(application.job.position)}</b> — {html.escape(application.job.company_name)}",
+        f"🗓 <b>{format_date(scheduled_at, with_time=True)}</b>",
+        t(lang, "reminder_hour" if payload.get("window") == TelegramReminderWindow.HOUR.value else "reminder_day"),
+    ]
+    meeting = _meeting_line(interview.meeting_link)
+    if meeting:
+        lines.append(meeting)
+    return OutgoingMessage(
+        link_id=link.id,
+        chat_id=link.chat_id,
+        text="\n".join(lines),
+        buttons=buttons(lang, application.id),
+    )
