@@ -7,19 +7,42 @@ from app.core.database import SessionLocal
 from app.models.application import Application, ApplicationStatus
 from app.models.application_status_history import ApplicationStatusHistory
 from app.models.audit_log import AuditLog
-from tests.test_telegram_hr_notifications import (  # noqa: F401 -- fixtures
-    HR_TG,
+from app.core.config import settings
+from app.services.telegram import client as tg_client
+from tests.test_telegram_hr_notifications import (
     _add_application,
     _create_job,
     _link_hr,
     _profile,
-    job,
-    sent,
-    telegram_on,
 )
 from tests.test_telegram_notifications import _link, _register_candidate
 
 CANDIDATE_TG = 555_000_009
+
+
+@pytest.fixture
+def telegram_on(monkeypatch):
+    monkeypatch.setattr(settings, "TELEGRAM_ENABLED", True)
+    monkeypatch.setattr(settings, "TELEGRAM_BOT_TOKEN", "123:test-token")
+    monkeypatch.setattr(settings, "TELEGRAM_BOT_USERNAME", "ra_test_bot")
+
+
+@pytest.fixture
+def sent(monkeypatch):
+    """Capture outgoing Bot API messages instead of calling Telegram."""
+    messages: list[dict] = []
+
+    def fake_send(chat_id, text, *, buttons=None):
+        messages.append({"chat_id": chat_id, "text": text, "buttons": buttons or []})
+        return {"message_id": len(messages)}
+
+    monkeypatch.setattr(tg_client, "send_message", fake_send)
+    return messages
+
+
+@pytest.fixture
+def job(client, user):
+    return _create_job(client, user["headers"])
 
 
 def _status(application_id):
