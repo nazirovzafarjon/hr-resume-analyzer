@@ -91,6 +91,40 @@ async def on_application_callback(query: CallbackQuery) -> None:
     except (IndexError, ValueError):
         await query.answer()
         return
+    await _show(query, reply)
+
+
+@router.message(Command("new"))
+async def on_new(message: Message) -> None:
+    if message.from_user is None:
+        return
+    profile = _profile(message)
+    reply = await _run(profile, actions.hr_new_page, profile, 0)
+    await message.answer(reply.text, reply_markup=_keyboard(reply.buttons), disable_web_page_preview=True)
+
+
+@router.callback_query(F.data.startswith("hr:"))
+async def on_hr_callback(query: CallbackQuery) -> None:
+    """HR list pages (``hr:new:<page>``) and cards (``hr:app:<id>:<page>``)."""
+    if query.message is None:
+        await query.answer()
+        return
+    profile = _profile(query.message, query.from_user)
+    try:
+        parts = query.data.split(":")
+        if parts[1] == "new":
+            reply = await _run(profile, actions.hr_new_page, profile, int(parts[2]))
+        elif parts[1] == "app":
+            reply = await _run(profile, actions.hr_application_detail, profile, int(parts[2]), int(parts[3]))
+        else:
+            raise ValueError(parts[1])
+    except (IndexError, ValueError):
+        await query.answer()
+        return
+    await _show(query, reply)
+
+
+async def _show(query: CallbackQuery, reply: "actions.Reply") -> None:
     try:
         await query.message.edit_text(
             reply.text, reply_markup=_keyboard(reply.buttons), disable_web_page_preview=True

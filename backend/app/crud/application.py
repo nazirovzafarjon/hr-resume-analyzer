@@ -48,10 +48,10 @@ def _record_status(
     return notifier.queue_status_change(db, application, previous_status)
 
 
-def _publish_notification(db: Session, event) -> None:
-    if event is not None:
-        from app.services.telegram import notifier
+def _publish_notification(db: Session, *events) -> None:
+    from app.services.telegram import notifier
 
+    for event in events:
         notifier.publish(db, event)
 
 
@@ -60,21 +60,30 @@ def create_application(
     job_id: int,
     payload: ApplicationCreate,
     candidate_account_id: int | None = None,
+    *,
+    notify_owner: bool = False,
 ) -> Application:
     """Create and return a new application for a job.
 
     ``candidate_account_id`` links it to the Candidate Portal account that
-    submitted it while signed in.
+    submitted it while signed in. ``notify_owner`` tells the job's HR owner on
+    Telegram; set it for applications that come in from outside, not for ones
+    HR enters by hand.
     """
     application = Application(
         job_id=job_id, candidate_account_id=candidate_account_id, **payload.model_dump()
     )
     db.add(application)
     db.flush()
-    event = _record_status(db, application)
+    candidate_event = _record_status(db, application)
+    owner_event = None
+    if notify_owner:
+        from app.services.telegram import notifier
+
+        owner_event = notifier.queue_new_application(db, application)
     db.commit()
     db.refresh(application)
-    _publish_notification(db, event)
+    _publish_notification(db, candidate_event, owner_event)
     return application
 
 
@@ -183,7 +192,8 @@ def update_application(db: Session, application: Application, payload: Applicati
         event = _record_status(db, application, previous_status)
     db.commit()
     db.refresh(application)
-    _publish_notification(db, event)
+    if event is not None:
+        _publish_notification(db, event)
     return application
 
 

@@ -595,6 +595,7 @@ def submit_public_application(
             job.id,
             ApplicationCreate(name=name, email=email, resume_path=resume_path),
             candidate_account_id=candidate_account_id,
+            notify_owner=True,
         )
     except Exception:
         _delete_stored_files(stored_files.values())

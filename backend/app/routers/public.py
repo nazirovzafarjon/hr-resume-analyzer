@@ -135,6 +135,7 @@ async def public_apply(
         db,
         job.id,
         ApplicationCreate(name=name, email=email, resume_path=resume.filename or ""),
+        notify_owner=True,
     )
 
     # Increment job leads count
