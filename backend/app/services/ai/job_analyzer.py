@@ -408,6 +408,13 @@ def _build_headers(cfg: dict[str, Any]) -> dict[str, str]:
             "anthropic-version": "2023-06-01",
             "Content-Type": "application/json",
         }
+    if provider == "gemini":
+        # Gemini's native API takes AI Studio keys in x-goog-api-key; a Bearer
+        # header is only for OAuth access tokens and rejects API keys.
+        return {
+            "x-goog-api-key": cfg["api_key"],
+            "Content-Type": "application/json",
+        }
     headers: dict[str, str] = {
         "Authorization": f"Bearer {cfg['api_key']}",
         "Content-Type": "application/json",

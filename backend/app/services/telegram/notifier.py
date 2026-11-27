@@ -5,6 +5,8 @@
 * Candidates and HR users get interview reminders (bot phase 5).
 * Candidates hear when an interview is scheduled, moved, cancelled or gets a
   meeting link (bot phase 7).
+* HR users hear when an AI analysis they started, or an auto-analyze batch,
+  has finished (bot phase 8).
 
 Two halves:
 
@@ -56,6 +58,10 @@ NEW_APPLICATION = "new_application"
 INTERVIEW_REMINDER = "interview_reminder"
 #: Candidate: an interview was scheduled, moved, cancelled or got a link (phase 7).
 INTERVIEW_UPDATE = "interview_update"
+#: HR: an AI analysis they started finished or failed (phase 8).
+ANALYSIS_RESULT = "analysis_result"
+#: HR: an auto-analyze batch finished (phase 8).
+BATCH_RESULT = "batch_result"
 
 #: How often ``scan_interview_reminders`` runs (Celery beat) and the windows.
 REMINDER_SCAN_SECONDS = 300
@@ -262,6 +268,10 @@ def build_message(db: Session, payload: dict) -> OutgoingMessage | None:
         return _build_reminder_message(db, payload)
     if kind == INTERVIEW_UPDATE:
         return _build_interview_update_message(db, payload)
+    if kind == ANALYSIS_RESULT:
+        return _build_analysis_message(db, payload)
+    if kind == BATCH_RESULT:
+        return _build_batch_message(db, payload)
     logger.warning("Unknown Telegram notification type: %s", kind)
     return None
 
@@ -670,3 +680,93 @@ def _build_interview_update_message(db: Session, payload: dict) -> OutgoingMessa
         text="\n".join(lines),
         buttons=application_buttons(lang, application.id),
     )
+
+
+# ---------------------------------------------------------------------------
+# AI analysis results for HR (phase 8)
+# ---------------------------------------------------------------------------
+
+
+def _analysis_link(db: Session, owner_id: int) -> TelegramLink | None:
+    """The HR owner's link if it wants analysis messages, else ``None``."""
+    link = _hr_link(db, owner_id)
+    if link is None or not link.is_active or not link.notify_analysis:
+        return None
+    return link
+
+
+def queue_analysis_result(db: Session, application: Application) -> OutboxEvent | None:
+    """Record "your analysis finished/failed" for the job owner; the caller commits."""
+    if not settings.telegram_configured or application.job is None:
+        return None
+    if _analysis_link(db, application.job.owner_id) is None:
+        return None
+    from app.services.outbox import record_outbox_event  # avoid an import cycle
+
+    return record_outbox_event(
+        db, EVENT_TYPE, {"notification": ANALYSIS_RESULT, "application_id": application.id}
+    )
+
+
+def queue_batch_result(db: Session, batch) -> OutboxEvent | None:
+    """Record the summary of a finished auto-analyze batch; the caller commits."""
+    if not settings.telegram_configured or _analysis_link(db, batch.owner_id) is None:
+        return None
+    from app.services.outbox import record_outbox_event  # avoid an import cycle
+
+    return record_outbox_event(db, EVENT_TYPE, {"notification": BATCH_RESULT, "batch_id": batch.id})
+
+
+def _build_analysis_message(db: Session, payload: dict) -> OutgoingMessage | None:
+    from app.models.application import AnalysisStatus
+
+    application = db.get(Application, payload.get("application_id"))
+    if application is None or application.job is None:
+        return None
+    link = _analysis_link(db, application.job.owner_id)
+    if link is None or not link_owner_active(db, link):
+        return None
+    lang = link.language
+    head = [
+        f"👤 <b>{html.escape(application.name or '—')}</b>",
+        f"{html.escape(application.job.position)} — {html.escape(application.job.company_name)}",
+    ]
+    if application.analysis_status == AnalysisStatus.COMPLETED:
+        lines = [t(lang, "ai_done_title"), ""] + head
+        lines.append(t(lang, "hr_ai_score", score=str(round(application.ai_score or 0))))
+        recommendation = (application.ai_analysis_details or {}).get("ai_recommendation")
+        if recommendation:
+            lines.append(t(lang, "ai_recommendation", value=t(lang, f"ai_rec_{recommendation}")))
+        buttons = [[{"text": t(lang, "btn_ai_summary"), "callback_data": f"hr:aix:{application.id}:0"}]]
+    elif application.analysis_status == AnalysisStatus.FAILED:
+        lines = [t(lang, "ai_failed_title"), ""] + head
+        if application.analysis_error:
+            lines += ["", f"<i>{html.escape(application.analysis_error[:300])}</i>"]
+        buttons = []
+    else:
+        # Started again (or reset) since: the newer run will report.
+        return None
+    buttons += hr_application_buttons(lang, application.id)
+    return OutgoingMessage(link_id=link.id, chat_id=link.chat_id, text="\n".join(lines), buttons=buttons)
+
+
+def _build_batch_message(db: Session, payload: dict) -> OutgoingMessage | None:
+    from app.models.analysis_batch import AnalysisBatch
+
+    batch = db.get(AnalysisBatch, payload.get("batch_id"))
+    if batch is None:
+        return None
+    link = _analysis_link(db, batch.owner_id)
+    if link is None or not link_owner_active(db, link):
+        return None
+    lang = link.language
+    text = t(
+        lang,
+        "ai_batch_done",
+        total=str(batch.total),
+        ok=str(batch.successful_count),
+        failed=str(batch.failed_count),
+        skipped=str(batch.skipped_count),
+    )
+    buttons = [[{"text": t(lang, "btn_to_list"), "callback_data": "hr:ls:new:0:0"}]]
+    return OutgoingMessage(link_id=link.id, chat_id=link.chat_id, text=text, buttons=buttons)

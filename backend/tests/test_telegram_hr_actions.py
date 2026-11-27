@@ -67,7 +67,7 @@ def test_card_offers_every_other_status(hr, job):
     for status in ("reviewing", "shortlisted", "interview", "hired", "rejected"):
         assert f"hr:set:{application_id}:{status}:1" in callbacks
     assert "Ko'rib chiqishni boshlash" in str(reply.buttons) and "Rad etish" in str(reply.buttons)
-    assert callbacks[-1] == "hr:new:1"
+    assert callbacks[-1] == "hr:back:1"
 
 
 def test_card_hides_the_current_status(hr, job):

@@ -254,7 +254,7 @@ def test_settings_lists_switches_per_account(setup):
     # Only the HR link belongs to this Telegram user here.
     reply = actions.settings_page(_profile())
     callbacks = [row[0]["callback_data"] for row in reply.buttons]
-    assert callbacks == ["cfg:hr:new_applications", "cfg:hr:reminders"]
+    assert callbacks == ["cfg:hr:new_applications", "cfg:hr:reminders", "cfg:hr:analysis"]
     assert "✅ Yangi arizalar" in reply.text and "✅ Suhbat eslatmalari" in reply.text
 
 
@@ -267,6 +267,7 @@ def test_settings_with_both_accounts_marks_each_button(client, user, telegram_on
     assert callbacks == [
         "cfg:hr:new_applications",
         "cfg:hr:reminders",
+        "cfg:hr:analysis",
         "cfg:candidate:status",
         "cfg:candidate:reminders",
     ]

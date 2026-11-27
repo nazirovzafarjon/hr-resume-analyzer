@@ -29,7 +29,7 @@ logger = logging.getLogger("app.bot")
 
 COMMANDS = [
     BotCommand(command="start", description="Start / Boshlash"),
-    BotCommand(command="applications", description="My applications / Arizalarim"),
+    BotCommand(command="applications", description="Applications / Arizalar"),
     BotCommand(command="new", description="New applications (HR) / Yangi arizalar"),
     BotCommand(command="settings", description="Notifications / Sozlamalar"),
     BotCommand(command="status", description="Connected accounts / Ulangan akkauntlar"),
