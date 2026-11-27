@@ -92,12 +92,39 @@ def get_interview_by_id(db: Session, interview_id: int, hr_id: int | None) -> In
     )
 
 
+def _queue_candidate_notice(db: Session, before, interview: Interview | None) -> list:
+    """Queue the candidate's Telegram message(s) for this change (same transaction)."""
+    # Imported here: the notifier pulls in the outbox -> Celery tasks -> crud.
+    from app.services.telegram import notifier
+
+    return notifier.queue_interview_change(db, before, notifier.interview_state(interview))
+
+
+def _publish(db: Session, events: list) -> None:
+    from app.services.telegram import notifier
+
+    for event in events:
+        notifier.publish(db, event)
+
+
+def _state(interview: Interview):
+    from app.services.telegram import notifier
+
+    return notifier.interview_state(interview)
+
+
 def create_interview(db: Session, obj_in: InterviewCreate, hr_id: int) -> Interview:
-    """Create and return a new interview owned by the given HR user."""
+    """Create and return a new interview owned by the given HR user.
+
+    A linked candidate is told in Telegram once the interview commits.
+    """
     interview = Interview(hr_id=hr_id, **obj_in.model_dump())
     db.add(interview)
+    db.flush()
+    events = _queue_candidate_notice(db, None, interview)
     db.commit()
     db.refresh(interview)
+    _publish(db, events)
     return interview
 
 
@@ -106,22 +133,30 @@ def update_interview(
 ) -> Interview:
     """Apply the submitted updates to an interview and return the refreshed row.
 
-    ``hr_id`` re-assigns the interview when it moves to a candidate of another
+    A change the candidate should know about (new time, cancellation, meeting
+    link) is announced in Telegram once it commits. ``hr_id`` re-assigns the interview when it moves to a candidate of another
     HR user (only possible from an admin session).
     """
+    before = _state(db_obj)
     for field, value in obj_in.model_dump(exclude_unset=True).items():
         setattr(db_obj, field, value)
     if hr_id is not None:
         db_obj.hr_id = hr_id
+    db.flush()
+    events = _queue_candidate_notice(db, before, db_obj)
     db.commit()
     db.refresh(db_obj)
+    _publish(db, events)
     return db_obj
 
 
 def delete_interview(db: Session, db_obj: Interview) -> None:
-    """Delete the given interview."""
+    """Delete the given interview (an upcoming one is announced as cancelled)."""
+    before = _state(db_obj)
     db.delete(db_obj)
+    events = _queue_candidate_notice(db, before, None)
     db.commit()
+    _publish(db, events)
 
 # ---------------------------------------------------------------------------
 # Candidate Portal (always scoped to one candidate account)

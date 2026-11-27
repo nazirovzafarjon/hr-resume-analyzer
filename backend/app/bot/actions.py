@@ -319,6 +319,13 @@ def _hr_card(lang: str, application: Application, page: int, notice: str | None 
         buttons.append(
             [{"text": t(lang, "btn_schedule"), "callback_data": f"hr:iv:{application.id}:{page}"}]
         )
+    if upcoming is not None:
+        # Manage the next interview (phase 7); cancelling stays possible on
+        # closed applications too.
+        row = [{"text": t(lang, "btn_iv_cancel"), "callback_data": f"hr:ivx:{upcoming.id}:{page}"}]
+        if status not in _CLOSED_STATUSES:
+            row.insert(0, {"text": t(lang, "btn_reschedule"), "callback_data": f"hr:rs:{upcoming.id}:{page}"})
+        buttons.append(row)
     # A withdrawn application is the candidate's decision: HR cannot move it.
     if status != ApplicationStatus.WITHDRAWN.value:
         targets = [target for target in HR_TARGETS if target.value != status]
@@ -565,19 +572,76 @@ def _day_label(lang: str, day: date) -> str:
     return f"{weekday_label(lang, day.weekday())}, {day.strftime('%d.%m')}"
 
 
-def hr_schedule_days(profile: TelegramProfile, application_id: int, page: int = 0, notice: str | None = None) -> Reply:
-    """Step 1: pick a day."""
+@dataclass(frozen=True)
+class _Target:
+    """What a picker step is about, loaded fresh on every tap."""
+
+    user: object
+    application: Application
+    interview: Interview | None
+    heading: str
+
+
+@dataclass(frozen=True)
+class _Flow:
+    """One day -> time -> review -> confirm flow and its callback prefixes.
+
+    Scheduling (``hr:iv…``) is keyed by the application id, rescheduling
+    (``hr:rs…``, phase 7) by the interview id.
+    """
+
+    days: str
+    times: str
+    review: str
+    confirm: str
+    confirm_label: str
+
+
+_SCHEDULE = _Flow("iv", "ivd", "ivt", "ivok", "btn_iv_confirm")
+_RESCHEDULE = _Flow("rs", "rsd", "rst", "rsok", "btn_iv_reschedule_confirm")
+
+
+def _load_target(db, profile: TelegramProfile, flow: _Flow, target_id: int, page: int):
+    """``(_Target, None)`` or ``(None, error reply)``."""
+    lang = profile.language_code
+    if flow is _SCHEDULE:
+        user, application, error = _load_schedulable(db, profile, target_id, page)
+        if error is not None:
+            return None, error
+        return _Target(user, application, None, _schedule_heading(lang, application)), None
+    user, interview, error = _load_reschedulable(db, profile, target_id, page)
+    if error is not None:
+        return None, error
+    application = interview.candidate
+    heading = t(
+        lang,
+        "iv_reschedule_heading",
+        name=html.escape(application.name or "—"),
+        position=html.escape(application.job.position),
+        date=notifier.format_date(interview.scheduled_at, with_time=True),
+    )
+    return _Target(user, application, interview, heading), None
+
+
+def _initial_duration(interview: Interview | None) -> int:
+    """Rescheduling keeps the interview's length when the picker offers it."""
+    if interview is not None and interview.duration_minutes in DURATIONS:
+        return interview.duration_minutes
+    return DEFAULT_DURATION
+
+
+def _pick_day(profile: TelegramProfile, flow: _Flow, target_id: int, page: int, notice: str | None = None) -> Reply:
     lang = profile.language_code
     with SessionLocal() as db:
-        _, application, error = _load_schedulable(db, profile, application_id, page)
+        target, error = _load_target(db, profile, flow, target_id, page)
         if error is not None:
             return error
-        heading = _schedule_heading(lang, application)
+        heading, application_id = target.heading, target.application.id
 
     lines = [notice, ""] if notice else []
     lines += [heading, "", t(lang, "iv_pick_day", tz=html.escape(settings.TELEGRAM_TIMEZONE))]
     days = [
-        {"text": _day_label(lang, day), "callback_data": f"hr:ivd:{application_id}:{day.strftime(_DAY_FORMAT)}:{page}"}
+        {"text": _day_label(lang, day), "callback_data": f"hr:{flow.times}:{target_id}:{day.strftime(_DAY_FORMAT)}:{page}"}
         for day in _bookable_days()
     ]
     buttons: Buttons = [days[i : i + 3] for i in range(0, len(days), 3)]
@@ -585,45 +649,45 @@ def hr_schedule_days(profile: TelegramProfile, application_id: int, page: int = 
     return Reply("\n".join(lines), buttons)
 
 
-def hr_schedule_times(profile: TelegramProfile, application_id: int, day_value: str, page: int = 0) -> Reply:
-    """Step 2: pick a start time on the chosen day."""
+def _pick_time(profile: TelegramProfile, flow: _Flow, target_id: int, day_value: str, page: int) -> Reply:
     lang = profile.language_code
     day = _parse_day(day_value)
     if day is None:
-        return hr_schedule_days(profile, application_id, page, notice=t(lang, "iv_slot_gone"))
+        return _pick_day(profile, flow, target_id, page, notice=t(lang, "iv_slot_gone"))
     with SessionLocal() as db:
-        _, application, error = _load_schedulable(db, profile, application_id, page)
+        target, error = _load_target(db, profile, flow, target_id, page)
         if error is not None:
             return error
-        heading = _schedule_heading(lang, application)
+        heading = target.heading
+        duration = _initial_duration(target.interview)
 
     lines = [heading, "", t(lang, "iv_pick_time", day=_day_label(lang, day))]
     slots = [
         {
             "text": slot.strftime("%H:%M"),
-            "callback_data": f"hr:ivt:{application_id}:{slot.strftime(_SLOT_FORMAT)}:{DEFAULT_DURATION}:{page}",
+            "callback_data": f"hr:{flow.review}:{target_id}:{slot.strftime(_SLOT_FORMAT)}:{duration}:{page}",
         }
         for slot in _free_slots(day)
     ]
     buttons: Buttons = [slots[i : i + 4] for i in range(0, len(slots), 4)]
-    buttons.append([{"text": t(lang, "btn_back_step"), "callback_data": f"hr:iv:{application_id}:{page}"}])
+    buttons.append([{"text": t(lang, "btn_back_step"), "callback_data": f"hr:{flow.days}:{target_id}:{page}"}])
     return Reply("\n".join(lines), buttons)
 
 
-def hr_schedule_review(
-    profile: TelegramProfile, application_id: int, slot_value: str, duration: int, page: int = 0
-) -> Reply:
-    """Step 3: the summary, with the duration to choose and the confirm button."""
+def _review(profile: TelegramProfile, flow: _Flow, target_id: int, slot_value: str, duration: int, page: int) -> Reply:
     lang = profile.language_code
     slot = _parse_slot(slot_value)
     if slot is None or duration not in DURATIONS:
-        return hr_schedule_days(profile, application_id, page, notice=t(lang, "iv_slot_gone"))
+        return _pick_day(profile, flow, target_id, page, notice=t(lang, "iv_slot_gone"))
     with SessionLocal() as db:
-        user, application, error = _load_schedulable(db, profile, application_id, page)
+        target, error = _load_target(db, profile, flow, target_id, page)
         if error is not None:
             return error
-        heading = _schedule_heading(lang, application)
-        interviewer = html.escape(user.full_name or user.email)
+        heading = target.heading
+        if target.interview is not None:
+            interviewer = target.interview.interviewer
+        else:
+            interviewer = target.user.full_name or target.user.email
 
     text = "\n".join(
         [
@@ -631,7 +695,7 @@ def hr_schedule_review(
             "",
             f"🕒 <b>{notifier.format_date(slot, with_time=True)}</b>",
             t(lang, "iv_duration", minutes=str(duration)),
-            t(lang, "iv_interviewer", name=interviewer),
+            t(lang, "iv_interviewer", name=html.escape(interviewer)),
             "",
             t(lang, "iv_review_hint"),
         ]
@@ -639,16 +703,33 @@ def hr_schedule_review(
     durations = [
         {
             "text": f"{'✓ ' if minutes == duration else ''}{t(lang, 'iv_minutes', minutes=str(minutes))}",
-            "callback_data": f"hr:ivt:{application_id}:{slot_value}:{minutes}:{page}",
+            "callback_data": f"hr:{flow.review}:{target_id}:{slot_value}:{minutes}:{page}",
         }
         for minutes in DURATIONS
     ]
     buttons: Buttons = [
         durations,
-        [{"text": t(lang, "btn_iv_confirm"), "callback_data": f"hr:ivok:{application_id}:{slot_value}:{duration}:{page}"}],
-        [{"text": t(lang, "btn_back_step"), "callback_data": f"hr:ivd:{application_id}:{slot_value[:8]}:{page}"}],
+        [{"text": t(lang, flow.confirm_label), "callback_data": f"hr:{flow.confirm}:{target_id}:{slot_value}:{duration}:{page}"}],
+        [{"text": t(lang, "btn_back_step"), "callback_data": f"hr:{flow.times}:{target_id}:{slot_value[:8]}:{page}"}],
     ]
     return Reply(text, buttons)
+
+
+def hr_schedule_days(profile: TelegramProfile, application_id: int, page: int = 0, notice: str | None = None) -> Reply:
+    """Step 1: pick a day."""
+    return _pick_day(profile, _SCHEDULE, application_id, page, notice)
+
+
+def hr_schedule_times(profile: TelegramProfile, application_id: int, day_value: str, page: int = 0) -> Reply:
+    """Step 2: pick a start time on the chosen day."""
+    return _pick_time(profile, _SCHEDULE, application_id, day_value, page)
+
+
+def hr_schedule_review(
+    profile: TelegramProfile, application_id: int, slot_value: str, duration: int, page: int = 0
+) -> Reply:
+    """Step 3: the summary, with the duration to choose and the confirm button."""
+    return _review(profile, _SCHEDULE, application_id, slot_value, duration, page)
 
 
 def hr_schedule_confirm(
@@ -708,7 +789,14 @@ def hr_schedule_confirm(
         return _scheduled_reply(lang, interview, application, page, t(lang, "iv_scheduled"))
 
 
-def _scheduled_reply(lang: str, interview: Interview, application: Application, page: int, title: str) -> Reply:
+def _scheduled_reply(
+    lang: str,
+    interview: Interview,
+    application: Application,
+    page: int,
+    title: str,
+    hint: str = "iv_reminders_hint",
+) -> Reply:
     lines = [
         title,
         "",
@@ -718,7 +806,7 @@ def _scheduled_reply(lang: str, interview: Interview, application: Application, 
     ]
     if interview.meeting_link:
         lines.append(f"🔗 {html.escape(interview.meeting_link)}")
-    lines += ["", t(lang, "iv_reminders_hint")]
+    lines += ["", t(lang, hint)]
     link_key = "btn_change_link" if interview.meeting_link else "btn_add_link"
     buttons: Buttons = [
         [{"text": t(lang, link_key), "callback_data": f"hr:ivlink:{interview.id}:{page}"}],
@@ -784,6 +872,126 @@ def hr_set_meeting_link(profile: TelegramProfile, interview_id: int, text: str, 
 
 
 # ---------------------------------------------------------------------------
+# HR: reschedule or cancel an interview from the bot (phase 7)
+# ---------------------------------------------------------------------------
+#
+# Card -> day (hr:rs) -> time (hr:rsd) -> review (hr:rst) -> save (hr:rsok),
+# the same pickers as scheduling, keyed by the interview id. Cancelling asks
+# first (hr:ivx) and then sets the status (hr:ivxok). Both go through the
+# same CRUD call as ``PATCH /api/interviews/{id}``, so the candidate's
+# Telegram message and the reminders follow the new state.
+
+
+def _load_reschedulable(db, profile: TelegramProfile, interview_id: int, page: int):
+    """``(user, interview, None)`` or ``(None, None, error reply)``."""
+    lang = profile.language_code
+    user = _hr_for(db, profile)
+    if user is None:
+        return None, None, Reply(t(lang, "hr_not_hr"))
+    interview = _owned_upcoming_interview(db, user, interview_id)
+    if interview is None or interview.candidate is None or interview.candidate.job.owner_id != user.id:
+        return None, None, Reply(t(lang, "iv_not_found"), [_back_to_list(lang, page)])
+    return user, interview, None
+
+
+def hr_reschedule_days(profile: TelegramProfile, interview_id: int, page: int = 0, notice: str | None = None) -> Reply:
+    return _pick_day(profile, _RESCHEDULE, interview_id, page, notice)
+
+
+def hr_reschedule_times(profile: TelegramProfile, interview_id: int, day_value: str, page: int = 0) -> Reply:
+    return _pick_time(profile, _RESCHEDULE, interview_id, day_value, page)
+
+
+def hr_reschedule_review(
+    profile: TelegramProfile, interview_id: int, slot_value: str, duration: int, page: int = 0
+) -> Reply:
+    return _review(profile, _RESCHEDULE, interview_id, slot_value, duration, page)
+
+
+def hr_reschedule_confirm(
+    profile: TelegramProfile, interview_id: int, slot_value: str, duration: int, page: int = 0
+) -> Reply:
+    """Move the interview, like ``PATCH /api/interviews/{id}`` (audited).
+
+    A second tap finds the interview already at that time and changes nothing.
+    """
+    lang = profile.language_code
+    slot = _parse_slot(slot_value)
+    if slot is None or duration not in DURATIONS:
+        return hr_reschedule_days(profile, interview_id, page, notice=t(lang, "iv_slot_gone"))
+    scheduled_at = slot.astimezone(timezone.utc)
+
+    with SessionLocal() as db:
+        user, interview, error = _load_reschedulable(db, profile, interview_id, page)
+        if error is not None:
+            return error
+        fields = {}
+        if _as_utc(interview.scheduled_at) != scheduled_at:
+            fields["scheduled_at"] = scheduled_at
+        if interview.duration_minutes != duration:
+            fields["duration_minutes"] = duration
+        if fields:
+            interview = interview_crud.update_interview(db, interview, InterviewUpdate(**fields))
+            audit.record(
+                db,
+                audit.AuditAction.UPDATE_INTERVIEW,
+                resource_type=audit.AuditResource.INTERVIEW,
+                resource_id=interview.id,
+                actor=user,
+                details={"fields": sorted(fields), "via": "telegram"},
+            )
+            logger.info(
+                "Interview rescheduled from Telegram: interview_id=%s user_id=%s", interview.id, user.id
+            )
+        return _scheduled_reply(
+            lang, interview, interview.candidate, page, t(lang, "iv_rescheduled"), hint="iv_change_hint"
+        )
+
+
+def hr_cancel_interview(
+    profile: TelegramProfile, interview_id: int, page: int = 0, *, confirmed: bool = False
+) -> Reply:
+    """Ask first, then cancel like ``PATCH /api/interviews/{id}`` with ``status=cancelled``.
+
+    The interview is kept (as cancelled), the application status is left as
+    it is, and the candidate hears about it in Telegram when linked.
+    """
+    lang = profile.language_code
+    with SessionLocal() as db:
+        user, interview, error = _load_reschedulable(db, profile, interview_id, page)
+        if error is not None:
+            return error
+        application = interview.candidate
+        if not confirmed:
+            text = t(
+                lang,
+                "iv_cancel_confirm",
+                name=html.escape(application.name or "—"),
+                position=html.escape(application.job.position),
+                date=notifier.format_date(interview.scheduled_at, with_time=True),
+            )
+            return Reply(
+                text,
+                [
+                    [{"text": t(lang, "btn_iv_cancel_confirm"), "callback_data": f"hr:ivxok:{interview.id}:{page}"}],
+                    [{"text": t(lang, "btn_keep"), "callback_data": f"hr:app:{application.id}:{page}"}],
+                ],
+            )
+        interview_crud.update_interview(db, interview, InterviewUpdate(status=InterviewStatus.CANCELLED))
+        audit.record(
+            db,
+            audit.AuditAction.UPDATE_INTERVIEW,
+            resource_type=audit.AuditResource.INTERVIEW,
+            resource_id=interview_id,
+            actor=user,
+            details={"fields": ["status"], "status": InterviewStatus.CANCELLED.value, "via": "telegram"},
+        )
+        logger.info("Interview cancelled from Telegram: interview_id=%s user_id=%s", interview_id, user.id)
+        application = _owned_application(db, user, application.id)
+        return _hr_card(lang, application, page, notice=t(lang, "iv_cancelled"))
+
+
+# ---------------------------------------------------------------------------
 # /settings: notification preferences (phase 5)
 # ---------------------------------------------------------------------------
 
@@ -809,7 +1017,9 @@ def settings_page(profile: TelegramProfile) -> Reply:
             lines += ["", t(lang, heading)]
             for key in PREFERENCES[link.kind]:
                 mark = "✅" if getattr(link, f"notify_{key}") else "🔕"
-                label = f"{mark} {t(lang, f'pref_{key}')}"
+                # The candidate's switch also covers interview changes (phase 7).
+                text_key = "pref_interviews" if (link.kind, key) == (TelegramAccountKind.CANDIDATE, "reminders") else f"pref_{key}"
+                label = f"{mark} {t(lang, text_key)}"
                 lines.append(label)
                 # With two accounts linked, say which one the button belongs to.
                 suffix = f" · {'HR' if link.kind == TelegramAccountKind.HR else '👤'}" if both else ""

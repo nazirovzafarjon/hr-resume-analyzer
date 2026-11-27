@@ -2,6 +2,9 @@
 
 * Candidates hear about their applications' status (bot phase 2).
 * HR users hear about new applications to their own jobs (bot phase 3).
+* Candidates and HR users get interview reminders (bot phase 5).
+* Candidates hear when an interview is scheduled, moved, cancelled or gets a
+  meeting link (bot phase 7).
 
 Two halves:
 
@@ -51,6 +54,8 @@ APPLICATION_STATUS = "application_status"
 NEW_APPLICATION = "new_application"
 #: Candidate and HR: an interview is coming up (phase 5).
 INTERVIEW_REMINDER = "interview_reminder"
+#: Candidate: an interview was scheduled, moved, cancelled or got a link (phase 7).
+INTERVIEW_UPDATE = "interview_update"
 
 #: How often ``scan_interview_reminders`` runs (Celery beat) and the windows.
 REMINDER_SCAN_SECONDS = 300
@@ -255,6 +260,8 @@ def build_message(db: Session, payload: dict) -> OutgoingMessage | None:
         return _build_new_application_message(db, payload)
     if kind == INTERVIEW_REMINDER:
         return _build_reminder_message(db, payload)
+    if kind == INTERVIEW_UPDATE:
+        return _build_interview_update_message(db, payload)
     logger.warning("Unknown Telegram notification type: %s", kind)
     return None
 
@@ -494,4 +501,172 @@ def _build_reminder_message(db: Session, payload: dict) -> OutgoingMessage | Non
         chat_id=link.chat_id,
         text="\n".join(lines),
         buttons=buttons(lang, application.id),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Interview changes for the candidate (phase 7)
+# ---------------------------------------------------------------------------
+#
+# ``crud.interview`` takes a snapshot before and after every create, update
+# and delete and calls ``queue_interview_change`` in the same transaction, so
+# the web CRM and the bot announce changes the same way. Only changes to an
+# interview that is (or was) still ahead are announced; HR users act
+# themselves and are not told. The candidate's "interviews" switch
+# (``notify_reminders``) covers both these messages and the reminders.
+
+CHANGE_SCHEDULED = "scheduled"
+CHANGE_RESCHEDULED = "rescheduled"
+CHANGE_CANCELLED = "cancelled"
+CHANGE_LINK = "link"
+
+
+@dataclass(frozen=True)
+class InterviewState:
+    """What the candidate can see of an interview at one moment."""
+
+    interview_id: int
+    application_id: int
+    status: InterviewStatus
+    scheduled_at: datetime
+    meeting_link: str | None
+
+    @property
+    def is_ahead(self) -> bool:
+        return self.status == InterviewStatus.UPCOMING and self.scheduled_at > _utcnow()
+
+
+def interview_state(interview: Interview | None) -> InterviewState | None:
+    if interview is None or interview.scheduled_at is None:
+        return None
+    return InterviewState(
+        interview_id=interview.id,
+        application_id=interview.candidate_id,
+        status=InterviewStatus(interview.status or InterviewStatus.UPCOMING),
+        scheduled_at=_as_utc(interview.scheduled_at),
+        meeting_link=(interview.meeting_link or "").strip() or None,
+    )
+
+
+def interview_changes(
+    before: InterviewState | None, after: InterviewState | None
+) -> list[tuple[InterviewState, str, datetime | None]]:
+    """``(state, change, previous time)`` the candidate(s) should hear about."""
+    if after is None:
+        return [(before, CHANGE_CANCELLED, None)] if before is not None and before.is_ahead else []
+    if before is None:
+        return [(after, CHANGE_SCHEDULED, None)] if after.is_ahead else []
+    if before.application_id != after.application_id:
+        # Moved to another candidate (admin only): one loses it, one gains it.
+        changes = []
+        if before.is_ahead:
+            changes.append((before, CHANGE_CANCELLED, None))
+        if after.is_ahead:
+            changes.append((after, CHANGE_SCHEDULED, None))
+        return changes
+    if not before.is_ahead:
+        return [(after, CHANGE_SCHEDULED, None)] if after.is_ahead else []
+    if not after.is_ahead:
+        # Completed early or moved into the past is not news; cancelled is.
+        return [(before, CHANGE_CANCELLED, None)] if after.status == InterviewStatus.CANCELLED else []
+    if after.scheduled_at != before.scheduled_at:
+        return [(after, CHANGE_RESCHEDULED, before.scheduled_at)]
+    if after.meeting_link != before.meeting_link and _meeting_line(after.meeting_link):
+        return [(after, CHANGE_LINK, None)]
+    return []
+
+
+def _candidate_interview_link(db: Session, application: Application | None) -> TelegramLink | None:
+    """The candidate's link if it wants interview messages, else ``None``."""
+    if application is None or application.candidate_account_id is None:
+        return None
+    link = _candidate_link(db, application.candidate_account_id)
+    if link is None or not link.is_active or not link.notify_reminders:
+        return None
+    return link
+
+
+def queue_interview_change(
+    db: Session, before: InterviewState | None, after: InterviewState | None
+) -> list[OutboxEvent]:
+    """Record the candidate's notification(s) for one interview change.
+
+    Runs inside the transaction that changes the interview; the caller
+    commits and then publishes the returned events.
+    """
+    if not settings.telegram_configured:
+        return []
+    from app.services.outbox import record_outbox_event  # avoid an import cycle
+
+    events = []
+    for state, change, previous_at in interview_changes(before, after):
+        if _candidate_interview_link(db, db.get(Application, state.application_id)) is None:
+            continue
+        payload = {
+            "notification": INTERVIEW_UPDATE,
+            "change": change,
+            "interview_id": state.interview_id,
+            "application_id": state.application_id,
+            "scheduled_at": state.scheduled_at.isoformat(),
+        }
+        if previous_at is not None:
+            payload["previous_at"] = previous_at.isoformat()
+        events.append(record_outbox_event(db, EVENT_TYPE, payload))
+    return events
+
+
+def _build_interview_update_message(db: Session, payload: dict) -> OutgoingMessage | None:
+    application = db.get(Application, payload.get("application_id"))
+    if application is None or application.job is None:
+        return None
+    link = _candidate_interview_link(db, application)
+    if link is None or not link_owner_active(db, link):
+        return None
+
+    change = payload.get("change")
+    current = interview_state(db.get(Interview, payload.get("interview_id")))
+    if current is not None and current.application_id != application.id:
+        current = None
+    same_slot = current is not None and current.scheduled_at.isoformat() == payload.get("scheduled_at")
+    if change == CHANGE_CANCELLED:
+        # Reinstated since, or the cancelled time has passed anyway.
+        scheduled_at = datetime.fromisoformat(payload["scheduled_at"])
+        if (same_slot and current.is_ahead) or scheduled_at <= _utcnow():
+            return None
+        duration = None
+        meeting = None
+    elif change in (CHANGE_SCHEDULED, CHANGE_RESCHEDULED, CHANGE_LINK):
+        # Moved again, cancelled or over since it was queued: a newer message
+        # (or none at all) tells the current state.
+        if not same_slot or not current.is_ahead:
+            return None
+        interview = db.get(Interview, current.interview_id)
+        scheduled_at = current.scheduled_at
+        duration = interview.duration_minutes
+        meeting = _meeting_line(current.meeting_link)
+        if change == CHANGE_LINK and meeting is None:
+            return None
+    else:
+        return None
+
+    lang = link.language
+    lines = [
+        t(lang, f"iv_update_{change}"),
+        "",
+        f"<b>{html.escape(application.job.position)}</b> — {html.escape(application.job.company_name)}",
+        f"🗓 <b>{format_date(scheduled_at, with_time=True)}</b>",
+    ]
+    if change == CHANGE_RESCHEDULED and payload.get("previous_at"):
+        lines.append(
+            t(lang, "iv_update_previous", date=format_date(datetime.fromisoformat(payload["previous_at"]), with_time=True))
+        )
+    if duration:
+        lines.append(t(lang, "iv_duration", minutes=str(duration)))
+    if meeting:
+        lines.append(meeting)
+    return OutgoingMessage(
+        link_id=link.id,
+        chat_id=link.chat_id,
+        text="\n".join(lines),
+        buttons=application_buttons(lang, application.id),
     )
