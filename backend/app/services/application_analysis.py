@@ -363,6 +363,55 @@ async def run_analysis(
     return application
 
 
+def start_analysis(
+    db: Session, application: Application, *, actor_id: int, force: bool = False
+) -> bool:
+    """Queue an AI analysis run for HR (``POST /applications/{id}/analyze``, the bot).
+
+    Returns ``False`` when a completed analysis already exists and ``force``
+    is off (nothing is queued), ``True`` once the run is claimed and handed to
+    a worker through the outbox (same commit).
+
+    Raises:
+        AnalysisInProgressError: A run is already in flight.
+        ai_provider_service.AIConfigurationRequiredError: The job owner has
+            no AI provider; nothing is changed.
+        AIServiceError: A saved provider key cannot be used; the application
+            is marked failed and the attempt recorded before raising.
+    """
+    if not force and application.analysis_status == AnalysisStatus.COMPLETED and application.ai_analysis_details:
+        return False
+    if _is_run_active(application):
+        raise AnalysisInProgressError()
+
+    started = time.monotonic()
+    try:
+        ai_provider_service.resolve_for_user(db, application.job.owner_id)
+    except ai_provider_service.AIConfigurationRequiredError:
+        raise
+    except AIServiceError as exc:
+        _mark_failed(db, application, exc.message)
+        _record_outcome(db, application, application.job.owner_id, {}, started, error=exc)
+        raise
+
+    from app.services import outbox as outbox_service  # avoid an import cycle
+
+    # Mark the run as in flight before queuing it (same commit as the outbox
+    # event), so a repeated click is refused while the task waits in the queue.
+    claimed_at = claim_run(application)
+    outbox_service.record_and_dispatch(
+        db,
+        event_type="analyze_single_application",
+        payload={
+            "application_id": application.id,
+            "force": force,
+            "actor_id": actor_id,
+            "claimed_at": claimed_at,
+        },
+    )
+    return True
+
+
 def stored_analysis(application: Application) -> ApplicationAnalysis | None:
     """Return the analysis stored in PostgreSQL, or ``None``.
 

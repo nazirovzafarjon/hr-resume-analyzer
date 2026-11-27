@@ -100,6 +100,8 @@ class TelegramLink(Base):
     )
     #: Both: reminders before an interview.
     notify_reminders: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
+    #: HR: an AI analysis they started finished or failed (phase 8).
+    notify_analysis: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
 
 
 class TelegramReminderWindow(str, enum.Enum):

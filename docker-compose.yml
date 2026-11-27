@@ -287,6 +287,9 @@ services:
       - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-resume_analyzer}
       - REDIS_URL=redis://redis:6379/0
       - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
+    # Read-only: the bot sends HR the stored CVs (phase 8).
+    volumes:
+      - uploads-data:/app/uploads:ro
     # Override the Dockerfile HEALTHCHECK (API on :8000): the bot serves no HTTP.
     healthcheck:
       disable: true

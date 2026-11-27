@@ -12,7 +12,7 @@ from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import Command, CommandObject, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
+from aiogram.types import CallbackQuery, FSInputFile, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
 from app.bot import actions
 from app.bot.texts import t
@@ -70,11 +70,13 @@ async def on_help(message: Message) -> None:
 
 
 @router.message(Command("applications"))
-async def on_applications(message: Message) -> None:
+async def on_applications(message: Message, state: FSMContext) -> None:
+    """HR users get the filtered HR list (phase 8), candidates their own list."""
     if message.from_user is None:
         return
     profile = _profile(message)
-    reply = await _run(profile, actions.applications_page, profile, 0)
+    await _remember_list(state, ["ls", "all", 0])
+    reply = await _run(profile, actions.applications_entry, profile)
     await message.answer(reply.text, reply_markup=_keyboard(reply.buttons), disable_web_page_preview=True)
 
 
@@ -98,10 +100,11 @@ async def on_application_callback(query: CallbackQuery) -> None:
 
 
 @router.message(Command("new"))
-async def on_new(message: Message) -> None:
+async def on_new(message: Message, state: FSMContext) -> None:
     if message.from_user is None:
         return
     profile = _profile(message)
+    await _remember_list(state, ["ls", "new", 0])
     reply = await _run(profile, actions.hr_new_page, profile, 0)
     await message.answer(reply.text, reply_markup=_keyboard(reply.buttons), disable_web_page_preview=True)
 
@@ -140,12 +143,27 @@ class MeetingLink(StatesGroup):
     waiting = State()
 
 
+class Search(StatesGroup):
+    """Waiting for the text to search applications by (phase 8)."""
+
+    waiting = State()
+
+
+async def _remember_list(state: FSMContext, context: list) -> None:
+    """Remember the list a card is opened from, for its "back" button.
+
+    Kept in the FSM data (in memory): after a bot restart "back" falls back
+    to the unreviewed applications.
+    """
+    await state.update_data(hr_list=context)
+
+
 @router.message(Command("cancel"))
 async def on_cancel(message: Message, state: FSMContext) -> None:
     if message.from_user is None:
         return
     waiting = await state.get_state()
-    await state.clear()
+    await state.set_state(None)
     key = "cancelled" if waiting else "nothing_to_cancel"
     await message.answer(t(message.from_user.language_code, key))
 
@@ -160,8 +178,29 @@ async def on_meeting_link(message: Message, state: FSMContext) -> None:
         profile, actions.hr_set_meeting_link, profile, int(data["interview_id"]), message.text, int(data["page"])
     )
     if not reply.awaiting_input:
-        await state.clear()
+        await state.set_state(None)
     await message.answer(reply.text, reply_markup=_keyboard(reply.buttons), disable_web_page_preview=True)
+
+
+@router.message(Search.waiting, F.text, ~F.text.startswith("/"))
+async def on_search_text(message: Message, state: FSMContext) -> None:
+    if message.from_user is None:
+        return
+    profile = _profile(message)
+    reply = await _run(profile, actions.hr_search, profile, message.text, 0)
+    if not reply.awaiting_input:
+        await state.set_state(None)
+        await _remember_list(state, ["sr", message.text])
+    await message.answer(reply.text, reply_markup=_keyboard(reply.buttons), disable_web_page_preview=True)
+
+
+async def _list_reply(profile: TelegramProfile, context, page: int) -> "actions.Reply":
+    """Re-open a remembered list (``["ls", filter, job]`` or ``["sr", text]``)."""
+    if context and context[0] == "sr":
+        return await _run(profile, actions.hr_search, profile, context[1], page)
+    if context and context[0] == "ls":
+        return await _run(profile, actions.hr_list, profile, context[1], int(context[2]), page)
+    return await _run(profile, actions.hr_new_page, profile, page)
 
 
 @router.callback_query(F.data.startswith("hr:"))
@@ -181,13 +220,21 @@ async def on_hr_callback(query: CallbackQuery, state: FSMContext) -> None:
       reschedule, keyed by the interview id
     * ``hr:ivx:<interview id>:<page>`` -- ask before cancelling an interview
     * ``hr:ivxok:<interview id>:<page>`` -- cancel it
+    * ``hr:ls:<filter>:<job id or 0>:<page>`` -- filtered list (phase 8)
+    * ``hr:sr:<page>`` -- page of the last search; ``hr:find`` -- ask for one
+    * ``hr:back:<page>`` -- back to the list the card was opened from
+    * ``hr:jobs:<filter>`` -- pick a job to narrow the list to
+    * ``hr:cv`` / ``hr:fa`` / ``hr:aix:<id>:<page>`` -- resume file, form answers, AI summary
+    * ``hr:ai`` / ``hr:air:<id>:<page>`` -- start (or re-run) the AI analysis
+    * ``hr:aiall`` / ``hr:aiallok:<job id or 0>`` -- analyse the new ones (asks first)
     """
     if query.message is None:
         await query.answer()
         return
     profile = _profile(query.message, query.from_user)
-    # Any other button abandons a pending meeting-link question.
-    await state.clear()
+    # Any other button abandons a pending meeting-link or search question
+    # (the remembered list stays).
+    await state.set_state(None)
     try:
         parts = query.data.split(":")
         if parts[1] == "iv":
@@ -223,7 +270,44 @@ async def on_hr_callback(query: CallbackQuery, state: FSMContext) -> None:
                 await query.answer()
                 return
         elif parts[1] == "new":
+            await _remember_list(state, ["ls", "new", 0])
             reply = await _run(profile, actions.hr_new_page, profile, int(parts[2]))
+        elif parts[1] == "ls":
+            context = ["ls", parts[2], int(parts[3])]
+            await _remember_list(state, context)
+            reply = await _list_reply(profile, context, int(parts[4]))
+        elif parts[1] in ("sr", "back"):
+            reply = await _list_reply(profile, (await state.get_data()).get("hr_list"), int(parts[2]))
+        elif parts[1] == "jobs":
+            reply = await _run(profile, actions.hr_jobs_picker, profile, parts[2])
+        elif parts[1] == "find":
+            reply = await _run(profile, actions.hr_search_prompt, profile)
+            if reply.awaiting_input:
+                await state.set_state(Search.waiting)
+                await query.message.answer(reply.text)
+                await query.answer()
+                return
+        elif parts[1] == "cv":
+            reply = await _run(profile, actions.hr_resume, profile, int(parts[2]), int(parts[3]))
+            # Keep the card; the file (or why there is none) comes below it.
+            await _send(query, reply)
+            return
+        elif parts[1] == "fa":
+            reply = await _run(profile, actions.hr_form_answers, profile, int(parts[2]), int(parts[3]))
+        elif parts[1] == "aix":
+            reply = await _run(profile, actions.hr_analysis_summary, profile, int(parts[2]), int(parts[3]))
+        elif parts[1] in ("ai", "air"):
+            reply = await _run(
+                profile,
+                partial(actions.hr_start_analysis, force=parts[1] == "air"),
+                profile,
+                int(parts[2]),
+                int(parts[3]),
+            )
+        elif parts[1] in ("aiall", "aiallok"):
+            reply = await _run(
+                profile, partial(actions.hr_analyze_all, confirmed=parts[1] == "aiallok"), profile, int(parts[2])
+            )
         elif parts[1] == "app":
             reply = await _run(profile, actions.hr_application_detail, profile, int(parts[2]), int(parts[3]))
         elif parts[1] in ("set", "ok"):
@@ -251,6 +335,16 @@ async def _show(query: CallbackQuery, reply: "actions.Reply") -> None:
     except TelegramBadRequest:
         # "message is not modified" (same page pressed twice) or a message too
         # old to edit: send the content as a new message instead.
+        await query.message.answer(reply.text, reply_markup=_keyboard(reply.buttons))
+    await query.answer()
+
+
+async def _send(query: CallbackQuery, reply: "actions.Reply") -> None:
+    """Send a reply as a new message (a document when it carries one)."""
+    if reply.document is not None:
+        path, filename = reply.document
+        await query.message.answer_document(FSInputFile(path, filename=filename), caption=reply.text)
+    else:
         await query.message.answer(reply.text, reply_markup=_keyboard(reply.buttons))
     await query.answer()
 

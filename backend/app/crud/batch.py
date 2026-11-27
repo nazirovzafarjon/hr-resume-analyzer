@@ -210,6 +210,12 @@ def check_and_complete_batch(db: Session, batch_id: int) -> bool:
         batch.status = AnalysisBatchStatus.COMPLETED
         batch.finished_at = datetime.now(timezone.utc)
         batch.current_application_id = None
+        # One Telegram summary for the whole batch (same commit), never one
+        # message per application.
+        from app.services.telegram import notifier
+
+        event = notifier.queue_batch_result(db, batch)
         db.commit()
+        notifier.publish(db, event)
         return True
     return False

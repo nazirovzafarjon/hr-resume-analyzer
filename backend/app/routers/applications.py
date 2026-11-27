@@ -21,7 +21,6 @@ GET    /api/applications/{id}/resume   — view (inline) or download the stored 
 """
 
 import logging
-import time
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import FileResponse
@@ -34,7 +33,7 @@ from app.crud import application as application_crud
 from app.dependencies.audit import get_audit_context
 from app.dependencies.auth import AccessScope, get_access_scope
 from app.models.job import Job
-from app.models.application import AnalysisStatus, HiringStatus, InterviewStatus, Application
+from app.models.application import HiringStatus, InterviewStatus, Application
 from app.schemas.application_analysis import ApplicationAnalysisResponse
 from app.schemas.application import (
     AutoAnalyzeAvailableResponse,
@@ -344,24 +343,10 @@ def analyze_application(
     ``interview_status`` — those remain under HR control.
     """
     application = _get_owned_application(db, application_id, scope)
-
-    if (
-        not force
-        and application.analysis_status == AnalysisStatus.COMPLETED
-        and application.ai_analysis_details
-    ):
-        return _build_detail_response(application)
-
-    if analysis_service._is_run_active(application):
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="An analysis is already running for this application.",
-        )
-
-    # Validate AI provider configuration before queuing the task
-    started = time.monotonic()
     try:
-        ai_provider_service.resolve_for_user(db, application.job.owner_id)
+        analysis_service.start_analysis(db, application, actor_id=scope.user.id, force=force)
+    except analysis_service.AnalysisInProgressError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=exc.message) from exc
     except ai_provider_service.AIConfigurationRequiredError as exc:
         # Nothing was attempted or persisted: tell the user to configure AI.
         # The job owner's AI configuration is used, so an admin acting on
@@ -373,37 +358,10 @@ def analyze_application(
                 "so this application cannot be analysed."
             )
         raise HTTPException(status_code=exc.status_code, detail=detail) from exc
-    except AIServiceError as exc:
-        # A saved key exists but cannot be decrypted or used.
-        # Mark the application as failed with the error message and record diagnostics.
-        analysis_service._mark_failed(db, application, exc.message)
-        analysis_service._record_outcome(
-            db,
-            application,
-            application.job.owner_id,
-            {},
-            started,
-            error=exc,
-        )
+    except AIServiceError:
+        # A saved key exists but cannot be used: the application is now marked
+        # failed with the reason, which the detail response shows.
         return _build_detail_response(application)
-
-    # Dispatch via Transactional Outbox for at-least-once Celery delivery
-    from app.services import outbox as outbox_service
-
-    # Mark the run as in flight before queuing it (same commit as the outbox
-    # event): the response already says "analyzing", so the UI waits for the
-    # real result, and a repeated click is refused with 409 above.
-    claimed_at = analysis_service.claim_run(application)
-    outbox_service.record_and_dispatch(
-        db,
-        event_type="analyze_single_application",
-        payload={
-            "application_id": application.id,
-            "force": force,
-            "actor_id": scope.user.id,
-            "claimed_at": claimed_at,
-        },
-    )
 
     db.expire_all()
     application = _get_owned_application(db, application_id, scope)

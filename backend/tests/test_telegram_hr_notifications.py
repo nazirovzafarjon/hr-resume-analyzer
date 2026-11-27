@@ -239,11 +239,11 @@ def test_new_lists_only_own_unreviewed_applications(client, user, other_user, te
     assert "(6 ta) — 1/2" in first.text
     assert "Already reviewing" not in first.text and "Someone else's" not in first.text
     assert len([row for row in first.buttons if row[0]["callback_data"].startswith("hr:app:")]) == 5
-    assert first.buttons[-1][0]["callback_data"] == "hr:new:1"
+    assert any(b.get("callback_data") == "hr:ls:new:0:1" for row in first.buttons for b in row)
 
     second = actions.hr_new_page(_profile(), page=1)
     assert "2/2" in second.text
-    assert second.buttons[-1][0]["callback_data"] == "hr:new:0"
+    assert any(b.get("callback_data") == "hr:ls:new:0:0" for row in second.buttons for b in row)
 
 
 def test_hr_detail_shows_applicant_and_status(telegram_on, user, job):
@@ -254,7 +254,7 @@ def test_hr_detail_shows_applicant_and_status(telegram_on, user, job):
     assert "Jane Doe" in reply.text and "jane@example.com" in reply.text
     assert "Tanlangan" in reply.text
     assert "AI tahlili hali o'tkazilmagan" in reply.text
-    assert reply.buttons[-1][0]["callback_data"] == "hr:new:0"
+    assert reply.buttons[-1][0]["callback_data"] == "hr:back:0"
 
 
 def test_hr_detail_shows_ai_score(telegram_on, user, job):

@@ -82,6 +82,23 @@ def _run_async(coro: Any) -> Any:
         return loop.run_until_complete(coro)
 
 
+def _notify_hr(db, application: Application) -> None:
+    """Tell the job owner in Telegram how the analysis they started ended.
+
+    Only runs HR started by hand (the API or the bot) come through this task;
+    the analysis of a new public submission and batch items do not.
+    """
+    from app.services.telegram import notifier
+
+    try:
+        event = notifier.queue_analysis_result(db, application)
+        db.commit()
+        notifier.publish(db, event)
+    except Exception:  # noqa: BLE001 -- a notification must never fail the analysis
+        logger.exception("Could not queue the Telegram analysis message: application_id=%s", application.id)
+        db.rollback()
+
+
 @celery_app.task(
     bind=True,
     name="app.tasks.ai_analysis.analyze_single_application_task",
@@ -160,6 +177,7 @@ def analyze_single_application_task(
                     db, application, force=force, claimed_at=claimed_at if claimed else None
                 )
             )
+            _notify_hr(db, analyzed_application)
             return {
                 "status": "completed",
                 "application_id": application_id,
@@ -173,6 +191,7 @@ def analyze_single_application_task(
             # a claimed one must not stay "analyzing", so it is marked failed.
             if claimed:
                 single_analysis._mark_failed(db, application, exc.message)
+                _notify_hr(db, application)
             logger.warning(
                 "Task failed permanently (AI provider not configured): application_id=%s: %s",
                 application_id,
@@ -195,6 +214,7 @@ def analyze_single_application_task(
                 status_code,
                 exc.message,
             )
+            _notify_hr(db, application)
             return {
                 "status": "failed",
                 "application_id": application_id,

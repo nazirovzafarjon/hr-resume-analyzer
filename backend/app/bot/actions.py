@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime, time, timedelta, timezone
 from urllib.parse import urlparse
 
+from sqlalchemy import func, or_
 from sqlalchemy.orm import contains_eager
 
 from app.bot.texts import (
@@ -105,12 +106,14 @@ class Reply:
     """A message to send or edit: HTML text plus inline keyboard rows.
 
     ``awaiting_input`` asks the handler to treat the user's next plain text
-    message as the answer (the meeting link, phase 6).
+    message as the answer (the meeting link, phase 6; a search, phase 8).
     """
 
     text: str
     buttons: Buttons = field(default_factory=list)
     awaiting_input: bool = False
+    #: ``(path, filename)`` of a file to send, with ``text`` as its caption (phase 8).
+    document: tuple[str, str] | None = None
 
 
 def _candidate_for(db, profile: TelegramProfile):
@@ -200,7 +203,7 @@ def application_detail(profile: TelegramProfile, application_id: int, page: int 
 
 
 # ---------------------------------------------------------------------------
-# HR: /new (phase 3)
+# HR: application lists -- /new (phase 3), filters, jobs and search (phase 8)
 # ---------------------------------------------------------------------------
 
 
@@ -218,55 +221,231 @@ def _hr_for(db, profile: TelegramProfile):
     return None
 
 
-def _owned_new_applications(db, owner_id: int):
+#: List filters, in button order (phase 8). ``all`` includes withdrawn ones.
+HR_FILTERS = ("new", "reviewing", "shortlisted", "interview", "hired", "rejected", "all")
+#: Shortest search text the bot accepts.
+MIN_SEARCH = 2
+#: Most applications one "analyse the new ones" tap sends to the AI.
+BULK_ANALYSIS_LIMIT = 50
+
+
+def _owned_applications(db, owner_id: int):
     return (
         db.query(Application)
         .join(Application.job)
-        .filter(Job.owner_id == owner_id, Application.application_status == ApplicationStatus.NEW)
+        .filter(Job.owner_id == owner_id)
         .options(contains_eager(Application.job))
     )
 
 
-def hr_new_page(profile: TelegramProfile, page: int = 0) -> Reply:
-    """Paginated list of unreviewed (``new``) applications to the HR's jobs."""
+def _filter_label(lang: str, key: str) -> str:
+    return t(lang, "filter_all") if key == "all" else hr_status_label(lang, key)
+
+
+def _analysable_count(db, owner_id: int, job_id: int | None) -> int:
+    from app.services.ai import batch as auto_analyze
+
+    return auto_analyze.get_available_new_count(db, owner_id, job_id=job_id)
+
+
+def hr_list(
+    profile: TelegramProfile,
+    status_filter: str = "new",
+    job_id: int = 0,
+    page: int = 0,
+    query: str | None = None,
+) -> Reply:
+    """HR applications, filtered by status and job, or found by a search.
+
+    Only applications to the HR user's own jobs. ``job_id=0`` means every job;
+    with ``query`` the status and job filters are ignored and the name or
+    email is searched instead.
+    """
     lang = profile.language_code
+    if status_filter not in HR_FILTERS:
+        status_filter = "new"
+    query = (query or "").strip() or None
     with SessionLocal() as db:
         user = _hr_for(db, profile)
         if user is None:
             return Reply(t(lang, "hr_not_hr"))
-        query = _owned_new_applications(db, user.id)
-        total = query.count()
-        if total == 0:
-            return Reply(t(lang, "hr_new_empty"))
-        pages = (total + PAGE_SIZE - 1) // PAGE_SIZE
+        rows_query = _owned_applications(db, user.id)
+        job = None
+        if query:
+            like = f"%{query.lower()}%"
+            rows_query = rows_query.filter(
+                or_(func.lower(Application.name).like(like), func.lower(Application.email).like(like))
+            )
+        else:
+            if status_filter != "all":
+                rows_query = rows_query.filter(Application.application_status == ApplicationStatus(status_filter))
+            if job_id:
+                job = db.query(Job).filter(Job.id == job_id, Job.owner_id == user.id).one_or_none()
+                if job is None:
+                    job_id = 0
+                else:
+                    rows_query = rows_query.filter(Application.job_id == job_id)
+        total = rows_query.count()
+        pages = max((total + PAGE_SIZE - 1) // PAGE_SIZE, 1)
         page = min(max(page, 0), pages - 1)
         chunk = (
-            query.order_by(Application.submitted_at.desc(), Application.id.desc())
+            rows_query.order_by(Application.submitted_at.desc(), Application.id.desc())
             .offset(page * PAGE_SIZE)
             .limit(PAGE_SIZE)
             .all()
         )
         rows = [
-            (a.id, a.name or "—", a.job.position, a.job.company_name, a.submitted_at)
+            (
+                a.id,
+                a.name or "—",
+                a.job.position,
+                a.job.company_name,
+                a.submitted_at,
+                _current_status(a),
+                round(a.ai_score) if a.analysis_status == AnalysisStatus.COMPLETED and a.ai_score is not None else None,
+            )
             for a in chunk
         ]
+        analysable = 0
+        if not query and status_filter == "new":
+            analysable = _analysable_count(db, user.id, job_id or None)
+        job_line = (
+            t(lang, "hr_list_job", position=html.escape(job.position), company=html.escape(job.company_name))
+            if job is not None
+            else None
+        )
 
-    lines = [t(lang, "hr_new_header", total=str(total), page=str(page + 1), pages=str(pages)), ""]
+    title = t(lang, "btn_search") if query else _filter_label(lang, status_filter)
+    lines = [t(lang, "hr_list_header", title=title, total=str(total), page=str(page + 1), pages=str(pages))]
+    if query:
+        lines.append(t(lang, "hr_list_search", query=html.escape(query)))
+    if job_line:
+        lines.append(job_line)
+    lines.append("")
+    if not rows:
+        lines.append(t(lang, "hr_list_empty"))
+
     buttons: Buttons = []
-    for number, (app_id, name, position, company, submitted) in enumerate(rows, start=page * PAGE_SIZE + 1):
+    for number, (app_id, name, position, company, submitted, status, score) in enumerate(rows, start=page * PAGE_SIZE + 1):
+        extra = f" · 🤖 {score}%" if score is not None else ""
+        # The status is only news when the list mixes statuses.
+        shown_status = f" · {hr_status_label(lang, status)}" if query or status_filter == "all" else ""
         lines.append(
-            f"{number}. <b>{html.escape(name)}</b>\n"
-            f"    {html.escape(position)} — {html.escape(company)} · {notifier.format_date(submitted)}"
+            f"{number}. <b>{html.escape(name)}</b>{extra}\n"
+            f"    {html.escape(position)} — {html.escape(company)} · {notifier.format_date(submitted)}{shown_status}"
         )
         buttons.append([{"text": f"{number}. {name[:48]}", "callback_data": f"hr:app:{app_id}:{page}"}])
+
     nav = []
+    here = "hr:sr:{}" if query else f"hr:ls:{status_filter}:{job_id}:{{}}"
     if page > 0:
-        nav.append({"text": t(lang, "btn_prev"), "callback_data": f"hr:new:{page - 1}"})
+        nav.append({"text": t(lang, "btn_prev"), "callback_data": here.format(page - 1)})
     if page < pages - 1:
-        nav.append({"text": t(lang, "btn_next"), "callback_data": f"hr:new:{page + 1}"})
+        nav.append({"text": t(lang, "btn_next"), "callback_data": here.format(page + 1)})
     if nav:
         buttons.append(nav)
+
+    if analysable:
+        buttons.append(
+            [
+                {
+                    "text": t(lang, "btn_analyze_all", count=str(min(analysable, BULK_ANALYSIS_LIMIT))),
+                    "callback_data": f"hr:aiall:{job_id}",
+                }
+            ]
+        )
+    if not query:
+        filters = [
+            {
+                "text": f"{'• ' if key == status_filter else ''}{_filter_label(lang, key)}",
+                "callback_data": f"hr:ls:{key}:{job_id}:0",
+            }
+            for key in HR_FILTERS
+        ]
+        buttons += [filters[i : i + 4] for i in range(0, len(filters), 4)]
+        buttons.append(
+            [
+                {"text": t(lang, "btn_pick_job"), "callback_data": f"hr:jobs:{status_filter}"},
+                {"text": t(lang, "btn_search"), "callback_data": "hr:find"},
+            ]
+        )
+    else:
+        buttons.append([{"text": t(lang, "btn_back"), "callback_data": "hr:ls:all:0:0"}])
     return Reply("\n".join(lines), buttons)
+
+
+def hr_new_page(profile: TelegramProfile, page: int = 0) -> Reply:
+    """``/new``: the unreviewed applications to the HR's jobs."""
+    return hr_list(profile, "new", 0, page)
+
+
+def applications_entry(profile: TelegramProfile) -> Reply:
+    """``/applications``: the HR list for HR users, the own list for candidates.
+
+    A Telegram user linked to both gets the HR list with a way to their own.
+    """
+    with SessionLocal() as db:
+        is_hr = _hr_for(db, profile) is not None
+        is_candidate = _candidate_for(db, profile) is not None
+    if not is_hr:
+        return applications_page(profile, 0)
+    reply = hr_list(profile, "all")
+    if is_candidate:
+        reply.buttons.append(
+            [{"text": t(profile.language_code, "btn_my_candidate_apps"), "callback_data": "apps:0"}]
+        )
+    return reply
+
+
+def hr_jobs_picker(profile: TelegramProfile, status_filter: str = "new") -> Reply:
+    """The HR's own jobs, newest first, to narrow the list to one of them."""
+    lang = profile.language_code
+    if status_filter not in HR_FILTERS:
+        status_filter = "new"
+    with SessionLocal() as db:
+        user = _hr_for(db, profile)
+        if user is None:
+            return Reply(t(lang, "hr_not_hr"))
+        jobs = (
+            db.query(Job.id, Job.position, Job.company_name, func.count(Application.id))
+            .outerjoin(Application, Application.job_id == Job.id)
+            .filter(Job.owner_id == user.id)
+            .group_by(Job.id, Job.position, Job.company_name)
+            .order_by(Job.id.desc())
+            .limit(30)
+            .all()
+        )
+    back = [{"text": t(lang, "btn_back"), "callback_data": f"hr:ls:{status_filter}:0:0"}]
+    if not jobs:
+        return Reply(t(lang, "hr_jobs_empty"), [back])
+    buttons: Buttons = [
+        [
+            {
+                "text": f"{position[:36]} — {company[:20]} ({count})",
+                "callback_data": f"hr:ls:{status_filter}:{job_id}:0",
+            }
+        ]
+        for job_id, position, company, count in jobs
+    ]
+    buttons.append([{"text": t(lang, "btn_all_jobs"), "callback_data": f"hr:ls:{status_filter}:0:0"}])
+    return Reply(t(lang, "hr_jobs_header"), buttons)
+
+
+def hr_search_prompt(profile: TelegramProfile) -> Reply:
+    """Ask for the search text; the next text message is the answer."""
+    lang = profile.language_code
+    with SessionLocal() as db:
+        if _hr_for(db, profile) is None:
+            return Reply(t(lang, "hr_not_hr"))
+    return Reply(t(lang, "hr_search_prompt"), awaiting_input=True)
+
+
+def hr_search(profile: TelegramProfile, text: str, page: int = 0) -> Reply:
+    """Applications whose applicant name or email contains ``text``."""
+    query = " ".join((text or "").split())[:100]
+    if len(query) < MIN_SEARCH:
+        return Reply(t(profile.language_code, "hr_search_short"), awaiting_input=True)
+    return hr_list(profile, page=page, query=query)
 
 
 def _ai_line(lang: str, application: Application) -> str:
@@ -326,6 +505,23 @@ def _hr_card(lang: str, application: Application, page: int, notice: str | None 
         if status not in _CLOSED_STATUSES:
             row.insert(0, {"text": t(lang, "btn_reschedule"), "callback_data": f"hr:rs:{upcoming.id}:{page}"})
         buttons.append(row)
+    # Resume, form answers and the AI analysis (phase 8).
+    buttons.append(
+        [
+            {"text": t(lang, "btn_resume"), "callback_data": f"hr:cv:{application.id}:{page}"},
+            {"text": t(lang, "btn_form"), "callback_data": f"hr:fa:{application.id}:{page}"},
+        ]
+    )
+    state = application.analysis_status
+    if state == AnalysisStatus.COMPLETED:
+        buttons.append(
+            [
+                {"text": t(lang, "btn_ai_summary"), "callback_data": f"hr:aix:{application.id}:{page}"},
+                {"text": t(lang, "btn_ai_rerun"), "callback_data": f"hr:air:{application.id}:{page}"},
+            ]
+        )
+    elif state != AnalysisStatus.ANALYZING:
+        buttons.append([{"text": t(lang, "btn_ai_start"), "callback_data": f"hr:ai:{application.id}:{page}"}])
     # A withdrawn application is the candidate's decision: HR cannot move it.
     if status != ApplicationStatus.WITHDRAWN.value:
         targets = [target for target in HR_TARGETS if target.value != status]
@@ -340,7 +536,7 @@ def _hr_card(lang: str, application: Application, page: int, notice: str | None 
     url = notifier.crm_url(application.id)
     if url:
         buttons.append([{"text": t(lang, "btn_open_crm"), "url": url}])
-    buttons.append([{"text": t(lang, "btn_back"), "callback_data": f"hr:new:{page}"}])
+    buttons.append(_back_to_list(lang, page))
     return Reply("\n".join(lines), buttons)
 
 
@@ -359,7 +555,252 @@ def hr_application_detail(profile: TelegramProfile, application_id: int, page: i
 
 
 def _back_to_list(lang: str, page: int) -> list[dict[str, str]]:
-    return [{"text": t(lang, "btn_back"), "callback_data": f"hr:new:{page}"}]
+    """Back to the list the card was opened from (the handler remembers it)."""
+    return [{"text": t(lang, "btn_back"), "callback_data": f"hr:back:{page}"}]
+
+
+def _back_to_card(lang: str, application_id: int, page: int) -> list[dict[str, str]]:
+    return [{"text": t(lang, "btn_to_card"), "callback_data": f"hr:app:{application_id}:{page}"}]
+
+
+def _load_owned(db, profile: TelegramProfile, application_id: int, page: int):
+    """``(user, application, None)`` or ``(None, None, error reply)``."""
+    lang = profile.language_code
+    user = _hr_for(db, profile)
+    if user is None:
+        return None, None, Reply(t(lang, "hr_not_hr"))
+    application = _owned_application(db, user, application_id)
+    if application is None:
+        return None, None, Reply(t(lang, "app_not_found"), [_back_to_list(lang, page)])
+    return user, application, None
+
+
+# ---------------------------------------------------------------------------
+# HR: resume, form answers and AI analysis (phase 8)
+# ---------------------------------------------------------------------------
+
+
+def hr_resume(profile: TelegramProfile, application_id: int, page: int = 0) -> Reply:
+    """The CV as a document (``Reply.document``), or why there is none."""
+    from app.services import resume_file
+
+    lang = profile.language_code
+    with SessionLocal() as db:
+        _, application, error = _load_owned(db, profile, application_id, page)
+        if error is not None:
+            return error
+        try:
+            resume = resume_file.get_resume_file(application)
+        except resume_file.ResumeUnavailableError:
+            return Reply(t(lang, "resume_missing"))
+        caption = t(
+            lang,
+            "resume_caption",
+            name=html.escape(application.name or "—"),
+            position=html.escape(application.job.position),
+        )
+    return Reply(caption, document=(str(resume.path), resume.filename))
+
+
+#: Longest piece of one answer or analysis item shown in a message.
+_ITEM_LIMIT = 300
+#: Stay well below Telegram's 4096-character message limit.
+_MESSAGE_LIMIT = 3800
+
+
+def _clip(text: str, limit: int = _ITEM_LIMIT) -> str:
+    text = " ".join(str(text).split())
+    return text if len(text) <= limit else text[: limit - 1] + "…"
+
+
+def _fit(lines: list[str]) -> str:
+    text = "\n".join(lines)
+    return text if len(text) <= _MESSAGE_LIMIT else text[: _MESSAGE_LIMIT - 1] + "…"
+
+
+def hr_form_answers(profile: TelegramProfile, application_id: int, page: int = 0) -> Reply:
+    """Every answer the applicant submitted through the job's form."""
+    lang = profile.language_code
+    with SessionLocal() as db:
+        _, application, error = _load_owned(db, profile, application_id, page)
+        if error is not None:
+            return error
+        response = application.application_response
+        answers = (response.responses if response is not None else None) or []
+        lines = [
+            t(
+                lang,
+                "form_header",
+                name=html.escape(application.name or "—"),
+                position=html.escape(application.job.position),
+            ),
+            "",
+        ]
+        shown = 0
+        for answer in answers:
+            if not isinstance(answer, dict) or answer.get("type") == "file":
+                continue
+            label = str(answer.get("label") or answer.get("key") or "").strip()
+            if not label:
+                continue
+            value = answer.get("value")
+            if isinstance(value, list):
+                value = ", ".join(str(item) for item in value)
+            elif isinstance(value, bool):
+                value = "✓" if value else "✗"
+            rendered = _clip(value) if value not in (None, "") else "—"
+            lines.append(f"<b>{html.escape(_clip(label, 120))}</b>\n{html.escape(rendered)}")
+            shown += 1
+        if not shown:
+            lines.append(t(lang, "form_empty"))
+    return Reply(_fit(lines), [_back_to_card(lang, application_id, page)])
+
+
+def hr_analysis_summary(profile: TelegramProfile, application_id: int, page: int = 0) -> Reply:
+    """The stored AI analysis: match, recommendation, summary, strengths, gaps, risks.
+
+    Reads PostgreSQL only; it never calls the AI provider.
+    """
+    from app.services import application_analysis
+
+    lang = profile.language_code
+    with SessionLocal() as db:
+        _, application, error = _load_owned(db, profile, application_id, page)
+        if error is not None:
+            return error
+        analysis = application_analysis.stored_analysis(application)
+        heading = t(
+            lang,
+            "ai_summary_title",
+            name=html.escape(application.name or "—"),
+            position=html.escape(application.job.position),
+        )
+        completed = application.analysis_status == AnalysisStatus.COMPLETED
+    back = _back_to_card(lang, application_id, page)
+    if analysis is None or not completed:
+        return Reply(f"{heading}\n\n{t(lang, 'ai_none')}", [back])
+
+    lines = [heading, "", t(lang, "hr_ai_score", score=str(round(analysis.match_percentage)))]
+    if analysis.ai_recommendation:
+        lines.append(t(lang, "ai_recommendation", value=t(lang, f"ai_rec_{analysis.ai_recommendation}")))
+    if analysis.summary:
+        lines += ["", html.escape(_clip(analysis.summary, 900))]
+    sections = (
+        ("ai_sec_strengths", analysis.strengths or analysis.matched_requirements, 5),
+        ("ai_sec_gaps", analysis.missing_requirements or analysis.weaknesses, 5),
+        ("ai_sec_risks", analysis.risks, 3),
+    )
+    for key, items, limit in sections:
+        if items:
+            lines += ["", t(lang, key)] + [f"• {html.escape(_clip(item))}" for item in items[:limit]]
+    if not analysis.resume_text_available:
+        lines += ["", t(lang, "ai_no_resume_text")]
+    buttons: Buttons = [
+        [{"text": t(lang, "btn_ai_rerun"), "callback_data": f"hr:air:{application_id}:{page}"}],
+        back,
+    ]
+    return Reply(_fit(lines), buttons)
+
+
+def hr_start_analysis(
+    profile: TelegramProfile, application_id: int, page: int = 0, *, force: bool = False
+) -> Reply:
+    """Queue an AI analysis exactly like ``POST /applications/{id}/analyze``.
+
+    The run goes through the outbox to the AI worker; the HR user gets a
+    message when it has finished. The card comes back with the outcome.
+    """
+    from app.services import application_analysis
+    from app.services.ai import provider as ai_provider
+    from app.services.ai.job_analyzer import AIServiceError
+
+    lang = profile.language_code
+    with SessionLocal() as db:
+        user, application, error = _load_owned(db, profile, application_id, page)
+        if error is not None:
+            return error
+        try:
+            started = application_analysis.start_analysis(db, application, actor_id=user.id, force=force)
+            notice = t(lang, "ai_started" if started else "ai_already")
+            if started:
+                logger.info(
+                    "AI analysis requested from Telegram: application_id=%s user_id=%s force=%s",
+                    application_id,
+                    user.id,
+                    force,
+                )
+        except application_analysis.AnalysisInProgressError:
+            notice = t(lang, "ai_running")
+        except ai_provider.AIConfigurationRequiredError:
+            notice = t(lang, "ai_no_provider")
+        except AIServiceError:
+            notice = t(lang, "ai_key_failed")
+        db.expire_all()
+        application = _owned_application(db, user, application_id)
+        return _hr_card(lang, application, page, notice=notice)
+
+
+def hr_analyze_all(profile: TelegramProfile, job_id: int = 0, *, confirmed: bool = False) -> Reply:
+    """Send the new, never analysed applications to the AI in one batch.
+
+    Same as the CRM's Auto Analyze (oldest first, at most
+    ``BULK_ANALYSIS_LIMIT``): asks first, then queues the batch. One summary
+    message follows when the whole batch has finished.
+    """
+    from app.services import outbox as outbox_service
+    from app.services.ai import batch as auto_analyze
+    from app.services.ai import provider as ai_provider
+    from app.services.ai.job_analyzer import AIServiceError
+
+    lang = profile.language_code
+    back = [{"text": t(lang, "btn_back"), "callback_data": f"hr:ls:new:{job_id}:0"}]
+    with SessionLocal() as db:
+        user = _hr_for(db, profile)
+        if user is None:
+            return Reply(t(lang, "hr_not_hr"))
+        if job_id and db.query(Job.id).filter(Job.id == job_id, Job.owner_id == user.id).first() is None:
+            job_id = 0
+        available = _analysable_count(db, user.id, job_id or None)
+        if not available:
+            return Reply(t(lang, "ai_all_none"), [back])
+        count = min(available, BULK_ANALYSIS_LIMIT)
+        try:
+            ai_provider.resolve_for_user(db, user.id)
+        except ai_provider.AIConfigurationRequiredError:
+            return Reply(t(lang, "ai_no_provider"), [back])
+        except AIServiceError:
+            return Reply(t(lang, "ai_key_failed"), [back])
+
+        if not confirmed:
+            text = t(lang, "ai_all_confirm", count=str(count))
+            if available > count:
+                text += "\n" + t(lang, "ai_all_limit", limit=str(BULK_ANALYSIS_LIMIT))
+            return Reply(
+                text,
+                [
+                    [{"text": t(lang, "btn_ai_all_confirm"), "callback_data": f"hr:aiallok:{job_id}"}],
+                    [{"text": t(lang, "btn_cancel"), "callback_data": f"hr:ls:new:{job_id}:0"}],
+                ],
+            )
+
+        try:
+            batch = auto_analyze.create_auto_analyze_batch(
+                db, user, count=count, order="oldest", job_id=job_id or None
+            )
+        except auto_analyze.NoAvailableApplicationsError:
+            return Reply(t(lang, "ai_all_none"), [back])
+        selected = len(batch.application_ids)
+        audit.record(
+            db,
+            audit.AuditAction.AI_BATCH_STARTED,
+            resource_type=audit.AuditResource.AI_ANALYSIS,
+            resource_id=batch.id,
+            actor=user,
+            details={"selected": selected, "order": "oldest", "via": "telegram"},
+        )
+        outbox_service.record_and_dispatch(db, event_type="dispatch_batch_analysis", payload={"batch_id": batch.id})
+        logger.info("AI batch started from Telegram: batch_id=%s user_id=%s selected=%s", batch.id, user.id, selected)
+    return Reply(t(lang, "ai_all_started", count=str(selected)), [back])
 
 
 # ---------------------------------------------------------------------------
@@ -997,7 +1438,7 @@ def hr_cancel_interview(
 
 #: Switches per account kind, in button order (column ``notify_<key>``).
 PREFERENCES: dict[TelegramAccountKind, tuple[str, ...]] = {
-    TelegramAccountKind.HR: ("new_applications", "reminders"),
+    TelegramAccountKind.HR: ("new_applications", "reminders", "analysis"),
     TelegramAccountKind.CANDIDATE: ("status", "reminders"),
 }
 

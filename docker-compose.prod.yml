@@ -396,8 +396,12 @@ services:
       - TELEGRAM_WEBHOOK_URL=${TELEGRAM_WEBHOOK_URL:-}
       - TELEGRAM_WEBHOOK_SECRET=${TELEGRAM_WEBHOOK_SECRET:-}
       - TELEGRAM_WEBHOOK_PORT=8081
+      - UPLOAD_DIR=/app/uploads
     expose:
       - "8081"
+    # Read-only: the bot sends HR the stored CVs (phase 8).
+    volumes:
+      - uploads-data:/app/uploads:ro
     healthcheck:
       disable: true
     command: ["python", "-m", "app.bot"]
