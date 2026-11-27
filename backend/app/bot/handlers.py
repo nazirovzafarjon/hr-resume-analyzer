@@ -177,6 +177,10 @@ async def on_hr_callback(query: CallbackQuery, state: FSMContext) -> None:
     * ``hr:ivt:<id>:<YYYYMMDDHHMM>:<minutes>:<page>`` -- review, choose the duration
     * ``hr:ivok:<id>:<YYYYMMDDHHMM>:<minutes>:<page>`` -- create the interview
     * ``hr:ivlink:<interview id>:<page>`` -- ask for the meeting link
+    * ``hr:rs`` / ``hr:rsd`` / ``hr:rst`` / ``hr:rsok`` -- the same steps to
+      reschedule, keyed by the interview id
+    * ``hr:ivx:<interview id>:<page>`` -- ask before cancelling an interview
+    * ``hr:ivxok:<interview id>:<page>`` -- cancel it
     """
     if query.message is None:
         await query.answer()
@@ -193,6 +197,21 @@ async def on_hr_callback(query: CallbackQuery, state: FSMContext) -> None:
         elif parts[1] in ("ivt", "ivok"):
             step = actions.hr_schedule_review if parts[1] == "ivt" else actions.hr_schedule_confirm
             reply = await _run(profile, step, profile, int(parts[2]), parts[3], int(parts[4]), int(parts[5]))
+        elif parts[1] == "rs":
+            reply = await _run(profile, actions.hr_reschedule_days, profile, int(parts[2]), int(parts[3]))
+        elif parts[1] == "rsd":
+            reply = await _run(profile, actions.hr_reschedule_times, profile, int(parts[2]), parts[3], int(parts[4]))
+        elif parts[1] in ("rst", "rsok"):
+            step = actions.hr_reschedule_review if parts[1] == "rst" else actions.hr_reschedule_confirm
+            reply = await _run(profile, step, profile, int(parts[2]), parts[3], int(parts[4]), int(parts[5]))
+        elif parts[1] in ("ivx", "ivxok"):
+            reply = await _run(
+                profile,
+                partial(actions.hr_cancel_interview, confirmed=parts[1] == "ivxok"),
+                profile,
+                int(parts[2]),
+                int(parts[3]),
+            )
         elif parts[1] == "ivlink":
             interview_id, page = int(parts[2]), int(parts[3])
             reply = await _run(profile, actions.hr_meeting_link_prompt, profile, interview_id, page)
