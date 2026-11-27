@@ -68,6 +68,10 @@ export type AIProviderSettings = {
   supported_providers: AIProviderName[];
   /** Base URL used for the provider's API (user-supplied for generic). */
   base_url: string | null;
+  /** Free AI CV checks per day on the platform provider; null = not limited. */
+  daily_cv_limit: number | null;
+  /** Free AI CV checks already used today. */
+  cv_checks_used_today: number;
 };
 
 export type AIProviderInput = {

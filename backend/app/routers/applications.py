@@ -358,6 +358,9 @@ def analyze_application(
                 "so this application cannot be analysed."
             )
         raise HTTPException(status_code=exc.status_code, detail=detail) from exc
+    except ai_provider_service.AIDailyLimitError as exc:
+        # Free tier used up for today; nothing was changed.
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
     except AIServiceError:
         # A saved key exists but cannot be used: the application is now marked
         # failed with the reason, which the detail response shows.
@@ -533,11 +536,18 @@ def start_auto_analyze(
     # or unusable, instead of failing every selected application. An admin
     # batch spans several HR users, each analysed with their own AI
     # configuration, so it is checked per application while it runs.
+    batch_count = request.count
     if not scope.is_admin:
         try:
-            ai_provider_service.resolve_for_user(db, scope.user.id)
+            cfg = ai_provider_service.resolve_for_user(db, scope.user.id)
+            ai_provider_service.ensure_cv_quota(db, scope.user.id, cfg)
         except AIServiceError as exc:
             raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+        # On the free tier, select no more applications than may still run
+        # today (the response still reports what was requested).
+        remaining = ai_provider_service.remaining_cv_checks(db, scope.user.id, cfg)
+        if remaining is not None:
+            batch_count = min(batch_count, remaining)
 
     available = auto_analyze_service.get_available_new_count(
         db,
@@ -550,7 +560,7 @@ def start_auto_analyze(
         batch = auto_analyze_service.create_auto_analyze_batch(
             db,
             scope.user,
-            count=request.count,
+            count=batch_count,
             order=request.order,
             job_id=request.job_id,
             company=request.company,

@@ -23,6 +23,8 @@ const base: Status = {
   required: false,
   supported_providers: ["openrouter", "groq", "gemini"],
   base_url: null,
+  daily_cv_limit: null,
+  cv_checks_used_today: 0,
 };
 
 function renderWith(status: Partial<Status>) {

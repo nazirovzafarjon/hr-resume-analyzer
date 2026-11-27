@@ -184,6 +184,14 @@ export default function AIProviderSettings() {
             {s("requiredHint")}
           </p>
         )}
+        {!custom && status.daily_cv_limit != null && (
+          <p className="alert alert--info" role="status">
+            {s("freeTier", {
+              used: Math.min(status.cv_checks_used_today, status.daily_cv_limit),
+              limit: status.daily_cv_limit,
+            })}
+          </p>
+        )}
 
         <Select
           label={s("provider")}

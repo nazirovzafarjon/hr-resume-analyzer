@@ -299,6 +299,15 @@ async def run_analysis(
         _record_outcome(db, application, owner_id, {}, started, error=exc)
         raise
 
+    # Free tier: the platform key allows only a few CV checks per day. Not an
+    # AI attempt, so nothing is recorded; the row shows why, and HR can retry
+    # tomorrow or after connecting their own provider.
+    try:
+        ai_provider_service.ensure_cv_quota(db, owner_id, cfg)
+    except ai_provider_service.AIDailyLimitError as exc:
+        _mark_failed(db, application, exc.message)
+        raise
+
     job_requirements, form_answers, resume_text, resume_reason = (
         collect_analysis_inputs(application)
     )
@@ -386,13 +395,15 @@ def start_analysis(
 
     started = time.monotonic()
     try:
-        ai_provider_service.resolve_for_user(db, application.job.owner_id)
+        cfg = ai_provider_service.resolve_for_user(db, application.job.owner_id)
     except ai_provider_service.AIConfigurationRequiredError:
         raise
     except AIServiceError as exc:
         _mark_failed(db, application, exc.message)
         _record_outcome(db, application, application.job.owner_id, {}, started, error=exc)
         raise
+    # Refuse up front (nothing changed) when today's free CV checks are used up.
+    ai_provider_service.ensure_cv_quota(db, application.job.owner_id, cfg)
 
     from app.services import outbox as outbox_service  # avoid an import cycle
 

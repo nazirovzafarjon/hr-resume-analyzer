@@ -92,6 +92,12 @@ services:
       - UPLOAD_DIR=/app/uploads
       - SECRET_KEY=${SECRET_KEY}
       - AI_CREDENTIAL_ENCRYPTION_KEY=${AI_CREDENTIAL_ENCRYPTION_KEY}
+      - REQUIRE_USER_AI_CONFIG=${REQUIRE_USER_AI_CONFIG:-true}
+      - AI_PROVIDER=${AI_PROVIDER:-openrouter}
+      - AI_MODEL=${AI_MODEL:-}
+      - AI_API_KEY=${AI_API_KEY:-}
+      - AI_BASE_URL=${AI_BASE_URL:-}
+      - PLATFORM_AI_DAILY_CV_LIMIT=${PLATFORM_AI_DAILY_CV_LIMIT:-5}
       - SENTRY_DSN=${SENTRY_DSN:-}
       - SENTRY_ENVIRONMENT=production
       - LOG_FORMAT=json
@@ -176,6 +182,12 @@ services:
       - UPLOAD_DIR=/app/uploads
       - SECRET_KEY=${SECRET_KEY}
       - AI_CREDENTIAL_ENCRYPTION_KEY=${AI_CREDENTIAL_ENCRYPTION_KEY}
+      - REQUIRE_USER_AI_CONFIG=${REQUIRE_USER_AI_CONFIG:-true}
+      - AI_PROVIDER=${AI_PROVIDER:-openrouter}
+      - AI_MODEL=${AI_MODEL:-}
+      - AI_API_KEY=${AI_API_KEY:-}
+      - AI_BASE_URL=${AI_BASE_URL:-}
+      - PLATFORM_AI_DAILY_CV_LIMIT=${PLATFORM_AI_DAILY_CV_LIMIT:-5}
       - SENTRY_DSN=${SENTRY_DSN:-}
       - LOG_FORMAT=json
       - DEBUG=false
@@ -212,6 +224,12 @@ services:
       - UPLOAD_DIR=/app/uploads
       - SECRET_KEY=${SECRET_KEY}
       - AI_CREDENTIAL_ENCRYPTION_KEY=${AI_CREDENTIAL_ENCRYPTION_KEY}
+      - REQUIRE_USER_AI_CONFIG=${REQUIRE_USER_AI_CONFIG:-true}
+      - AI_PROVIDER=${AI_PROVIDER:-openrouter}
+      - AI_MODEL=${AI_MODEL:-}
+      - AI_API_KEY=${AI_API_KEY:-}
+      - AI_BASE_URL=${AI_BASE_URL:-}
+      - PLATFORM_AI_DAILY_CV_LIMIT=${PLATFORM_AI_DAILY_CV_LIMIT:-5}
       - SENTRY_DSN=${SENTRY_DSN:-}
       - LOG_FORMAT=json
       - DEBUG=false
@@ -381,6 +399,8 @@ services:
       api:
         condition: service_healthy
     environment:
+      - REQUIRE_USER_AI_CONFIG=${REQUIRE_USER_AI_CONFIG:-true}
+      - PLATFORM_AI_DAILY_CV_LIMIT=${PLATFORM_AI_DAILY_CV_LIMIT:-5}
       - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-resume_analyzer}
       - REDIS_URL=redis://redis:6379/0
       - SECRET_KEY=${SECRET_KEY}

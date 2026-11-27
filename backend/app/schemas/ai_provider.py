@@ -76,3 +76,8 @@ class AIProviderConfigResponse(BaseModel):
     required: bool = False
     supported_providers: list[str]
     base_url: str | None = None
+    #: Free CV analyses per day on the platform provider; ``None`` when the
+    #: user is not limited (own provider, or no limit configured).
+    daily_cv_limit: int | None = None
+    #: Free CV analyses already used today (0 when not limited).
+    cv_checks_used_today: int = 0

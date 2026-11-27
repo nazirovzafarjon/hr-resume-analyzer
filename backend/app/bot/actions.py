@@ -733,6 +733,8 @@ def hr_start_analysis(
             notice = t(lang, "ai_running")
         except ai_provider.AIConfigurationRequiredError:
             notice = t(lang, "ai_no_provider")
+        except ai_provider.AIDailyLimitError:
+            notice = t(lang, "ai_daily_limit", limit=str(ai_provider.platform_cv_limit() or 0))
         except AIServiceError:
             notice = t(lang, "ai_key_failed")
         db.expire_all()
@@ -765,11 +767,18 @@ def hr_analyze_all(profile: TelegramProfile, job_id: int = 0, *, confirmed: bool
             return Reply(t(lang, "ai_all_none"), [back])
         count = min(available, BULK_ANALYSIS_LIMIT)
         try:
-            ai_provider.resolve_for_user(db, user.id)
+            cfg = ai_provider.resolve_for_user(db, user.id)
+            ai_provider.ensure_cv_quota(db, user.id, cfg)
         except ai_provider.AIConfigurationRequiredError:
             return Reply(t(lang, "ai_no_provider"), [back])
+        except ai_provider.AIDailyLimitError:
+            limit = str(ai_provider.platform_cv_limit() or 0)
+            return Reply(t(lang, "ai_daily_limit", limit=limit), [back])
         except AIServiceError:
             return Reply(t(lang, "ai_key_failed"), [back])
+        remaining = ai_provider.remaining_cv_checks(db, user.id, cfg)
+        if remaining is not None:
+            count = min(count, remaining)
 
         if not confirmed:
             text = t(lang, "ai_all_confirm", count=str(count))

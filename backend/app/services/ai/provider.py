@@ -30,8 +30,11 @@ retry/backoff code work unchanged.
 """
 
 import logging
+from datetime import datetime, timezone
 from typing import Any
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.config import AI_PROVIDER_BASE_URLS, settings
@@ -44,6 +47,7 @@ from app.core.encryption import (
 )
 from app.core.url_security import UnsafeURLError, validate_base_url
 from app.crud import ai_provider_config as config_crud
+from app.models.ai_analysis_run import AIAnalysisRun
 from app.models.ai_provider_config import UserAIProviderConfig
 from app.schemas.ai_provider import (
     AIProviderConfigResponse,
@@ -177,6 +181,68 @@ def resolve_for_user(db: Session, user_id: int) -> dict[str, Any]:
     return cfg
 
 
+# ---------------------------------------------------------------------------
+# Daily limit on the platform provider (free tier)
+# ---------------------------------------------------------------------------
+
+
+class AIDailyLimitError(AIServiceError):
+    """The user used up today's free CV analyses on the platform provider."""
+
+    def __init__(self, limit: int) -> None:
+        super().__init__(
+            f"You've used all {limit} free AI CV checks for today. They reset at "
+            "midnight, or connect your own AI provider in Settings → AI provider "
+            "for unlimited checks.",
+            status_code=429,
+        )
+
+
+def platform_cv_limit() -> int | None:
+    """Daily CV-analysis limit on the platform key, ``None`` when unlimited."""
+    return settings.PLATFORM_AI_DAILY_CV_LIMIT or None
+
+
+def _today_start_utc() -> datetime:
+    try:
+        tz = ZoneInfo(settings.PLATFORM_AI_LIMIT_TIMEZONE)
+    except (ZoneInfoNotFoundError, ValueError):
+        tz = timezone.utc
+    local_midnight = datetime.now(tz).replace(hour=0, minute=0, second=0, microsecond=0)
+    return local_midnight.astimezone(timezone.utc)
+
+
+def cv_checks_used_today(db: Session, user_id: int) -> int:
+    """Successful application analyses run today with the platform key.
+
+    Failed attempts are not counted: a provider outage must not eat the quota.
+    """
+    return db.scalar(
+        select(func.count(AIAnalysisRun.id)).where(
+            AIAnalysisRun.owner_id == user_id,
+            AIAnalysisRun.kind == "application",
+            AIAnalysisRun.source == "default",
+            AIAnalysisRun.status == "completed",
+            AIAnalysisRun.created_at >= _today_start_utc(),
+        )
+    ) or 0
+
+
+def remaining_cv_checks(db: Session, user_id: int, cfg: dict[str, Any]) -> int | None:
+    """CV analyses ``user_id`` may still run today; ``None`` = unlimited."""
+    limit = platform_cv_limit()
+    if cfg.get("source") != "default" or limit is None:
+        return None
+    return max(limit - cv_checks_used_today(db, user_id), 0)
+
+
+def ensure_cv_quota(db: Session, user_id: int, cfg: dict[str, Any]) -> None:
+    """Raise :class:`AIDailyLimitError` when today's free CV checks are used up."""
+    if remaining_cv_checks(db, user_id, cfg) == 0:
+        logger.info("Daily platform AI CV limit reached: user_id=%s", user_id)
+        raise AIDailyLimitError(platform_cv_limit() or 0)
+
+
 def safe_error_for(cfg: dict[str, Any], exc: AIServiceError) -> AIServiceError:
     """Point a custom-key auth failure at Settings instead of "contact admin"."""
     if cfg.get("source") == "custom" and isinstance(exc, AIProviderAuthError):
@@ -197,7 +263,11 @@ def get_status(db: Session, user_id: int) -> AIProviderConfigResponse:
     """Settings view of the user's provider (reads no secrets)."""
     config = config_crud.get_config(db, user_id)
     active = config is not None and config.is_active
+    # The free tier only applies while the platform provider is in use.
+    limit = None if active or settings.REQUIRE_USER_AI_CONFIG else platform_cv_limit()
     return AIProviderConfigResponse(
+        daily_cv_limit=limit,
+        cv_checks_used_today=cv_checks_used_today(db, user_id) if limit else 0,
         configured=config is not None,
         source="custom" if active else "default",
         provider=config.provider if config else None,

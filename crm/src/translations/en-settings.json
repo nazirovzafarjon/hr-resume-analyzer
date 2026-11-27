@@ -30,6 +30,7 @@
       "subtitleRequired": "Connect your own AI provider account. Resume, application and vacancy analysis run with your API key and model.",
       "usingCustom": "Using your custom provider",
       "usingDefault": "Using the default Resume Analyzer AI provider",
+      "freeTier": "Free plan: {used} of {limit} AI CV checks used today. Creating jobs is unlimited. Connect your own provider below for unlimited CV checks.",
       "notConfigured": "Not configured",
       "requiredHint": "AI features (job analysis, application analysis and Auto Analyze) run only with your own provider. Add your API key and model ID below.",
       "provider": "Provider",

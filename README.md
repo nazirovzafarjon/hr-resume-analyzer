@@ -927,6 +927,7 @@ The platform implements a provider-agnostic architecture supporting both proprie
    - If the user has an active custom AI configuration, it is always used.
    - If no custom configuration exists and `REQUIRE_USER_AI_CONFIG=true` (default), the API rejects the analysis request with a clear 400 error directing the user to configure their credentials in Settings.
    - If `REQUIRE_USER_AI_CONFIG=false`, the system falls back to platform environment variables (`AI_PROVIDER`, `AI_API_KEY`, `AI_MODEL`).
+   - On the platform key, each HR user gets `PLATFORM_AI_DAILY_CV_LIMIT` (default 5) successful AI CV/application analyses per day (reset at midnight in `PLATFORM_AI_LIMIT_TIMEZONE`). Job creation and vacancy analysis are not limited; users with their own provider are never limited.
 4. **SSRF Guard for Generic Providers (`url_security.py`)**: Custom base URLs provided by users undergo strict validation: HTTPS is required (HTTP only allowed on localhost in debug mode), ports are restricted to 443 and 8443, credentials and fragments are rejected, and DNS resolution blocks private, loopback, link-local, multicast, or cloud-metadata IP addresses (e.g., `169.254.169.254`).
 
 ### Resilience, Rate Limiting & Backoff
@@ -1358,6 +1359,8 @@ New HR and candidate registrations undergo two-phase verification:
 | `BACKEND_CORS_ORIGINS` | string | `http://localhost:5173,http://localhost:5174` | **Yes** | Comma-separated list of allowed browser origins |
 | `AI_CREDENTIAL_ENCRYPTION_KEY` | string | `""` | Optional | 32-byte url-safe base64 Fernet key to encrypt user AI keys |
 | `REQUIRE_USER_AI_CONFIG` | boolean | `true` | No | When true, recruiters must configure their own AI keys |
+| `PLATFORM_AI_DAILY_CV_LIMIT` | integer | `5` | No | Daily AI CV analyses per HR user on the platform key (0 = unlimited) |
+| `PLATFORM_AI_LIMIT_TIMEZONE` | string | `Asia/Tashkent` | No | Time zone whose midnight resets the daily CV limit |
 | `AI_PROVIDER` | string | `openrouter` | No | Platform fallback AI provider |
 | `AI_MODEL` | string | `""` | No | Platform fallback model identifier |
 | `AI_API_KEY` | string | `""` | No | Platform fallback AI API key |

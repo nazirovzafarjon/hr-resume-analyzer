@@ -30,6 +30,7 @@
       "subtitleRequired": "O'z AI provayder hisobingizni ulang. Rezyume, arizalar va vakansiyalar tahlili sizning API kalitingiz va modelingiz bilan ishlaydi.",
       "usingCustom": "Sizning provayderingiz ishlatilmoqda",
       "usingDefault": "Resume Analyzer'ning standart AI provayderi ishlatilmoqda",
+      "freeTier": "Bepul tarif: bugun {limit} ta AI CV tekshiruvidan {used} tasi ishlatildi. Vakansiya yaratish cheklanmagan. Cheksiz CV tekshiruvi uchun quyida o'z provayderingizni ulang.",
       "notConfigured": "Sozlanmagan",
       "requiredHint": "AI funksiyalari (vakansiya tahlili, arizalar tahlili va avto-tahlil) faqat o'z provayderingiz bilan ishlaydi. Quyida API kalitingiz va model ID sini kiriting.",
       "provider": "Provayder",

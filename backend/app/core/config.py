@@ -157,6 +157,13 @@ class Settings(BaseSettings):
     # without their own configuration fall back to the platform provider.
     # Users who saved their own configuration always use it, either way.
     REQUIRE_USER_AI_CONFIG: bool = True
+    # Free tier of the platform provider: how many application/CV analyses
+    # one HR user may run per day with the platform key (users with their own
+    # provider are never limited). Vacancy analysis and job creation are not
+    # counted. 0 = unlimited.
+    PLATFORM_AI_DAILY_CV_LIMIT: int = Field(default=5, ge=0)
+    # IANA time zone whose midnight resets the daily limit above.
+    PLATFORM_AI_LIMIT_TIMEZONE: str = "Asia/Tashkent"
     # Maximum number of retry attempts for transient failures (429, 503, network).
     AI_MAX_RETRIES: int = 3
     # Base delay in seconds for exponential backoff between retries.
