@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef } from "react";
 import { useLocation } from "react-router-dom";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { useToast } from "../../contexts/ToastContext";
+import { useLatestRef } from "../../hooks/useLatestRef";
 import { useSupportStream } from "../../hooks/useSupportStream";
 import { fetchAdminSupportUnreadCount } from "../../services/supportService";
 import type { SupportEvent } from "../../types/support";
@@ -24,8 +25,7 @@ export default function AdminSupportLive() {
   const { t } = useLanguage();
   const { notify } = useToast();
   const { pathname } = useLocation();
-  const pathnameRef = useRef(pathname);
-  pathnameRef.current = pathname;
+  const pathnameRef = useLatestRef(pathname);
   const previous = useRef<number | null>(null);
 
   const refresh = useCallback(() => {
@@ -43,7 +43,7 @@ export default function AdminSupportLive() {
         }
       })
       .catch(() => undefined);
-  }, [notify, t]);
+  }, [notify, t, pathnameRef]);
 
   const handleEvent = useCallback(
     (event: SupportEvent) => {

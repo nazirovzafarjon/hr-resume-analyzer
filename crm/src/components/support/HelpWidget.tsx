@@ -3,6 +3,7 @@ import { useLocation } from "react-router-dom";
 import { LifeBuoy, Lock, MessageSquarePlus, X } from "lucide-react";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { useToast } from "../../contexts/ToastContext";
+import { useLatestRef } from "../../hooks/useLatestRef";
 import { useSupportStream } from "../../hooks/useSupportStream";
 import type { SessionKind } from "../../services/apiClient";
 import {
@@ -42,10 +43,8 @@ export default function HelpWidget({ session }: { session: SessionKind }) {
   const [conversation, setConversation] = useState<SupportConversation | null>(null);
   const [unread, setUnread] = useState(0);
   const buttonRef = useRef<HTMLButtonElement>(null);
-  const openRef = useRef(open);
-  openRef.current = open;
-  const conversationIdRef = useRef<number | null>(null);
-  conversationIdRef.current = conversation?.id ?? null;
+  const openRef = useLatestRef(open);
+  const conversationIdRef = useLatestRef<number | null>(conversation?.id ?? null);
   /** The requester chose "Start a new conversation": keep the empty form up. */
   const composingRef = useRef(false);
 
@@ -90,13 +89,13 @@ export default function HelpWidget({ session }: { session: SessionKind }) {
       const currentId = conversationIdRef.current;
       if (currentId === null || event.conversation_id === currentId) void loadLatest();
     },
-    [loadLatest, refreshUnread],
+    [loadLatest, refreshUnread, openRef, conversationIdRef],
   );
 
   const handleOpenStream = useCallback(() => {
     if (openRef.current && !composingRef.current) void loadLatest();
     else refreshUnread();
-  }, [loadLatest, refreshUnread]);
+  }, [loadLatest, refreshUnread, openRef]);
 
   const { connected } = useSupportStream({
     path: `${supportBase(session)}/stream`,
@@ -120,7 +119,7 @@ export default function HelpWidget({ session }: { session: SessionKind }) {
     };
     const timer = window.setInterval(poll, open ? POLL_OPEN_MS : POLL_BADGE_MS);
     return () => window.clearInterval(timer);
-  }, [connected, open, loadLatest, refreshUnread]);
+  }, [connected, open, loadLatest, refreshUnread, openRef]);
 
   useEffect(() => {
     if (!open) {

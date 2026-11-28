@@ -7,6 +7,7 @@ import AuthMessage from "../../components/auth/AuthMessage";
 import PageMeta from "../../components/seo/PageMeta";
 import { landingPath, useAuth } from "../../context/AuthContext";
 import { useLanguage } from "../../contexts/LanguageContext";
+import { useDeadlinePassed } from "../../hooks/useDeadlinePassed";
 import { ApiError } from "../../utils/apiError";
 import { SESSION_ROLES, type SessionRole } from "../../types/auth";
 
@@ -28,6 +29,8 @@ export default function RoleSelectPage() {
   const { pendingSelection, isAuthenticated, activeRole, selectRole, signOut } = useAuth();
   const [busyRole, setBusyRole] = useState<SessionRole | null>(null);
   const [error, setError] = useState<{ message: string; expired: boolean } | null>(null);
+  // Re-renders when the selection expires, so the buttons turn off on time.
+  const expired = useDeadlinePassed(pendingSelection?.expiresAt ?? null);
 
   if (!pendingSelection) {
     // Reloaded, or opened directly: nothing to choose (the selection token is
@@ -35,7 +38,6 @@ export default function RoleSelectPage() {
     return <Navigate to={isAuthenticated ? landingPath(activeRole) : "/login"} replace />;
   }
 
-  const expired = Date.now() >= pendingSelection.expiresAt;
   const firstName = pendingSelection.fullName.trim().split(/\s+/)[0] ?? "";
 
   async function choose(role: SessionRole) {
