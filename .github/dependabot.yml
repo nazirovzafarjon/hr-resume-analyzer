@@ -1,10 +1,20 @@
 version: 2
+
+# Packages that only work at matching versions are grouped, so they arrive in
+# one pull request instead of several that each break the build on their own
+# (react without react-dom, @vitejs/plugin-react 6 without Vite 8, @eslint/js
+# 10 without ESLint 10, TypeScript without typescript-eslint support).
+# A package joins the first group whose pattern matches it.
+
 updates:
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 10
+    groups:
+      github-actions:
+        patterns: ["*"]
 
   - package-ecosystem: "pip"
     directory: "/backend"
@@ -17,15 +27,50 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 10
+    groups:
+      react:
+        patterns: ["react", "react-dom", "@types/react", "@types/react-dom"]
+      typescript:
+        patterns: ["typescript", "typescript-eslint"]
+      vite:
+        patterns: ["vite", "@vitejs/*", "vitest"]
+      eslint:
+        patterns: ["eslint", "@eslint/*", "eslint-plugin-*", "globals"]
+      minor-and-patch:
+        update-types: ["minor", "patch"]
 
   - package-ecosystem: "npm"
     directory: "/landing"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 10
+    groups:
+      react:
+        patterns: ["react", "react-dom", "@types/react", "@types/react-dom"]
+      typescript:
+        patterns: ["typescript", "typescript-eslint"]
+      vite:
+        patterns: ["vite", "@vitejs/*", "vitest"]
+      eslint:
+        patterns: ["eslint", "@eslint/*", "eslint-plugin-*", "globals"]
+      minor-and-patch:
+        update-types: ["minor", "patch"]
 
   - package-ecosystem: "docker"
     directory: "/backend"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+
+  # Node base images of the CRM and landing build stages.
+  - package-ecosystem: "docker"
+    directory: "/crm"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: "docker"
+    directory: "/landing"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
