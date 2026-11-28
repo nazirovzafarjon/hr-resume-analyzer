@@ -53,6 +53,14 @@ os.environ["AI_CREDENTIAL_ENCRYPTION_KEY"] = "7nDjrhPPT4Ie0rBTPRUQ_AL9V4XYmBv2yg
 # Profile image uploads go to a throwaway directory so tests never write into
 # the repository's real uploads folder.
 os.environ["UPLOAD_DIR"] = tempfile.mkdtemp(prefix="resume_analyzer_test_uploads_")
+# The Telegram bot is off unless a test switches it on; a developer's real bot
+# token in backend/.env must never reach the suite (or Telegram).
+os.environ["TELEGRAM_ENABLED"] = "false"
+os.environ["TELEGRAM_BOT_TOKEN"] = ""
+os.environ["TELEGRAM_BOT_USERNAME"] = ""
+os.environ["TELEGRAM_WEBHOOK_URL"] = ""
+os.environ["TELEGRAM_WEBHOOK_SECRET"] = ""
+os.environ["FRONTEND_BASE_URL"] = "http://localhost:5173"
 
 from app.core.celery_app import celery_app
 

@@ -50,8 +50,19 @@ async def _reply(message: Message, action: Callable[..., str], *args) -> None:
 
 
 @router.message(CommandStart())
-async def on_start(message: Message, command: CommandObject) -> None:
-    await _reply(message, actions.start, command.args)
+async def on_start(message: Message, command: CommandObject, state: FSMContext) -> None:
+    """Link with a token, or show the home screen with quick-action buttons."""
+    if message.from_user is None:
+        return
+    await state.set_state(None)
+    profile = _profile(message)
+    try:
+        text = await asyncio.to_thread(actions.start, profile, command.args)
+        buttons = await asyncio.to_thread(actions.home_buttons, profile)
+    except Exception:  # noqa: BLE001 -- never leave the user without an answer
+        logger.exception("Bot /start failed")
+        text, buttons = t(profile.language_code, "error"), []
+    await message.answer(text, reply_markup=_keyboard(buttons), disable_web_page_preview=True)
 
 
 @router.message(Command("status"))
@@ -84,7 +95,7 @@ async def on_applications(message: Message, state: FSMContext) -> None:
 async def on_application_callback(query: CallbackQuery) -> None:
     """List pages (``apps:<page>``) and cards (``app:<id>:<page>``) edit the message in place."""
     if query.message is None:
-        await query.answer()
+        await _answer(query)
         return
     profile = _profile(query.message, query.from_user)
     try:
@@ -94,7 +105,7 @@ async def on_application_callback(query: CallbackQuery) -> None:
         else:
             reply = await _run(profile, actions.application_detail, profile, int(parts[1]), int(parts[2]))
     except (IndexError, ValueError):
-        await query.answer()
+        await _answer(query)
         return
     await _show(query, reply)
 
@@ -122,14 +133,18 @@ async def on_settings(message: Message) -> None:
 async def on_settings_callback(query: CallbackQuery) -> None:
     """``cfg:<kind>:<key>`` flips one notification switch of this user's own link."""
     if query.message is None:
-        await query.answer()
+        await _answer(query)
         return
     profile = _profile(query.message, query.from_user)
     parts = query.data.split(":")
-    if len(parts) != 3:
-        await query.answer()
+    if parts == ["cfg", "open"]:
+        # The "Settings" button of the /start home screen.
+        reply = await _run(profile, actions.settings_page, profile)
+    elif len(parts) == 3:
+        reply = await _run(profile, actions.toggle_setting, profile, parts[1], parts[2])
+    else:
+        await _answer(query)
         return
-    reply = await _run(profile, actions.toggle_setting, profile, parts[1], parts[2])
     await _show(query, reply)
 
 
@@ -229,7 +244,7 @@ async def on_hr_callback(query: CallbackQuery, state: FSMContext) -> None:
     * ``hr:aiall`` / ``hr:aiallok:<job id or 0>`` -- analyse the new ones (asks first)
     """
     if query.message is None:
-        await query.answer()
+        await _answer(query)
         return
     profile = _profile(query.message, query.from_user)
     # Any other button abandons a pending meeting-link or search question
@@ -267,7 +282,7 @@ async def on_hr_callback(query: CallbackQuery, state: FSMContext) -> None:
                 await state.update_data(interview_id=interview_id, page=page)
                 # Keep the card; ask in a new message the answer goes under.
                 await query.message.answer(reply.text)
-                await query.answer()
+                await _answer(query)
                 return
         elif parts[1] == "new":
             await _remember_list(state, ["ls", "new", 0])
@@ -285,7 +300,7 @@ async def on_hr_callback(query: CallbackQuery, state: FSMContext) -> None:
             if reply.awaiting_input:
                 await state.set_state(Search.waiting)
                 await query.message.answer(reply.text)
-                await query.answer()
+                await _answer(query)
                 return
         elif parts[1] == "cv":
             reply = await _run(profile, actions.hr_resume, profile, int(parts[2]), int(parts[3]))
@@ -322,9 +337,17 @@ async def on_hr_callback(query: CallbackQuery, state: FSMContext) -> None:
         else:
             raise ValueError(parts[1])
     except (IndexError, ValueError):
-        await query.answer()
+        await _answer(query)
         return
     await _show(query, reply)
+
+
+async def _answer(query: CallbackQuery) -> None:
+    """Stop the button's spinner; a query Telegram already expired is not an error."""
+    try:
+        await _answer(query)
+    except TelegramBadRequest:
+        pass
 
 
 async def _show(query: CallbackQuery, reply: "actions.Reply") -> None:
@@ -332,21 +355,30 @@ async def _show(query: CallbackQuery, reply: "actions.Reply") -> None:
         await query.message.edit_text(
             reply.text, reply_markup=_keyboard(reply.buttons), disable_web_page_preview=True
         )
-    except TelegramBadRequest:
-        # "message is not modified" (same page pressed twice) or a message too
-        # old to edit: send the content as a new message instead.
-        await query.message.answer(reply.text, reply_markup=_keyboard(reply.buttons))
-    await query.answer()
+    except TelegramBadRequest as exc:
+        # The same button pressed twice: the message already shows this.
+        if "message is not modified" not in str(exc):
+            # A message too old (or not editable): send the content anew.
+            await query.message.answer(
+                reply.text, reply_markup=_keyboard(reply.buttons), disable_web_page_preview=True
+            )
+    await _answer(query)
 
 
 async def _send(query: CallbackQuery, reply: "actions.Reply") -> None:
     """Send a reply as a new message (a document when it carries one)."""
     if reply.document is not None:
         path, filename = reply.document
-        await query.message.answer_document(FSInputFile(path, filename=filename), caption=reply.text)
+        try:
+            await query.message.answer_document(FSInputFile(path, filename=filename), caption=reply.text)
+        except Exception:  # noqa: BLE001 -- e.g. over Telegram's 50 MB limit, file gone
+            logger.exception("Sending a resume file to Telegram failed")
+            await query.message.answer(t(query.from_user.language_code, "resume_send_failed"))
     else:
-        await query.message.answer(reply.text, reply_markup=_keyboard(reply.buttons))
-    await query.answer()
+        await query.message.answer(
+            reply.text, reply_markup=_keyboard(reply.buttons), disable_web_page_preview=True
+        )
+    await _answer(query)
 
 
 async def _run(profile: TelegramProfile, action, *args) -> "actions.Reply":
@@ -363,3 +395,20 @@ def _keyboard(rows: list[list[dict[str, str]]]) -> InlineKeyboardMarkup | None:
     return InlineKeyboardMarkup(
         inline_keyboard=[[InlineKeyboardButton(**button) for button in row] for row in rows]
     )
+
+
+# Registered last: only what no handler above took reaches these.
+
+
+@router.message()
+async def on_unknown(message: Message) -> None:
+    """An unknown command or a stray message gets a pointer to /help."""
+    if message.from_user is None:
+        return
+    await message.answer(t(message.from_user.language_code, "unknown"))
+
+
+@router.callback_query()
+async def on_unknown_callback(query: CallbackQuery) -> None:
+    """A button from an older bot version: just stop its spinner."""
+    await _answer(query)

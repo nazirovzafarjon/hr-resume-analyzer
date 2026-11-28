@@ -159,6 +159,21 @@ def test_search_escapes_html(hr, job):
     assert "&lt;b&gt;Eve&lt;/b&gt;" in reply.text
 
 
+def test_search_treats_wildcards_literally(hr, job):
+    _add_application(job["id"], name="Ann_Lee")
+    _add_application(job["id"], name="Annxlee")
+    reply = actions.hr_search(_profile(), "n_l")
+    assert "Ann_Lee" in reply.text and "Annxlee" not in reply.text
+    assert "Ann_Lee" not in actions.hr_search(_profile(), "%%").text
+
+
+def test_start_home_screen_offers_quick_actions(hr):
+    text = actions.start(_profile(), None)
+    assert "Assalomu alaykum" in text
+    callbacks = [button["callback_data"] for row in actions.home_buttons(_profile()) for button in row]
+    assert callbacks == ["hr:ls:all:0:0", "hr:new:0", "cfg:open"]
+
+
 def test_applications_entry_for_hr_and_candidate(client, hr, job):
     from tests.test_telegram_notifications import _link, _register_candidate
 

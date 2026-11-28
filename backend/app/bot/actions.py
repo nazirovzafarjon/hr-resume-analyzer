@@ -55,7 +55,10 @@ def start(profile: TelegramProfile, payload: str | None) -> str:
         if not payload:
             linking.touch(db, profile.telegram_user_id, profile.chat_id)
             if linking.links_for_telegram_user(db, profile.telegram_user_id):
-                return status(profile)
+                name = html.escape((profile.first_name or "").strip() or "👤")
+                return "\n".join(
+                    [t(lang, "home_greeting", name=name), "", status(profile), "", t(lang, "home_hint")]
+                )
             return t(lang, "welcome", site=_site_line())
         try:
             link = linking.consume_link_token(db, payload.strip(), profile)
@@ -79,6 +82,26 @@ def status(profile: TelegramProfile) -> str:
             key = "status_hr" if link.kind == TelegramAccountKind.HR else "status_candidate"
             lines.append(t(lang, key, email=html.escape(owner.email if owner else "")))
         return "\n".join(lines)
+
+
+def home_buttons(profile: TelegramProfile) -> list[list[dict[str, str]]]:
+    """Quick actions under ``/start`` for the accounts this Telegram user linked."""
+    lang = profile.language_code
+    with SessionLocal() as db:
+        kinds = {link.kind for link in linking.links_for_telegram_user(db, profile.telegram_user_id)}
+    rows: list[list[dict[str, str]]] = []
+    if TelegramAccountKind.HR in kinds:
+        rows.append(
+            [
+                {"text": t(lang, "btn_home_hr_apps"), "callback_data": "hr:ls:all:0:0"},
+                {"text": t(lang, "btn_home_new"), "callback_data": "hr:new:0"},
+            ]
+        )
+    if TelegramAccountKind.CANDIDATE in kinds:
+        rows.append([{"text": t(lang, "btn_home_my_apps"), "callback_data": "apps:0"}])
+    if kinds:
+        rows.append([{"text": t(lang, "btn_home_settings"), "callback_data": "cfg:open"}])
+    return rows
 
 
 def unlink(profile: TelegramProfile) -> str:
@@ -272,9 +295,14 @@ def hr_list(
         rows_query = _owned_applications(db, user.id)
         job = None
         if query:
-            like = f"%{query.lower()}%"
+            # "%" and "_" typed by the HR user are literal characters, not wildcards.
+            escaped = query.lower().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+            like = f"%{escaped}%"
             rows_query = rows_query.filter(
-                or_(func.lower(Application.name).like(like), func.lower(Application.email).like(like))
+                or_(
+                    func.lower(Application.name).like(like, escape="\\"),
+                    func.lower(Application.email).like(like, escape="\\"),
+                )
             )
         else:
             if status_filter != "all":

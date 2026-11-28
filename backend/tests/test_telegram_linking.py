@@ -202,7 +202,19 @@ def test_start_without_token_greets_unlinked_user(telegram_on):
 
 def test_start_without_token_shows_status_when_linked(client, user, telegram_on):
     actions.start(_profile(), _issue(client, user["headers"]))
-    assert user["email"] in actions.start(_profile(), None)
+    home = actions.start(_profile(), None)
+    assert user["email"] in home and "Jane" in home
+
+
+def test_home_buttons_follow_linked_accounts(client, user, candidate, telegram_on):
+    def callbacks():
+        return [button["callback_data"] for row in actions.home_buttons(_profile()) for button in row]
+
+    assert callbacks() == []
+    actions.start(_profile(), _issue(client, candidate["headers"], kind="candidate"))
+    assert callbacks() == ["apps:0", "cfg:open"]
+    actions.start(_profile(), _issue(client, user["headers"]))
+    assert callbacks() == ["hr:ls:all:0:0", "hr:new:0", "apps:0", "cfg:open"]
 
 
 def test_bot_unlink_removes_all_links(client, user, candidate, telegram_on, db_session):
