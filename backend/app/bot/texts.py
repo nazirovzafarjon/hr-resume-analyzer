@@ -164,6 +164,14 @@ TEXTS: dict[str, dict[str, str]] = {
         "cancelled": "Bekor qilindi.",
         "nothing_to_cancel": "Bekor qiladigan narsa yo'q.",
         "error": "Xatolik yuz berdi. Birozdan keyin qayta urinib ko'ring.",
+        "home_greeting": "👋 Assalomu alaykum, <b>{name}</b>!",
+        "home_hint": "Kerakli bo'limni tanlang yoki /help ni bosing.",
+        "btn_home_hr_apps": "📥 Arizalar",
+        "btn_home_new": "🆕 Yangi arizalar",
+        "btn_home_my_apps": "📋 Mening arizalarim",
+        "btn_home_settings": "⚙️ Sozlamalar",
+        "unknown": "🤔 Buni tushunmadim. Komandalar ro'yxati: /help",
+        "resume_send_failed": "⚠️ Rezyume faylini yuborib bo'lmadi (fayl juda katta yoki topilmadi). Uni saytdan oching.",
     },
     "ru": {
         "welcome": (
@@ -322,6 +330,14 @@ TEXTS: dict[str, dict[str, str]] = {
         "cancelled": "Отменено.",
         "nothing_to_cancel": "Нечего отменять.",
         "error": "Произошла ошибка. Попробуйте ещё раз чуть позже.",
+        "home_greeting": "👋 Здравствуйте, <b>{name}</b>!",
+        "home_hint": "Выберите раздел или нажмите /help.",
+        "btn_home_hr_apps": "📥 Заявки",
+        "btn_home_new": "🆕 Новые заявки",
+        "btn_home_my_apps": "📋 Мои заявки",
+        "btn_home_settings": "⚙️ Настройки",
+        "unknown": "🤔 Не понял. Список команд: /help",
+        "resume_send_failed": "⚠️ Не удалось отправить файл резюме (слишком большой или не найден). Откройте его на сайте.",
     },
     "en": {
         "welcome": (
@@ -480,6 +496,14 @@ TEXTS: dict[str, dict[str, str]] = {
         "cancelled": "Cancelled.",
         "nothing_to_cancel": "Nothing to cancel.",
         "error": "Something went wrong. Please try again a bit later.",
+        "home_greeting": "👋 Hello, <b>{name}</b>!",
+        "home_hint": "Pick a section below or tap /help.",
+        "btn_home_hr_apps": "📥 Applications",
+        "btn_home_new": "🆕 New applications",
+        "btn_home_my_apps": "📋 My applications",
+        "btn_home_settings": "⚙️ Settings",
+        "unknown": "🤔 I didn't get that. Commands: /help",
+        "resume_send_failed": "⚠️ Could not send the resume file (too large or missing). Open it on the website.",
     },
 }
 
