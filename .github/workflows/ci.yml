@@ -3,17 +3,20 @@ name: Continuous Integration
 on:
   push:
     branches: [main, master]
+  # Every pull request, whatever its base: a PR stacked on another PR's branch
+  # is checked too, not only once it is retargeted to main.
   pull_request:
-    branches: [main, master]
 
 permissions:
   contents: read
 
-# Cancel superseded runs on the same branch/PR so a new push never queues
-# behind a stale (possibly hung) run.
+# A pull request keeps one run: a new push cancels the superseded one. Every
+# commit on main gets a group of its own, so merges landing seconds apart are
+# each verified (a shared group keeps only one running and one waiting run and
+# drops the rest), and a red main points at the merge that broke it.
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.workflow }}-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   backend-ci:
@@ -50,10 +53,14 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
 
-      - name: Set up Python 3.12
+      - name: Read runtime versions from the Dockerfiles
+        id: versions
+        run: sh .github/scripts/runtime-versions.sh
+
+      - name: Set up Python (version of backend/Dockerfile)
         uses: actions/setup-python@v7
         with:
-          python-version: '3.12'
+          python-version: ${{ steps.versions.outputs.python }}
           cache: 'pip'
           cache-dependency-path: 'backend/requirements.txt'
 
@@ -103,10 +110,14 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
 
-      - name: Set up Node.js 20
+      - name: Read runtime versions from the Dockerfiles
+        id: versions
+        run: sh .github/scripts/runtime-versions.sh
+
+      - name: Set up Node.js (version of crm/Dockerfile)
         uses: actions/setup-node@v7
         with:
-          node-version: 24
+          node-version: ${{ steps.versions.outputs.crm_node }}
           cache: 'npm'
           cache-dependency-path: 'crm/package-lock.json'
 
@@ -144,10 +155,14 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
 
-      - name: Set up Node.js 20
+      - name: Read runtime versions from the Dockerfiles
+        id: versions
+        run: sh .github/scripts/runtime-versions.sh
+
+      - name: Set up Node.js (version of landing/Dockerfile)
         uses: actions/setup-node@v7
         with:
-          node-version: 24
+          node-version: ${{ steps.versions.outputs.landing_node }}
           cache: 'npm'
           cache-dependency-path: 'landing/package-lock.json'
 
@@ -192,14 +207,17 @@ jobs:
           grep -c '<loc>' sitemap.xml | grep -qx 4
 
       - name: Verify nginx routing (status codes, headers)
+        env:
+          # The nginx the landing image ships (landing/Dockerfile), not a copy.
+          NGINX_IMAGE: ${{ steps.versions.outputs.landing_nginx }}
         run: |
           cd landing
           docker run -d --name landing-nginx -p 8080:80 \
             -v "$PWD/dist:/usr/share/nginx/html:ro" \
             -v "$PWD/nginx.conf:/etc/nginx/conf.d/default.conf:ro" \
             -v "$PWD/security-headers.conf:/etc/nginx/security-headers.conf:ro" \
-            nginx:1.27-alpine
-          for i in $(seq 1 20); do curl -fs -o /dev/null http://localhost:8080/ && break; sleep 0.5; done
+            "$NGINX_IMAGE"
+          for _ in $(seq 1 20); do curl -fs -o /dev/null http://localhost:8080/ && break; sleep 0.5; done
           check() {
             code=$(curl -s -o /dev/null -w '%{http_code}' "http://localhost:8080$1")
             echo "$1 -> $code"
