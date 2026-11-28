@@ -1432,8 +1432,8 @@ New HR and candidate registrations undergo two-phase verification:
 
 Ensure the following tools are installed on your host system:
 
-- **Python**: Version 3.14 or higher (supports Python 3.12+ as well)
-- **Node.js**: Version 20.0.0 or higher
+- **Python**: 3.12 or newer for local development. The Docker images and CI use the version in `backend/Dockerfile` (currently 3.15); CI reads it from there, so the two never drift.
+- **Node.js**: 22.22.2+ or 24.15+ (the `engines` field of `crm/` and `landing/`, required by Vite 8 and jsdom 31). The Docker build stage and CI use the version in the Dockerfiles (currently Node 26 LTS).
 - **Package Manager**: `npm` (version 9 or higher)
 - **PostgreSQL**: Version 14 or higher running locally or accessible via network
 
