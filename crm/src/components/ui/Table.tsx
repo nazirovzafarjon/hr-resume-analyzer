@@ -4,6 +4,13 @@ import { SkeletonTable } from "./Skeleton";
 import Pagination from "./Pagination";
 
 export type TableColumn<T> = {
+  /**
+   * Stable identity of the column (defaults to `sortKey`, then its position).
+   * Never derived from `header`: headers are translated, and a key that
+   * changes when the translations load or the language switches would make
+   * React rebuild every cell of the table.
+   */
+  id?: string;
   header: string;
   render: (row: T) => ReactNode;
   className?: string;
@@ -44,6 +51,11 @@ type TableProps<T> = {
   serverSort?: { key: string; order: "asc" | "desc" };
   onSortChange?: (key: string) => void;
 };
+
+/** React key of a column: stable across translations (see `TableColumn.id`). */
+function columnKey<T>(column: TableColumn<T>, index: number): string {
+  return column.id ?? column.sortKey ?? `col-${index}`;
+}
 
 /**
  * The product's data table: hover rows, optional per-column sorting,
@@ -125,7 +137,7 @@ export default function Table<T>({
               const sortable = onSortChange ? serverSorted : Boolean(column.sort);
               return (
                 <th
-                  key={column.header}
+                  key={columnKey(column, index)}
                   scope="col"
                   className={[column.headerClassName, column.hideOnMobile ? "table-col--hide-mobile" : null]
                     .filter(Boolean)
@@ -166,9 +178,9 @@ export default function Table<T>({
         <tbody>
           {visibleRows.map((row) => (
             <tr key={rowKey(row)}>
-              {columns.map((column) => (
+              {columns.map((column, index) => (
                 <td
-                  key={column.header}
+                  key={columnKey(column, index)}
                   data-label={column.header}
                   className={[column.className, column.hideOnMobile ? "table-col--hide-mobile" : null]
                     .filter(Boolean)
