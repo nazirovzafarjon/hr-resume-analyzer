@@ -154,7 +154,13 @@ class GoogleAuthService:
             raise GoogleAuthError(detail)
 
         user_info = response.json()
-        logger.info("Google userinfo response: %s", user_info)
+        # Only which fields came back: the values (name, email, photo, Google
+        # id) are personal data and must not end up in the logs.
+        logger.info(
+            "Google userinfo received (fields=%s, email_verified=%s)",
+            sorted(user_info) if isinstance(user_info, dict) else type(user_info).__name__,
+            user_info.get("email_verified") if isinstance(user_info, dict) else None,
+        )
         return user_info
 
     # ------------------------------------------------------------------

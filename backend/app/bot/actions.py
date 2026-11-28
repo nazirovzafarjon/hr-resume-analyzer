@@ -97,6 +97,13 @@ def home_buttons(profile: TelegramProfile) -> list[list[dict[str, str]]]:
                 {"text": t(lang, "btn_home_new"), "callback_data": "hr:new:0"},
             ]
         )
+        rows.append(
+            [
+                {"text": t(lang, "btn_home_jobs"), "callback_data": "hr:jl:0"},
+                {"text": t(lang, "btn_home_interviews"), "callback_data": "hr:ivl:today:0"},
+            ]
+        )
+        rows.append([{"text": t(lang, "btn_home_stats"), "callback_data": "hr:st:7d"}])
     if TelegramAccountKind.CANDIDATE in kinds:
         rows.append([{"text": t(lang, "btn_home_my_apps"), "callback_data": "apps:0"}])
     if kinds:
@@ -1467,6 +1474,469 @@ def hr_cancel_interview(
         logger.info("Interview cancelled from Telegram: interview_id=%s user_id=%s", interview_id, user.id)
         application = _owned_application(db, user, application.id)
         return _hr_card(lang, application, page, notice=t(lang, "iv_cancelled"))
+
+
+# ---------------------------------------------------------------------------
+# HR: /jobs, /interviews and /stats (phase 9)
+# ---------------------------------------------------------------------------
+#
+# Read-mostly views over the HR user's own jobs and interviews. Writes go
+# through the same CRUD calls as the CRM (interview status and notes), are
+# audited with ``via: telegram`` and so trigger the same notifications.
+
+#: Interview list tabs, in button order.
+INTERVIEW_TABS = ("today", "tomorrow", "week", "past")
+#: How far back the "past, no outcome yet" tab looks.
+PAST_DAYS = 30
+#: Longest note the bot appends in one message.
+NOTE_LIMIT = 1000
+#: Analytics periods offered by /stats (the CRM's own ranges).
+STATS_RANGES = ("7d", "30d", "90d")
+
+
+def _local_midnight() -> datetime:
+    """Start of today in ``TELEGRAM_TIMEZONE``, as an aware datetime."""
+    return _local_now().replace(hour=0, minute=0, second=0, microsecond=0)
+
+
+def _site_link(path: str) -> str | None:
+    """A CRM page Telegram can open (``None`` for a local, non-public site)."""
+    return notifier._site_url(path)
+
+
+# --- /jobs -------------------------------------------------------------------------
+
+
+def hr_jobs(profile: TelegramProfile, page: int = 0) -> Reply:
+    """The HR user's own jobs, newest first, with total and new applications."""
+    lang = profile.language_code
+    with SessionLocal() as db:
+        user = _hr_for(db, profile)
+        if user is None:
+            return Reply(t(lang, "hr_not_hr"))
+        total = db.query(func.count(Job.id)).filter(Job.owner_id == user.id).scalar() or 0
+        if total == 0:
+            return Reply(t(lang, "hr_jobs_empty"))
+        pages = (total + PAGE_SIZE - 1) // PAGE_SIZE
+        page = min(max(page, 0), pages - 1)
+        rows = (
+            db.query(
+                Job.id,
+                Job.position,
+                Job.company_name,
+                Job.created_at,
+                func.count(Application.id),
+                func.count(Application.id).filter(Application.application_status == ApplicationStatus.NEW),
+            )
+            .outerjoin(Application, Application.job_id == Job.id)
+            .filter(Job.owner_id == user.id)
+            .group_by(Job.id, Job.position, Job.company_name, Job.created_at)
+            .order_by(Job.created_at.desc(), Job.id.desc())
+            .offset(page * PAGE_SIZE)
+            .limit(PAGE_SIZE)
+            .all()
+        )
+
+    lines = [t(lang, "jobs_header", total=str(total), page=str(page + 1), pages=str(pages)), ""]
+    buttons: Buttons = []
+    for number, (job_id, position, company, created, count, new) in enumerate(rows, start=page * PAGE_SIZE + 1):
+        lines.append(
+            f"{number}. <b>{html.escape(position)}</b> — {html.escape(company)}\n"
+            f"    {t(lang, 'jobs_counts', total=str(count), new=str(new))} · {notifier.format_date(created)}"
+        )
+        buttons.append([{"text": f"{number}. {position[:48]}", "callback_data": f"hr:job:{job_id}:{page}"}])
+    nav = []
+    if page > 0:
+        nav.append({"text": t(lang, "btn_prev"), "callback_data": f"hr:jl:{page - 1}"})
+    if page < pages - 1:
+        nav.append({"text": t(lang, "btn_next"), "callback_data": f"hr:jl:{page + 1}"})
+    if nav:
+        buttons.append(nav)
+    return Reply("\n".join(lines), buttons)
+
+
+def hr_job_detail(profile: TelegramProfile, job_id: int, page: int = 0) -> Reply:
+    """One of the HR's own jobs: applications by status, AI, interviews and the form link."""
+    lang = profile.language_code
+    back = [{"text": t(lang, "btn_back"), "callback_data": f"hr:jl:{page}"}]
+    with SessionLocal() as db:
+        user = _hr_for(db, profile)
+        if user is None:
+            return Reply(t(lang, "hr_not_hr"))
+        job = db.query(Job).filter(Job.id == job_id, Job.owner_id == user.id).one_or_none()
+        if job is None:
+            return Reply(t(lang, "job_not_found"), [back])
+        by_status = dict(
+            db.query(Application.application_status, func.count(Application.id))
+            .filter(Application.job_id == job.id)
+            .group_by(Application.application_status)
+            .all()
+        )
+        analysed, average = (
+            db.query(func.count(Application.id), func.avg(Application.ai_score))
+            .filter(Application.job_id == job.id, Application.analysis_status == AnalysisStatus.COMPLETED)
+            .one()
+        )
+        upcoming = (
+            db.query(func.count(Interview.id))
+            .join(Interview.candidate)
+            .filter(
+                Application.job_id == job.id,
+                Interview.hr_id == user.id,
+                Interview.status == InterviewStatus.UPCOMING,
+                Interview.scheduled_at > _now(),
+            )
+            .scalar()
+            or 0
+        )
+        analysable = _analysable_count(db, user.id, job.id)
+        token = job.application_form.public_token if job.application_form is not None else None
+        position, company, created = job.position, job.company_name, job.created_at
+
+    total = sum(by_status.values())
+    new = by_status.get(ApplicationStatus.NEW, 0)
+    lines = [
+        f"💼 <b>{html.escape(position)}</b> — {html.escape(company)}",
+        t(lang, "job_created", date=notifier.format_date(created)),
+        "",
+        t(lang, "job_applications", total=str(total)),
+    ]
+    for status in ApplicationStatus:
+        if by_status.get(status):
+            lines.append(f"    • {hr_status_label(lang, status.value)}: {by_status[status]}")
+    if analysed:
+        lines.append(t(lang, "job_ai", count=str(analysed), score=str(round(average or 0))))
+    lines.append(t(lang, "job_interviews", count=str(upcoming)))
+    lines.append("")
+    form_url = f"{settings.FRONTEND_BASE_URL.rstrip('/')}/apply/{token}" if token else None
+    lines.append(t(lang, "job_form", url=html.escape(form_url)) if form_url else t(lang, "job_no_form"))
+
+    buttons: Buttons = [
+        [
+            {"text": t(lang, "btn_job_apps", count=str(total)), "callback_data": f"hr:ls:all:{job_id}:0"},
+            {"text": t(lang, "btn_job_new", count=str(new)), "callback_data": f"hr:ls:new:{job_id}:0"},
+        ]
+    ]
+    if analysable:
+        buttons.append(
+            [
+                {
+                    "text": t(lang, "btn_analyze_all", count=str(min(analysable, BULK_ANALYSIS_LIMIT))),
+                    "callback_data": f"hr:aiall:{job_id}",
+                }
+            ]
+        )
+    links = []
+    public_form = _site_link(f"/apply/{token}") if token else None
+    if public_form:
+        links.append({"text": t(lang, "btn_open_form"), "url": public_form})
+    crm = _site_link(f"/jobs/{job_id}")
+    if crm:
+        links.append({"text": t(lang, "btn_open_crm"), "url": crm})
+    if links:
+        buttons.append(links)
+    buttons.append(back)
+    return Reply("\n".join(lines), buttons)
+
+
+# --- /interviews -------------------------------------------------------------------
+
+
+def _owned_interviews(db, user):
+    """The HR user's interviews on their own jobs, with candidate and job loaded."""
+    return (
+        db.query(Interview)
+        .join(Interview.candidate)
+        .join(Application.job)
+        .filter(Interview.hr_id == user.id, Job.owner_id == user.id)
+        .options(contains_eager(Interview.candidate).contains_eager(Application.job))
+    )
+
+
+def _tab_window(tab: str):
+    """``(query filter list, newest first?)`` for an interview tab."""
+    now = _now()
+    midnight = _local_midnight()
+    upcoming = Interview.status == InterviewStatus.UPCOMING
+    if tab == "tomorrow":
+        start, end = midnight + timedelta(days=1), midnight + timedelta(days=2)
+        return [upcoming, Interview.scheduled_at >= start, Interview.scheduled_at < end], False
+    if tab == "week":
+        return [upcoming, Interview.scheduled_at >= now, Interview.scheduled_at < midnight + timedelta(days=7)], False
+    if tab == "past":
+        # Over, but nobody recorded an outcome: these need HR's attention.
+        return [upcoming, Interview.scheduled_at < now, Interview.scheduled_at >= now - timedelta(days=PAST_DAYS)], True
+    # today: the whole local day, so this morning's ones can still be marked.
+    return [upcoming, Interview.scheduled_at >= midnight, Interview.scheduled_at < midnight + timedelta(days=1)], False
+
+
+def hr_interviews(profile: TelegramProfile, tab: str = "today", page: int = 0) -> Reply:
+    """Upcoming interviews (today, tomorrow, 7 days) or past ones without an outcome."""
+    lang = profile.language_code
+    if tab not in INTERVIEW_TABS:
+        tab = "today"
+    with SessionLocal() as db:
+        user = _hr_for(db, profile)
+        if user is None:
+            return Reply(t(lang, "hr_not_hr"))
+        conditions, newest_first = _tab_window(tab)
+        query = _owned_interviews(db, user).filter(*conditions)
+        total = query.count()
+        pages = max((total + PAGE_SIZE - 1) // PAGE_SIZE, 1)
+        page = min(max(page, 0), pages - 1)
+        order = Interview.scheduled_at.desc() if newest_first else Interview.scheduled_at.asc()
+        rows = [
+            (
+                iv.id,
+                iv.scheduled_at,
+                iv.duration_minutes,
+                iv.candidate.name or "—",
+                iv.candidate.job.position,
+                bool(iv.meeting_link),
+            )
+            for iv in query.order_by(order, Interview.id).offset(page * PAGE_SIZE).limit(PAGE_SIZE).all()
+        ]
+
+    lines = [t(lang, "iv_list_header", tab=t(lang, f"iv_tab_{tab}"), total=str(total), page=str(page + 1), pages=str(pages)), ""]
+    if not rows:
+        lines.append(t(lang, f"iv_list_empty_{'past' if tab == 'past' else 'upcoming'}"))
+    buttons: Buttons = []
+    with_day = tab in ("week", "past")
+    for number, (iv_id, when, minutes, name, position, has_link) in enumerate(rows, start=page * PAGE_SIZE + 1):
+        stamp = notifier.format_date(when, with_time=True) if with_day else _local_time(when)
+        link = " · 🔗" if has_link else ""
+        lines.append(
+            f"{number}. 🕒 <b>{stamp}</b> — {html.escape(name)}\n"
+            f"    {html.escape(position)} · {t(lang, 'iv_minutes', minutes=str(minutes))}{link}"
+        )
+        buttons.append([{"text": f"{number}. {stamp} {name[:32]}", "callback_data": f"hr:ivc:{iv_id}:{tab}:{page}"}])
+    nav = []
+    if page > 0:
+        nav.append({"text": t(lang, "btn_prev"), "callback_data": f"hr:ivl:{tab}:{page - 1}"})
+    if page < pages - 1:
+        nav.append({"text": t(lang, "btn_next"), "callback_data": f"hr:ivl:{tab}:{page + 1}"})
+    if nav:
+        buttons.append(nav)
+    tabs = [
+        {"text": f"{'• ' if key == tab else ''}{t(lang, f'iv_tab_{key}')}", "callback_data": f"hr:ivl:{key}:0"}
+        for key in INTERVIEW_TABS
+    ]
+    buttons += [tabs[:2], tabs[2:]]
+    return Reply("\n".join(lines), buttons)
+
+
+def _local_time(value: datetime) -> str:
+    return _as_utc(value).astimezone(notifier.local_timezone()).strftime("%H:%M")
+
+
+def _interview_status_label(lang: str, interview: Interview) -> str:
+    status = InterviewStatus(interview.status)
+    if status == InterviewStatus.UPCOMING and _as_utc(interview.scheduled_at) <= _now():
+        return t(lang, "iv_status_awaiting")
+    return t(lang, f"iv_status_{status.value}")
+
+
+def _owned_interview(db, user, interview_id: int) -> Interview | None:
+    return _owned_interviews(db, user).filter(Interview.id == interview_id).one_or_none()
+
+
+def _interview_card(lang: str, interview: Interview, tab: str, page: int, notice: str | None = None) -> Reply:
+    application = interview.candidate
+    status = InterviewStatus(interview.status)
+    ahead = status == InterviewStatus.UPCOMING and _as_utc(interview.scheduled_at) > _now()
+    lines = [notice, ""] if notice else []
+    lines += [
+        f"🗓 <b>{notifier.format_date(interview.scheduled_at, with_time=True)}</b>",
+        f"👤 <b>{html.escape(application.name or '—')}</b>",
+        f"{html.escape(application.job.position)} — {html.escape(application.job.company_name)}",
+        "",
+        t(lang, "iv_duration", minutes=str(interview.duration_minutes)),
+        t(lang, "iv_interviewer", name=html.escape(interview.interviewer)),
+        t(lang, "iv_status", status=_interview_status_label(lang, interview)),
+    ]
+    if interview.meeting_link:
+        lines.append(f"🔗 {html.escape(interview.meeting_link)}")
+    if interview.notes:
+        lines += ["", t(lang, "iv_notes"), html.escape(_clip(interview.notes, 1500))]
+
+    buttons: Buttons = []
+    if status == InterviewStatus.UPCOMING and not ahead:
+        buttons.append([{"text": t(lang, "btn_iv_done"), "callback_data": f"hr:ivdone:{interview.id}:{tab}:{page}"}])
+    if ahead:
+        buttons.append(
+            [
+                {"text": t(lang, "btn_reschedule"), "callback_data": f"hr:rs:{interview.id}:0"},
+                {"text": t(lang, "btn_iv_cancel"), "callback_data": f"hr:ivx:{interview.id}:0"},
+            ]
+        )
+        link_key = "btn_change_link" if interview.meeting_link else "btn_add_link"
+        buttons.append([{"text": t(lang, link_key), "callback_data": f"hr:ivlink:{interview.id}:0"}])
+    if status != InterviewStatus.CANCELLED:
+        buttons.append([{"text": t(lang, "btn_iv_note"), "callback_data": f"hr:ivnote:{interview.id}:{tab}:{page}"}])
+    buttons.append([{"text": t(lang, "btn_to_card"), "callback_data": f"hr:app:{application.id}:0"}])
+    buttons.append([{"text": t(lang, "btn_back"), "callback_data": f"hr:ivl:{tab}:{page}"}])
+    return Reply("\n".join(lines), buttons)
+
+
+def _load_interview(db, profile: TelegramProfile, interview_id: int, tab: str, page: int):
+    """``(user, interview, None)`` or ``(None, None, error reply)``."""
+    lang = profile.language_code
+    user = _hr_for(db, profile)
+    if user is None:
+        return None, None, Reply(t(lang, "hr_not_hr"))
+    interview = _owned_interview(db, user, interview_id)
+    if interview is None:
+        back = [{"text": t(lang, "btn_back"), "callback_data": f"hr:ivl:{tab}:{page}"}]
+        return None, None, Reply(t(lang, "iv_not_found"), [back])
+    return user, interview, None
+
+
+def hr_interview_card(profile: TelegramProfile, interview_id: int, tab: str = "today", page: int = 0) -> Reply:
+    """One of the HR's interviews with what can be done to it now."""
+    tab = tab if tab in INTERVIEW_TABS else "today"
+    with SessionLocal() as db:
+        _, interview, error = _load_interview(db, profile, interview_id, tab, page)
+        if error is not None:
+            return error
+        return _interview_card(profile.language_code, interview, tab, page)
+
+
+def hr_interview_done(profile: TelegramProfile, interview_id: int, tab: str = "today", page: int = 0) -> Reply:
+    """Mark an interview that has started as completed, like ``PATCH /api/interviews/{id}``.
+
+    Only an upcoming interview whose start time has passed; a second tap
+    changes nothing. The application status is left to HR, as in the CRM.
+    """
+    lang = profile.language_code
+    tab = tab if tab in INTERVIEW_TABS else "today"
+    with SessionLocal() as db:
+        user, interview, error = _load_interview(db, profile, interview_id, tab, page)
+        if error is not None:
+            return error
+        if interview.status != InterviewStatus.UPCOMING:
+            return _interview_card(lang, interview, tab, page)
+        if _as_utc(interview.scheduled_at) > _now():
+            return _interview_card(lang, interview, tab, page, notice=t(lang, "iv_done_too_early"))
+        interview = interview_crud.update_interview(db, interview, InterviewUpdate(status=InterviewStatus.COMPLETED))
+        audit.record(
+            db,
+            audit.AuditAction.UPDATE_INTERVIEW,
+            resource_type=audit.AuditResource.INTERVIEW,
+            resource_id=interview.id,
+            actor=user,
+            details={"fields": ["status"], "status": InterviewStatus.COMPLETED.value, "via": "telegram"},
+        )
+        logger.info("Interview marked completed from Telegram: interview_id=%s user_id=%s", interview.id, user.id)
+        interview = _owned_interview(db, user, interview_id)
+        return _interview_card(lang, interview, tab, page, notice=t(lang, "iv_marked_done"))
+
+
+def hr_note_prompt(profile: TelegramProfile, interview_id: int, tab: str = "today", page: int = 0) -> Reply:
+    """Ask for a note; the next text message is appended to the interview's notes."""
+    lang = profile.language_code
+    with SessionLocal() as db:
+        _, interview, error = _load_interview(db, profile, interview_id, tab, page)
+        if error is not None:
+            return error
+        if interview.status == InterviewStatus.CANCELLED:
+            return _interview_card(lang, interview, tab, page)
+    return Reply(t(lang, "iv_note_prompt"), awaiting_input=True)
+
+
+def hr_add_note(profile: TelegramProfile, interview_id: int, text: str, tab: str = "today", page: int = 0) -> Reply:
+    """Append a dated note (never replaces what HR wrote in the CRM); audited."""
+    lang = profile.language_code
+    note = (text or "").strip()
+    if not note:
+        return Reply(t(lang, "iv_note_empty"), awaiting_input=True)
+    if len(note) > NOTE_LIMIT:
+        return Reply(t(lang, "iv_note_long", limit=str(NOTE_LIMIT)), awaiting_input=True)
+    tab = tab if tab in INTERVIEW_TABS else "today"
+    with SessionLocal() as db:
+        user, interview, error = _load_interview(db, profile, interview_id, tab, page)
+        if error is not None:
+            return error
+        if interview.status == InterviewStatus.CANCELLED:
+            return _interview_card(lang, interview, tab, page)
+        stamp = _local_now().strftime("%d.%m.%Y %H:%M")
+        entry = f"[{stamp} · Telegram] {note}"
+        existing = (interview.notes or "").rstrip()
+        notes = f"{existing}\n\n{entry}" if existing else entry
+        interview = interview_crud.update_interview(db, interview, InterviewUpdate(notes=notes))
+        audit.record(
+            db,
+            audit.AuditAction.UPDATE_INTERVIEW,
+            resource_type=audit.AuditResource.INTERVIEW,
+            resource_id=interview.id,
+            actor=user,
+            details={"fields": ["notes"], "via": "telegram"},
+        )
+        interview = _owned_interview(db, user, interview_id)
+        return _interview_card(lang, interview, tab, page, notice=t(lang, "iv_note_saved"))
+
+
+# --- /stats ------------------------------------------------------------------------
+
+
+def _change(current: int, previous: int) -> str:
+    if previous == 0:
+        return "—" if current == 0 else "↑"
+    delta = round((current - previous) * 100 / previous)
+    return f"{'↑' if delta > 0 else '↓' if delta < 0 else '→'} {abs(delta)}%"
+
+
+def hr_stats(profile: TelegramProfile, range_: str = "7d") -> Reply:
+    """The CRM's analytics (``GET /dashboard/analytics``) for the HR's own data."""
+    from app.services import dashboard_analytics
+
+    lang = profile.language_code
+    if range_ not in STATS_RANGES:
+        range_ = "7d"
+    with SessionLocal() as db:
+        user = _hr_for(db, profile)
+        if user is None:
+            return Reply(t(lang, "hr_not_hr"))
+        data = dashboard_analytics.get_analytics(db, user.id, range_)
+
+    applications = sum(point["applications"] for point in data["trend"])
+    interviews = sum(point["interviews"] for point in data["trend"])
+    previous = data["previous_period"]
+    days = range_[:-1]
+    lines = [
+        t(lang, "stats_header", days=days),
+        "",
+        t(lang, "stats_applications", count=str(applications), change=_change(applications, previous["applications"])),
+        t(lang, "stats_interviews", count=str(interviews), change=_change(interviews, previous["interviews"])),
+        "",
+        t(lang, "stats_totals", jobs=str(data["total_jobs"]), applications=str(data["total_applications"])),
+    ]
+    statuses = [
+        f"{hr_status_label(lang, row['status'])}: {row['count']}"
+        for row in data["status_distribution"]
+        if row["count"]
+    ]
+    if statuses:
+        lines.append(" · ".join(statuses))
+    analysed = data["analysis_status_counts"].get("completed", 0)
+    if analysed:
+        lines.append(t(lang, "stats_ai", count=str(analysed), score=str(round(data["avg_ai_score"]))))
+    top = [job for job in data["top_jobs"] if job["applications_count"]][:3]
+    if top:
+        lines += ["", t(lang, "stats_top")]
+        lines += [
+            f"{number}. {html.escape(job['position'])} — {html.escape(job['company_name'])} ({job['applications_count']})"
+            for number, job in enumerate(top, start=1)
+        ]
+
+    ranges = [
+        {"text": f"{'• ' if key == range_ else ''}{t(lang, 'stats_days', days=key[:-1])}", "callback_data": f"hr:st:{key}"}
+        for key in STATS_RANGES
+    ]
+    buttons: Buttons = [ranges]
+    url = _site_link("/analytics")
+    if url:
+        buttons.append([{"text": t(lang, "btn_open_crm"), "url": url}])
+    return Reply("\n".join(lines), buttons)
 
 
 # ---------------------------------------------------------------------------

@@ -199,11 +199,27 @@ def increment_batch_counter(
 
 
 def check_and_complete_batch(db: Session, batch_id: int) -> bool:
-    """Check if all items in a batch have finished, and if so mark batch COMPLETED."""
-    batch = db.get(AnalysisBatch, batch_id)
+    """Check if all items in a batch have finished, and if so mark batch COMPLETED.
+
+    Batch items finish on parallel workers, so two of them can get here at
+    once after their counters were bumped. The batch row is locked and
+    re-read (``FOR UPDATE``): the second caller waits for the first, then
+    sees COMPLETED and does nothing, so the batch is completed, and its
+    Telegram summary queued, exactly once. Every path ends the transaction,
+    which releases the lock.
+    """
+    batch = (
+        db.query(AnalysisBatch)
+        .filter(AnalysisBatch.id == batch_id)
+        .populate_existing()
+        .with_for_update()
+        .one_or_none()
+    )
     if not batch:
+        db.rollback()
         return False
     if batch.status in (AnalysisBatchStatus.COMPLETED, AnalysisBatchStatus.CANCELLED):
+        db.commit()
         return True
 
     if batch.processed >= batch.total:
@@ -218,4 +234,5 @@ def check_and_complete_batch(db: Session, batch_id: int) -> bool:
         db.commit()
         notifier.publish(db, event)
         return True
+    db.commit()
     return False

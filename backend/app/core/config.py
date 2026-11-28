@@ -4,6 +4,7 @@ Uses Pydantic Settings. Values can be provided through the `.env` file
 or real environment variables.
 """
 
+import os
 from typing import Any
 
 from pydantic import Field, field_validator
@@ -322,7 +323,10 @@ class Settings(BaseSettings):
         }
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        # APP_ENV_FILE picks another dotenv file; empty disables it. The test
+        # suite sets it empty so a developer's backend/.env (real AI keys, a
+        # different provider, a local broker) can never change its results.
+        env_file=os.environ.get("APP_ENV_FILE", ".env") or None,
         env_file_encoding="utf-8",
         extra="ignore",
     )
