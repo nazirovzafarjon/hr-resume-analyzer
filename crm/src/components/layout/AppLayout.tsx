@@ -6,6 +6,8 @@ import Header from "./Header";
 import Sidebar, { type ShellVariant } from "./Sidebar";
 import { adminTitleKey } from "./adminNavigation";
 import CommandPalette from "../ui/CommandPalette";
+import AdminSupportLive from "../support/AdminSupportLive";
+import HelpWidget from "../support/HelpWidget";
 import { useLanguage } from "../../contexts/LanguageContext";
 
 /** Where the collapsed-rail preference is stored. */
@@ -178,6 +180,10 @@ export default function AppLayout({
       </div>
 
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
+
+      {/* Help Center: the HR panel gets the Help button, the admin console the
+          live connection behind the Support inbox and its badge. */}
+      {variant === "admin" ? <AdminSupportLive /> : <HelpWidget session="hr" />}
     </div>
   );
 }

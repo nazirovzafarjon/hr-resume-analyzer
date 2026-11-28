@@ -24,6 +24,7 @@ import { SESSION_ROLES } from "../../types/auth";
 import { LANDING_URL } from "../../config";
 import { ADMIN_NAV_GROUPS } from "./adminNavigation";
 import { fetchAdminUnreadNotificationsCount } from "../../services/adminService";
+import { useAdminSupportUnread } from "../support/adminSupportBus";
 
 export type ShellVariant = "hr" | "admin";
 
@@ -108,6 +109,7 @@ export default function Sidebar({
   const adminAccount = adminSession || (user?.available_roles ?? []).includes(SESSION_ROLES.ADMIN);
   const location = useLocation();
   const [unreadCount, setUnreadCount] = useState<number | null>(null);
+  const supportUnread = useAdminSupportUnread();
 
   useEffect(() => {
     if (!isAdminShell) return;
@@ -135,7 +137,9 @@ export default function Sidebar({
     items: group.items.map((item) =>
       item.to === "/admin/notifications"
         ? { ...item, badge: unreadCount && unreadCount > 0 ? unreadCount : null }
-        : item,
+        : item.to === "/admin/support"
+          ? { ...item, badge: isAdminShell && supportUnread && supportUnread > 0 ? supportUnread : null }
+          : item,
     ),
   }));
 

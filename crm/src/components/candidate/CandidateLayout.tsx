@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { CalendarDays, FileText, LayoutDashboard, LogOut, UserRound } from "lucide-react";
 import ThemeToggle from "../ui/ThemeToggle";
+import HelpWidget from "../support/HelpWidget";
 import LanguageSelector from "../ui/LanguageSelector";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { useCandidateAuth } from "../../context/CandidateAuthContext";
@@ -92,6 +93,8 @@ export default function CandidateLayout({ children }: { children: ReactNode }) {
       <main id="portal-main" className="portal-main" tabIndex={-1}>
         {children}
       </main>
+
+      <HelpWidget session="candidate" />
     </div>
   );
 }
