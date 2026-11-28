@@ -69,11 +69,15 @@ services:
     image: nginx:1.27-alpine
     container_name: resume-analyzer-edge
     restart: unless-stopped
+    # nginx resolves api/crm once at start; restart: true restarts the edge
+    # when compose recreates either of them, so it never proxies to an old IP.
     depends_on:
       api:
         condition: service_healthy
+        restart: true
       crm:
         condition: service_healthy
+        restart: true
     ports:
       - "127.0.0.1:${PUBLIC_EDGE_PORT:-8090}:80"
     volumes:
