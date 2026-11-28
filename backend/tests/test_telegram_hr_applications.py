@@ -171,7 +171,7 @@ def test_start_home_screen_offers_quick_actions(hr):
     text = actions.start(_profile(), None)
     assert "Assalomu alaykum" in text
     callbacks = [button["callback_data"] for row in actions.home_buttons(_profile()) for button in row]
-    assert callbacks == ["hr:ls:all:0:0", "hr:new:0", "cfg:open"]
+    assert callbacks == ["hr:ls:all:0:0", "hr:new:0", "hr:jl:0", "hr:ivl:today:0", "hr:st:7d", "cfg:open"]
 
 
 def test_applications_entry_for_hr_and_candidate(client, hr, job):
