@@ -120,6 +120,30 @@ async def on_new(message: Message, state: FSMContext) -> None:
     await message.answer(reply.text, reply_markup=_keyboard(reply.buttons), disable_web_page_preview=True)
 
 
+async def _command(message: Message, action, *args) -> None:
+    """Run a Reply-returning action for a command and send its answer."""
+    if message.from_user is None:
+        return
+    profile = _profile(message)
+    reply = await _run(profile, action, profile, *args)
+    await message.answer(reply.text, reply_markup=_keyboard(reply.buttons), disable_web_page_preview=True)
+
+
+@router.message(Command("jobs"))
+async def on_jobs(message: Message) -> None:
+    await _command(message, actions.hr_jobs, 0)
+
+
+@router.message(Command("interviews"))
+async def on_interviews(message: Message) -> None:
+    await _command(message, actions.hr_interviews, "today", 0)
+
+
+@router.message(Command("stats"))
+async def on_stats(message: Message) -> None:
+    await _command(message, actions.hr_stats, "7d")
+
+
 @router.message(Command("settings"))
 async def on_settings(message: Message) -> None:
     if message.from_user is None:
@@ -164,6 +188,12 @@ class Search(StatesGroup):
     waiting = State()
 
 
+class InterviewNote(StatesGroup):
+    """Waiting for a note to append to an interview (phase 9; ids in the FSM data)."""
+
+    waiting = State()
+
+
 async def _remember_list(state: FSMContext, context: list) -> None:
     """Remember the list a card is opened from, for its "back" button.
 
@@ -191,6 +221,26 @@ async def on_meeting_link(message: Message, state: FSMContext) -> None:
     data = await state.get_data()
     reply = await _run(
         profile, actions.hr_set_meeting_link, profile, int(data["interview_id"]), message.text, int(data["page"])
+    )
+    if not reply.awaiting_input:
+        await state.set_state(None)
+    await message.answer(reply.text, reply_markup=_keyboard(reply.buttons), disable_web_page_preview=True)
+
+
+@router.message(InterviewNote.waiting, F.text, ~F.text.startswith("/"))
+async def on_interview_note(message: Message, state: FSMContext) -> None:
+    if message.from_user is None:
+        return
+    profile = _profile(message)
+    data = await state.get_data()
+    reply = await _run(
+        profile,
+        actions.hr_add_note,
+        profile,
+        int(data["note_interview_id"]),
+        message.text,
+        data.get("note_tab", "today"),
+        int(data.get("note_page", 0)),
     )
     if not reply.awaiting_input:
         await state.set_state(None)
@@ -242,6 +292,10 @@ async def on_hr_callback(query: CallbackQuery, state: FSMContext) -> None:
     * ``hr:cv`` / ``hr:fa`` / ``hr:aix:<id>:<page>`` -- resume file, form answers, AI summary
     * ``hr:ai`` / ``hr:air:<id>:<page>`` -- start (or re-run) the AI analysis
     * ``hr:aiall`` / ``hr:aiallok:<job id or 0>`` -- analyse the new ones (asks first)
+    * ``hr:jl:<page>`` / ``hr:job:<id>:<page>`` -- jobs and one job (phase 9)
+    * ``hr:ivl:<tab>:<page>`` / ``hr:ivc:<interview id>:<tab>:<page>`` -- interviews, one interview
+    * ``hr:ivdone`` / ``hr:ivnote:<interview id>:<tab>:<page>`` -- mark completed, add a note
+    * ``hr:st:<7d|30d|90d>`` -- stats
     """
     if query.message is None:
         await _answer(query)
@@ -323,6 +377,28 @@ async def on_hr_callback(query: CallbackQuery, state: FSMContext) -> None:
             reply = await _run(
                 profile, partial(actions.hr_analyze_all, confirmed=parts[1] == "aiallok"), profile, int(parts[2])
             )
+        elif parts[1] == "jl":
+            reply = await _run(profile, actions.hr_jobs, profile, int(parts[2]))
+        elif parts[1] == "job":
+            reply = await _run(profile, actions.hr_job_detail, profile, int(parts[2]), int(parts[3]))
+        elif parts[1] == "ivl":
+            reply = await _run(profile, actions.hr_interviews, profile, parts[2], int(parts[3]))
+        elif parts[1] == "ivc":
+            reply = await _run(profile, actions.hr_interview_card, profile, int(parts[2]), parts[3], int(parts[4]))
+        elif parts[1] == "ivdone":
+            reply = await _run(profile, actions.hr_interview_done, profile, int(parts[2]), parts[3], int(parts[4]))
+        elif parts[1] == "ivnote":
+            interview_id, tab, page = int(parts[2]), parts[3], int(parts[4])
+            reply = await _run(profile, actions.hr_note_prompt, profile, interview_id, tab, page)
+            if reply.awaiting_input:
+                await state.set_state(InterviewNote.waiting)
+                await state.update_data(note_interview_id=interview_id, note_tab=tab, note_page=page)
+                # Keep the card; ask in a new message the answer goes under.
+                await query.message.answer(reply.text)
+                await _answer(query)
+                return
+        elif parts[1] == "st":
+            reply = await _run(profile, actions.hr_stats, profile, parts[2])
         elif parts[1] == "app":
             reply = await _run(profile, actions.hr_application_detail, profile, int(parts[2]), int(parts[3]))
         elif parts[1] in ("set", "ok"):
@@ -345,7 +421,7 @@ async def on_hr_callback(query: CallbackQuery, state: FSMContext) -> None:
 async def _answer(query: CallbackQuery) -> None:
     """Stop the button's spinner; a query Telegram already expired is not an error."""
     try:
-        await _answer(query)
+        await query.answer()
     except TelegramBadRequest:
         pass
 

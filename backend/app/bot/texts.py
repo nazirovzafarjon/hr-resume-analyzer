@@ -31,6 +31,9 @@ TEXTS: dict[str, dict[str, str]] = {
             "/start — boshlash\n"
             "/applications — arizalar (HR: filtr, qidiruv, AI tahlil; nomzod: o'z arizalaringiz)\n"
             "/new — ko'rib chiqilmagan arizalar (HR)\n"
+            "/jobs — vakansiyalar va ariza formasi havolalari (HR)\n"
+            "/interviews — bugungi va kelgusi suhbatlar (HR)\n"
+            "/stats — statistika (HR)\n"
             "/settings — xabarnoma sozlamalari\n"
             "/status — ulangan akkauntlar\n"
             "/unlink — Telegramni akkauntlardan uzish\n"
@@ -172,6 +175,49 @@ TEXTS: dict[str, dict[str, str]] = {
         "btn_home_settings": "⚙️ Sozlamalar",
         "unknown": "🤔 Buni tushunmadim. Komandalar ro'yxati: /help",
         "resume_send_failed": "⚠️ Rezyume faylini yuborib bo'lmadi (fayl juda katta yoki topilmadi). Uni saytdan oching.",
+        "btn_home_jobs": "💼 Vakansiyalar",
+        "btn_home_interviews": "🗓 Suhbatlar",
+        "btn_home_stats": "📊 Statistika",
+        "jobs_header": "💼 <b>Vakansiyalar</b> ({total} ta) — {page}/{pages}",
+        "jobs_counts": "{total} ta ariza, {new} ta yangi",
+        "job_not_found": "Vakansiya topilmadi.",
+        "job_created": "Yaratilgan: {date}",
+        "job_applications": "📥 Arizalar: <b>{total}</b>",
+        "job_ai": "🤖 Tahlil qilingan: {count} · o'rtacha moslik {score}%",
+        "job_interviews": "🗓 Kelgusi suhbatlar: {count}",
+        "job_form": "🔗 Ariza formasi:\n<code>{url}</code>",
+        "job_no_form": "🔗 Ariza formasi hali e'lon qilinmagan (saytda vakansiya sahifasidan e'lon qiling).",
+        "btn_job_apps": "📥 Arizalar ({count})",
+        "btn_job_new": "🆕 Yangilar ({count})",
+        "btn_open_form": "🔗 Formani ochish",
+        "iv_list_header": "🗓 <b>Suhbatlar: {tab}</b> ({total} ta) — {page}/{pages}",
+        "iv_tab_today": "Bugun",
+        "iv_tab_tomorrow": "Ertaga",
+        "iv_tab_week": "7 kun",
+        "iv_tab_past": "Natijasiz",
+        "iv_list_empty_upcoming": "Bu davrda suhbat yo'q.",
+        "iv_list_empty_past": "Natijasi belgilanmagan o'tgan suhbat yo'q. 🎉",
+        "iv_status": "Holat: <b>{status}</b>",
+        "iv_status_upcoming": "Kutilmoqda",
+        "iv_status_awaiting": "O'tdi, natija belgilanmagan",
+        "iv_status_completed": "O'tkazildi",
+        "iv_status_cancelled": "Bekor qilingan",
+        "iv_notes": "<b>📝 Izohlar:</b>",
+        "btn_iv_done": "✅ O'tdi deb belgilash",
+        "btn_iv_note": "📝 Izoh qo'shish",
+        "iv_done_too_early": "⏳ Suhbat hali boshlanmagan — uni keyin belgilang.",
+        "iv_marked_done": "✅ Suhbat o'tkazildi deb belgilandi.",
+        "iv_note_prompt": "📝 Izohni yuboring (ko'pi bilan 1000 belgi). U mavjud izohlarga qo'shiladi.\nBekor qilish: /cancel",
+        "iv_note_empty": "⚠️ Bo'sh izoh. Matn yuboring yoki /cancel.",
+        "iv_note_long": "⚠️ Izoh juda uzun (ko'pi bilan {limit} belgi). Qisqartirib yuboring yoki /cancel.",
+        "iv_note_saved": "📝 Izoh qo'shildi.",
+        "stats_header": "📊 <b>Statistika — oxirgi {days} kun</b>",
+        "stats_applications": "📥 Yangi arizalar: <b>{count}</b> ({change} oldingi davrga nisbatan)",
+        "stats_interviews": "🗓 Belgilangan suhbatlar: <b>{count}</b> ({change})",
+        "stats_totals": "<b>Jami:</b> {jobs} ta vakansiya · {applications} ta ariza",
+        "stats_ai": "🤖 AI tahlil qilingan: {count} · o'rtacha moslik {score}%",
+        "stats_top": "<b>🏆 Eng ko'p ariza kelgan vakansiyalar:</b>",
+        "stats_days": "{days} kun",
     },
     "ru": {
         "welcome": (
@@ -197,6 +243,9 @@ TEXTS: dict[str, dict[str, str]] = {
             "/start — начать\n"
             "/applications — заявки (HR: фильтры, поиск, AI-анализ; кандидат: ваши заявки)\n"
             "/new — нерассмотренные заявки (HR)\n"
+            "/jobs — вакансии и ссылки на анкеты (HR)\n"
+            "/interviews — собеседования на сегодня и далее (HR)\n"
+            "/stats — статистика (HR)\n"
             "/settings — настройки уведомлений\n"
             "/status — подключённые аккаунты\n"
             "/unlink — отключить Telegram от аккаунтов\n"
@@ -338,6 +387,49 @@ TEXTS: dict[str, dict[str, str]] = {
         "btn_home_settings": "⚙️ Настройки",
         "unknown": "🤔 Не понял. Список команд: /help",
         "resume_send_failed": "⚠️ Не удалось отправить файл резюме (слишком большой или не найден). Откройте его на сайте.",
+        "btn_home_jobs": "💼 Вакансии",
+        "btn_home_interviews": "🗓 Собеседования",
+        "btn_home_stats": "📊 Статистика",
+        "jobs_header": "💼 <b>Вакансии</b> ({total}) — {page}/{pages}",
+        "jobs_counts": "заявок: {total}, новых: {new}",
+        "job_not_found": "Вакансия не найдена.",
+        "job_created": "Создана: {date}",
+        "job_applications": "📥 Заявки: <b>{total}</b>",
+        "job_ai": "🤖 Проанализировано: {count} · среднее совпадение {score}%",
+        "job_interviews": "🗓 Предстоящие собеседования: {count}",
+        "job_form": "🔗 Анкета для кандидатов:\n<code>{url}</code>",
+        "job_no_form": "🔗 Анкета ещё не опубликована (опубликуйте её на странице вакансии на сайте).",
+        "btn_job_apps": "📥 Заявки ({count})",
+        "btn_job_new": "🆕 Новые ({count})",
+        "btn_open_form": "🔗 Открыть анкету",
+        "iv_list_header": "🗓 <b>Собеседования: {tab}</b> ({total}) — {page}/{pages}",
+        "iv_tab_today": "Сегодня",
+        "iv_tab_tomorrow": "Завтра",
+        "iv_tab_week": "7 дней",
+        "iv_tab_past": "Без итога",
+        "iv_list_empty_upcoming": "В этот период собеседований нет.",
+        "iv_list_empty_past": "Прошедших собеседований без итога нет. 🎉",
+        "iv_status": "Статус: <b>{status}</b>",
+        "iv_status_upcoming": "Предстоит",
+        "iv_status_awaiting": "Прошло, итог не отмечен",
+        "iv_status_completed": "Проведено",
+        "iv_status_cancelled": "Отменено",
+        "iv_notes": "<b>📝 Заметки:</b>",
+        "btn_iv_done": "✅ Отметить проведённым",
+        "btn_iv_note": "📝 Добавить заметку",
+        "iv_done_too_early": "⏳ Собеседование ещё не началось — отметьте его позже.",
+        "iv_marked_done": "✅ Собеседование отмечено как проведённое.",
+        "iv_note_prompt": "📝 Отправьте заметку (до 1000 символов). Она добавится к существующим.\nОтмена: /cancel",
+        "iv_note_empty": "⚠️ Пустая заметка. Отправьте текст или /cancel.",
+        "iv_note_long": "⚠️ Заметка слишком длинная (до {limit} символов). Сократите или /cancel.",
+        "iv_note_saved": "📝 Заметка добавлена.",
+        "stats_header": "📊 <b>Статистика — последние {days} дн.</b>",
+        "stats_applications": "📥 Новые заявки: <b>{count}</b> ({change} к прошлому периоду)",
+        "stats_interviews": "🗓 Назначено собеседований: <b>{count}</b> ({change})",
+        "stats_totals": "<b>Всего:</b> вакансий {jobs} · заявок {applications}",
+        "stats_ai": "🤖 Проанализировано AI: {count} · среднее совпадение {score}%",
+        "stats_top": "<b>🏆 Вакансии с наибольшим числом заявок:</b>",
+        "stats_days": "{days} дн.",
     },
     "en": {
         "welcome": (
@@ -363,6 +455,9 @@ TEXTS: dict[str, dict[str, str]] = {
             "/start — start\n"
             "/applications — applications (HR: filters, search, AI analysis; candidate: your own)\n"
             "/new — unreviewed applications (HR)\n"
+            "/jobs — jobs and their application form links (HR)\n"
+            "/interviews — today's and upcoming interviews (HR)\n"
+            "/stats — stats (HR)\n"
             "/settings — notification settings\n"
             "/status — connected accounts\n"
             "/unlink — disconnect Telegram from your accounts\n"
@@ -504,6 +599,49 @@ TEXTS: dict[str, dict[str, str]] = {
         "btn_home_settings": "⚙️ Settings",
         "unknown": "🤔 I didn't get that. Commands: /help",
         "resume_send_failed": "⚠️ Could not send the resume file (too large or missing). Open it on the website.",
+        "btn_home_jobs": "💼 Jobs",
+        "btn_home_interviews": "🗓 Interviews",
+        "btn_home_stats": "📊 Stats",
+        "jobs_header": "💼 <b>Jobs</b> ({total}) — {page}/{pages}",
+        "jobs_counts": "{total} applications, {new} new",
+        "job_not_found": "Job not found.",
+        "job_created": "Created: {date}",
+        "job_applications": "📥 Applications: <b>{total}</b>",
+        "job_ai": "🤖 Analysed: {count} · average match {score}%",
+        "job_interviews": "🗓 Upcoming interviews: {count}",
+        "job_form": "🔗 Application form:\n<code>{url}</code>",
+        "job_no_form": "🔗 The application form is not published yet (publish it from the job page on the website).",
+        "btn_job_apps": "📥 Applications ({count})",
+        "btn_job_new": "🆕 New ({count})",
+        "btn_open_form": "🔗 Open the form",
+        "iv_list_header": "🗓 <b>Interviews: {tab}</b> ({total}) — {page}/{pages}",
+        "iv_tab_today": "Today",
+        "iv_tab_tomorrow": "Tomorrow",
+        "iv_tab_week": "7 days",
+        "iv_tab_past": "No outcome",
+        "iv_list_empty_upcoming": "No interviews in this period.",
+        "iv_list_empty_past": "No past interviews waiting for an outcome. 🎉",
+        "iv_status": "Status: <b>{status}</b>",
+        "iv_status_upcoming": "Upcoming",
+        "iv_status_awaiting": "Over, no outcome recorded",
+        "iv_status_completed": "Completed",
+        "iv_status_cancelled": "Cancelled",
+        "iv_notes": "<b>📝 Notes:</b>",
+        "btn_iv_done": "✅ Mark as completed",
+        "btn_iv_note": "📝 Add a note",
+        "iv_done_too_early": "⏳ The interview has not started yet — mark it later.",
+        "iv_marked_done": "✅ Interview marked as completed.",
+        "iv_note_prompt": "📝 Send the note (up to 1000 characters). It is added to the existing notes.\nCancel: /cancel",
+        "iv_note_empty": "⚠️ Empty note. Send some text, or /cancel.",
+        "iv_note_long": "⚠️ The note is too long (up to {limit} characters). Shorten it, or /cancel.",
+        "iv_note_saved": "📝 Note added.",
+        "stats_header": "📊 <b>Stats — last {days} days</b>",
+        "stats_applications": "📥 New applications: <b>{count}</b> ({change} vs the previous period)",
+        "stats_interviews": "🗓 Interviews booked: <b>{count}</b> ({change})",
+        "stats_totals": "<b>Total:</b> {jobs} jobs · {applications} applications",
+        "stats_ai": "🤖 AI-analysed: {count} · average match {score}%",
+        "stats_top": "<b>🏆 Jobs with the most applications:</b>",
+        "stats_days": "{days} days",
     },
 }
 

@@ -214,7 +214,7 @@ def test_home_buttons_follow_linked_accounts(client, user, candidate, telegram_o
     actions.start(_profile(), _issue(client, candidate["headers"], kind="candidate"))
     assert callbacks() == ["apps:0", "cfg:open"]
     actions.start(_profile(), _issue(client, user["headers"]))
-    assert callbacks() == ["hr:ls:all:0:0", "hr:new:0", "apps:0", "cfg:open"]
+    assert callbacks() == ["hr:ls:all:0:0", "hr:new:0", "hr:jl:0", "hr:ivl:today:0", "hr:st:7d", "apps:0", "cfg:open"]
 
 
 def test_bot_unlink_removes_all_links(client, user, candidate, telegram_on, db_session):
