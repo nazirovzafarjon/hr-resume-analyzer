@@ -1,0 +1,94 @@
+# Public test access through ngrok, layered on top of docker-compose.yml.
+#
+# While this machine runs the stack, testers can open the CRM and use the
+# Telegram bot from anywhere at https://<NGROK_DOMAIN>. Start and stop it with
+# scripts/public.ps1, or by hand:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.public.yml --profile telegram up -d --build
+#   docker compose --profile telegram up -d --remove-orphans   # back to local-only
+#
+# Needs NGROK_AUTHTOKEN and NGROK_DOMAIN in the root .env (see .env.example and
+# docs/operations/PUBLIC_TEST_ACCESS.md).
+#
+#   tester -> https://<NGROK_DOMAIN> -> ngrok -> edge (nginx) -> /api/ -> api
+#                                                            -> /     -> crm
+
+x-public-url: &public-url
+  FRONTEND_BASE_URL: https://${NGROK_DOMAIN:?set NGROK_DOMAIN in .env (your ngrok dev domain, without https://)}
+  GOOGLE_REDIRECT_URI: https://${NGROK_DOMAIN}/oauth/callback
+
+services:
+  # Every backend process builds links from FRONTEND_BASE_URL (emails, Google
+  # sign-in, Telegram buttons — Telegram refuses localhost links, so without a
+  # public URL they are dropped), so all of them get the public origin.
+  api:
+    environment:
+      <<: *public-url
+  worker-ai:
+    environment:
+      <<: *public-url
+  worker-batch:
+    environment:
+      <<: *public-url
+  worker-notifications:
+    environment:
+      <<: *public-url
+  worker-exports:
+    environment:
+      <<: *public-url
+  worker-default:
+    environment:
+      <<: *public-url
+  celery-beat:
+    environment:
+      <<: *public-url
+
+  # The bot keeps long polling (it needs no inbound route); only the links it
+  # sends change. An empty webhook URL forces polling.
+  bot:
+    environment:
+      <<: *public-url
+      TELEGRAM_WEBHOOK_URL: ""
+
+  # CRM built for the public origin: it calls the API at the relative /api
+  # path through the edge proxy, so testers never hit their own localhost.
+  crm:
+    build:
+      context: ./crm
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: /api
+        VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID:-}
+        VITE_GOOGLE_REDIRECT_URI: https://${NGROK_DOMAIN}/oauth/callback
+        VITE_LANDING_URL: https://${NGROK_DOMAIN}
+    container_name: resume-analyzer-crm
+
+  # One origin for everything (the free ngrok plan has a single domain).
+  # Also reachable locally at http://localhost:8090 to check the routing.
+  edge:
+    image: nginx:1.27-alpine
+    container_name: resume-analyzer-edge
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+      crm:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${PUBLIC_EDGE_PORT:-8090}:80"
+    volumes:
+      - ./deploy/nginx-public/default.conf:/etc/nginx/conf.d/default.conf:ro
+
+  # ngrok agent: HTTPS on the account's dev domain -> edge:80.
+  # Traffic inspector: http://localhost:4040
+  ngrok:
+    image: ngrok/ngrok:3.39.13-alpine
+    container_name: resume-analyzer-ngrok
+    restart: unless-stopped
+    depends_on:
+      - edge
+    environment:
+      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN:?set NGROK_AUTHTOKEN in .env (ngrok dashboard -> Your Authtoken)}
+    command: ["http", "edge:80", "--url", "https://${NGROK_DOMAIN}", "--log", "stdout"]
+    ports:
+      - "127.0.0.1:4040:4040"
