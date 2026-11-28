@@ -345,7 +345,7 @@ async def on_hr_callback(query: CallbackQuery, state: FSMContext) -> None:
 async def _answer(query: CallbackQuery) -> None:
     """Stop the button's spinner; a query Telegram already expired is not an error."""
     try:
-        await _answer(query)
+        await query.answer()
     except TelegramBadRequest:
         pass
 
