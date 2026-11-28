@@ -18,6 +18,9 @@ import tempfile
 from datetime import datetime, timedelta, timezone
 
 # Must happen before importing the app modules below.
+# Never read backend/.env: the suite runs on the defaults below and in the
+# app, exactly as in CI, whatever a developer keeps in their local .env.
+os.environ["APP_ENV_FILE"] = ""
 os.environ["DATABASE_URL"] = os.environ.get(
     "TEST_DATABASE_URL",
     os.environ.get(
