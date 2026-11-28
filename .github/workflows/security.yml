@@ -3,8 +3,8 @@ name: Security Scanning
 on:
   push:
     branches: [main, master]
+  # Every pull request, whatever its base (stacked PRs included).
   pull_request:
-    branches: [main, master]
   schedule:
     # Run every Monday at 04:00 UTC
     - cron: '0 4 * * 1'
@@ -12,6 +12,12 @@ on:
 
 permissions:
   contents: read
+
+# Same policy as CI: one run per pull request (a new push cancels the old
+# one), and every main commit or scheduled run verified on its own.
+concurrency:
+  group: security-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   secret-scan:
@@ -23,11 +29,16 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install Gitleaks
+      - name: Install Gitleaks (pinned, checksum verified)
         run: |
           GITLEAKS_VERSION="8.21.2"
-          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
-            | sudo tar -xz -C /usr/local/bin gitleaks
+          BASE="https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}"
+          ARCHIVE="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          cd "$RUNNER_TEMP"
+          curl -sSfLO "$BASE/$ARCHIVE"
+          curl -sSfLO "$BASE/gitleaks_${GITLEAKS_VERSION}_checksums.txt"
+          grep " ${ARCHIVE}\$" "gitleaks_${GITLEAKS_VERSION}_checksums.txt" | sha256sum -c -
+          sudo tar -xzf "$ARCHIVE" -C /usr/local/bin gitleaks
           gitleaks version
 
       - name: Run Gitleaks secret scan
@@ -45,10 +56,14 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
 
-      - name: Set up Python 3.12
+      - name: Read runtime versions from the Dockerfiles
+        id: versions
+        run: sh .github/scripts/runtime-versions.sh
+
+      - name: Set up Python (version of backend/Dockerfile)
         uses: actions/setup-python@v7
         with:
-          python-version: '3.12'
+          python-version: ${{ steps.versions.outputs.python }}
           cache: 'pip'
           cache-dependency-path: 'backend/requirements.txt'
 
@@ -58,10 +73,10 @@ jobs:
           pip install pip-audit
           pip-audit -r backend/requirements.txt || echo "::warning::pip-audit reported advisories (see log above)"
 
-      - name: Set up Node.js 20
+      - name: Set up Node.js (version of crm/Dockerfile)
         uses: actions/setup-node@v7
         with:
-          node-version: 24
+          node-version: ${{ steps.versions.outputs.crm_node }}
 
       - name: Audit CRM npm dependencies
         run: |
@@ -80,21 +95,40 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
 
-      - name: Build backend Docker image
+      # Every image that ships: the API/worker/bot image and the two nginx
+      # images serving the CRM and the landing page.
+      - name: Build the images
         run: |
           docker build -t resume-analyzer-backend:local ./backend
+          docker build -t resume-analyzer-crm:local ./crm
+          docker build -t resume-analyzer-landing:local \
+            --build-arg VITE_SITE_URL=https://landing.example.com ./landing
 
-      - name: Install Trivy
+      # A pinned release with a checksum check, instead of piping a script
+      # from the main branch into a root shell (a supply-chain risk). Raise
+      # the version deliberately.
+      - name: Install Trivy (pinned, checksum verified)
         run: |
-          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sudo sh -s -- -b /usr/local/bin
+          TRIVY_VERSION="0.76.2"
+          BASE="https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}"
+          ARCHIVE="trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz"
+          cd "$RUNNER_TEMP"
+          curl -sSfLO "$BASE/$ARCHIVE"
+          curl -sSfLO "$BASE/trivy_${TRIVY_VERSION}_checksums.txt"
+          grep " ${ARCHIVE}\$" "trivy_${TRIVY_VERSION}_checksums.txt" | sha256sum -c -
+          sudo tar -xzf "$ARCHIVE" -C /usr/local/bin trivy
           trivy --version
 
       - name: Run Trivy vulnerability scan
         run: |
-          trivy image \
-            --severity CRITICAL,HIGH \
-            --ignore-unfixed \
-            --vuln-type os,library \
-            --format table \
-            --exit-code 0 \
-            resume-analyzer-backend:local
+          for image in resume-analyzer-backend resume-analyzer-crm resume-analyzer-landing; do
+            echo "::group::$image"
+            trivy image \
+              --severity CRITICAL,HIGH \
+              --ignore-unfixed \
+              --vuln-type os,library \
+              --format table \
+              --exit-code 0 \
+              "$image:local"
+            echo "::endgroup::"
+          done

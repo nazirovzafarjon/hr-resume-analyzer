@@ -62,15 +62,27 @@ updates:
       interval: "weekly"
     open-pull-requests-limit: 5
 
-  # Node base images of the CRM and landing build stages.
+  # Node and nginx base images of the CRM and landing images.
   - package-ecosystem: "docker"
     directory: "/crm"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+    # Only even Node majors become LTS; odd ones are short-lived "Current"
+    # releases. CI takes its Node version from these Dockerfiles, so an odd
+    # major here would reach CI and production unnoticed.
+    ignore:
+      - dependency-name: "node"
+        versions: ["27.x", "29.x", "31.x", "33.x"]
 
   - package-ecosystem: "docker"
     directory: "/landing"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+    # Only even Node majors become LTS; odd ones are short-lived "Current"
+    # releases. CI takes its Node version from these Dockerfiles, so an odd
+    # major here would reach CI and production unnoticed.
+    ignore:
+      - dependency-name: "node"
+        versions: ["27.x", "29.x", "31.x", "33.x"]
