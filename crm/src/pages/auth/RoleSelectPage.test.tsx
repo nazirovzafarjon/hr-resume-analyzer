@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { useEffect, useState, type ReactNode } from "react";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import RoleSelectPage from "./RoleSelectPage";
 import { AuthProvider, useAuth } from "../../context/AuthContext";
@@ -124,5 +124,26 @@ describe("RoleSelectPage", () => {
     renderPage({ expires_in: -1 });
     const hr = await screen.findByRole("button", { name: /Continue as HR/ });
     expect((hr as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("turns the options off when the selection expires while the page is open", async () => {
+    // Before, expiry was read once per render, so a page left open stayed
+    // clickable after the token had expired.
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      renderPage({ expires_in: 1 });
+      const hr = (await screen.findByRole("button", { name: /Continue as HR/ })) as HTMLButtonElement;
+      expect(hr.disabled).toBe(false);
+      expect(screen.queryByText(/Your session has expired/)).toBeNull();
+
+      await act(async () => {
+        vi.advanceTimersByTime(1500);
+      });
+
+      expect(hr.disabled).toBe(true);
+      expect(screen.getByText(/Your session has expired/)).toBeTruthy();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

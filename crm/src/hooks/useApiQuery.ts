@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { useLatestRef } from "./useLatestRef";
 
 type ApiQueryState<T> = {
   data: T | null;
@@ -21,8 +22,7 @@ export function useApiQuery<T>(fetcher: () => Promise<T>, key: string): ApiQuery
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<unknown>(null);
   const [attempt, setAttempt] = useState(0);
-  const fetcherRef = useRef(fetcher);
-  fetcherRef.current = fetcher;
+  const fetcherRef = useLatestRef(fetcher);
 
   useEffect(() => {
     let current = true;
@@ -42,7 +42,7 @@ export function useApiQuery<T>(fetcher: () => Promise<T>, key: string): ApiQuery
     return () => {
       current = false;
     };
-  }, [key, attempt]);
+  }, [key, attempt, fetcherRef]);
 
   const reload = useCallback(() => setAttempt((value) => value + 1), []);
   return { data, loading, error, reload };

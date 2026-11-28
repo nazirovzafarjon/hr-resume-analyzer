@@ -12,6 +12,7 @@ import {
   SUPPORT_ADMIN_EVENT,
   requestAdminSupportUnreadRefresh,
 } from "../../components/support/adminSupportBus";
+import { useLatestRef } from "../../hooks/useLatestRef";
 import { useLanguage } from "../../contexts/LanguageContext";
 import { useToast } from "../../contexts/ToastContext";
 import {
@@ -68,8 +69,7 @@ export default function AdminSupportPage() {
   const [closing, setClosing] = useState(false);
 
   const listRequest = useRef(0);
-  const selectedRef = useRef(selectedId);
-  selectedRef.current = selectedId;
+  const selectedRef = useLatestRef(selectedId);
 
   // Debounce the search box.
   useEffect(() => {
@@ -124,7 +124,7 @@ export default function AdminSupportPage() {
     } finally {
       if (!quiet) setDetailLoading(false);
     }
-  }, []);
+  }, [selectedRef]);
 
   useEffect(() => {
     setDetail(null);
@@ -133,8 +133,7 @@ export default function AdminSupportPage() {
   }, [selectedId, loadDetail]);
 
   // Live updates (forwarded by AdminSupportLive) and a slow safety-net poll.
-  const pagesRef = useRef(pages);
-  pagesRef.current = pages;
+  const pagesRef = useLatestRef(pages);
   useEffect(() => {
     function handle(raw: Event) {
       const event = (raw as CustomEvent<SupportEvent>).detail;
@@ -153,7 +152,7 @@ export default function AdminSupportPage() {
       window.removeEventListener(SUPPORT_ADMIN_EVENT, handle);
       window.clearInterval(timer);
     };
-  }, [loadList, loadDetail]);
+  }, [loadList, loadDetail, pagesRef, selectedRef]);
 
   async function reply(body: string) {
     if (!detail) return;
