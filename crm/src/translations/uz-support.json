@@ -1,0 +1,65 @@
+{
+  "admin": {
+    "nav": {
+      "support": "Qo'llab-quvvatlash"
+    }
+  },
+  "support": {
+    "button": "Yordam",
+    "title": "Yordam markazi",
+    "subtitle": "Qo'llab-quvvatlash jamoasi shu yerda javob beradi",
+    "close": "Yopish",
+    "thread": "Suhbat",
+    "team": "Qo'llab-quvvatlash",
+    "you": "Siz",
+    "send": "Yuborish",
+    "retry": "Qayta urinish",
+    "newTitle": "Qanday yordam bera olamiz?",
+    "newHint": "Muammo yoki savolingizni yozing: nima qilayotgan edingiz va qanday xato chiqdi. Javobni shu chatda beramiz.",
+    "describeProblem": "Muammoni tasvirlab bering…",
+    "typeMessage": "Xabar yozing…",
+    "waiting": "Rahmat! Qo'llab-quvvatlash jamoasi tez orada shu yerda javob beradi.",
+    "closedNotice": "Qo'llab-quvvatlash bu suhbatni yopdi.",
+    "startNew": "Yangi suhbat boshlash",
+    "errors": {
+      "generic": "Xabar yuborilmadi. Qayta urinib ko'ring.",
+      "rateLimited": "Juda tez yozyapsiz. Biroz kuting.",
+      "closed": "Bu suhbat yopilgan.",
+      "load": "Xabarlaringizni yuklab bo'lmadi."
+    },
+    "admin": {
+      "title": "Qo'llab-quvvatlash",
+      "description": "HR foydalanuvchilar va nomzodlarning Yordam markazidagi suhbatlari. Shu yerda javob bering va muammo hal bo'lgach suhbatni yoping.",
+      "refresh": "Yangilash",
+      "listLabel": "Suhbatlar",
+      "searchPlaceholder": "Ism, email yoki xabar bo'yicha qidirish",
+      "statusLabel": "Holat",
+      "kindLabel": "Kim",
+      "filterOpen": "Ochiq",
+      "filterClosed": "Yopilgan",
+      "filterAll": "Hammasi",
+      "kindAll": "Hamma",
+      "kindHr": "HR",
+      "kindCandidate": "Nomzodlar",
+      "closed": "Yopilgan",
+      "unread": "{count} ta yangi",
+      "loadMore": "Yana yuklash",
+      "empty": "Hozircha bu yerda suhbat yo'q.",
+      "detailLabel": "Suhbat",
+      "pick": "O'qish va javob berish uchun suhbatni tanlang.",
+      "notFound": "Bu suhbat endi mavjud emas.",
+      "back": "Suhbatlarga qaytish",
+      "opened": "Ochilgan:",
+      "page": "Sahifa:",
+      "close": "Suhbatni yopish",
+      "replyPlaceholder": "Javob yozing… (Enter: yuborish, Shift+Enter: yangi qator)",
+      "closedBy": "{name} yopdi · {date}",
+      "closeTitle": "Suhbat yopilsinmi?",
+      "closeMessage": "Foydalanuvchi bu suhbatga boshqa yoza olmaydi. Yana yordam kerak bo'lsa, yangi suhbat boshlaydi.",
+      "cancel": "Bekor qilish",
+      "closedToast": "Suhbat yopildi",
+      "newMessageToast": "Yangi yordam so'rovi",
+      "newMessageHint": "Javob berish uchun menyudan Qo'llab-quvvatlash bo'limini oching."
+    }
+  }
+}

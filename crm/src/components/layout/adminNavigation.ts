@@ -6,6 +6,7 @@ import {
   CalendarDays,
   FileText,
   HeartPulse,
+  LifeBuoy,
   LayoutDashboard,
   ScrollText,
   Settings as SettingsIcon,
@@ -27,6 +28,7 @@ export const ADMIN_NAV_GROUPS: NavGroup[] = [
       { to: "/admin/candidates", labelKey: "admin.nav.candidates", icon: UserRound },
       { to: "/admin/interviews", labelKey: "admin.nav.interviews", icon: CalendarDays },
       { to: "/admin/notifications", labelKey: "admin.nav.notifications", icon: Bell },
+      { to: "/admin/support", labelKey: "admin.nav.support", icon: LifeBuoy },
     ],
   },
   {

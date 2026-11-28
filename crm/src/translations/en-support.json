@@ -1,0 +1,65 @@
+{
+  "admin": {
+    "nav": {
+      "support": "Support"
+    }
+  },
+  "support": {
+    "button": "Help",
+    "title": "Help Center",
+    "subtitle": "Our support team replies right here",
+    "close": "Close",
+    "thread": "Conversation",
+    "team": "Support",
+    "you": "You",
+    "send": "Send",
+    "retry": "Try again",
+    "newTitle": "How can we help?",
+    "newHint": "Describe the problem or question: what you were doing and any error you saw. We will reply in this chat.",
+    "describeProblem": "Describe your problem…",
+    "typeMessage": "Write a message…",
+    "waiting": "Thanks! The support team will reply here soon.",
+    "closedNotice": "Support closed this conversation.",
+    "startNew": "Start a new conversation",
+    "errors": {
+      "generic": "Could not send the message. Please try again.",
+      "rateLimited": "You are sending messages too quickly. Please wait a moment.",
+      "closed": "This conversation has been closed.",
+      "load": "Could not load your messages."
+    },
+    "admin": {
+      "title": "Support",
+      "description": "Help Center conversations from HR users and candidates. Reply here and close a conversation once it is solved.",
+      "refresh": "Refresh",
+      "listLabel": "Conversations",
+      "searchPlaceholder": "Search by name, email or message",
+      "statusLabel": "Status",
+      "kindLabel": "Who",
+      "filterOpen": "Open",
+      "filterClosed": "Closed",
+      "filterAll": "All",
+      "kindAll": "Everyone",
+      "kindHr": "HR",
+      "kindCandidate": "Candidates",
+      "closed": "Closed",
+      "unread": "{count} new",
+      "loadMore": "Load more",
+      "empty": "No conversations here yet.",
+      "detailLabel": "Conversation",
+      "pick": "Choose a conversation to read and reply.",
+      "notFound": "This conversation no longer exists.",
+      "back": "Back to conversations",
+      "opened": "Opened",
+      "page": "Page:",
+      "close": "Close conversation",
+      "replyPlaceholder": "Write a reply… (Enter sends, Shift+Enter adds a line)",
+      "closedBy": "Closed by {name} · {date}",
+      "closeTitle": "Close this conversation?",
+      "closeMessage": "The user will no longer be able to write in it. If they need help again, they will start a new conversation.",
+      "cancel": "Cancel",
+      "closedToast": "Conversation closed",
+      "newMessageToast": "New support message",
+      "newMessageHint": "Open Support in the menu to reply."
+    }
+  }
+}

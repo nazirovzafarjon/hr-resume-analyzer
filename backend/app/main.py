@@ -27,7 +27,7 @@ from app.core.metrics import PrometheusMiddleware, metrics_endpoint_response
 from app.core.migrations import prepare_schema
 from app.core.request_context import REQUEST_ID_HEADER, RequestContextMiddleware, request_id_from_scope
 from app.core.sentry import init_sentry
-from app.routers import admin, applications, auth, candidate, dashboard, exports, interviews, jobs, public, telegram, translations, users
+from app.routers import admin, applications, auth, candidate, dashboard, exports, interviews, jobs, public, support, telegram, translations, users
 from app.services.admin import errors as error_monitor
 from app.services.ai.job_analyzer import close_ai_client
 
@@ -362,6 +362,25 @@ def create_app() -> FastAPI:
         translations.router,
         prefix=f"{settings.API_PREFIX}/translations",
         tags=["translations"],
+    )
+    # Help Center support chat: requester sides and the admin inbox.
+    app.include_router(
+        support.hr_router, prefix=f"{settings.API_PREFIX}/support", tags=["support"]
+    )
+    app.include_router(
+        support.candidate_router,
+        prefix=f"{settings.API_PREFIX}/candidate/support",
+        tags=["support"],
+    )
+    app.include_router(
+        support.admin_router,
+        prefix=f"{settings.API_PREFIX}/admin/support",
+        tags=["support", "admin (superuser only)"],
+    )
+    app.include_router(
+        support.admin_stream_router,
+        prefix=f"{settings.API_PREFIX}/admin/support",
+        tags=["support", "admin (superuser only)"],
     )
 
     # Serve stored profile images (UPLOAD_DIR/profile, written by the settings

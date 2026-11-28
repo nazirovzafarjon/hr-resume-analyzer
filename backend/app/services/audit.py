@@ -69,6 +69,8 @@ class AuditAction:
     # Telegram bot
     TELEGRAM_LINKED = "TELEGRAM_LINKED"
     TELEGRAM_UNLINKED = "TELEGRAM_UNLINKED"
+    # Help Center
+    SUPPORT_CLOSED = "SUPPORT_CLOSED"
 
     @classmethod
     def all(cls) -> list[str]:
@@ -87,6 +89,7 @@ class AuditResource:
     AI_ANALYSIS = "ai_analysis"
     SETTINGS = "settings"
     TELEGRAM = "telegram"
+    SUPPORT = "support"
 
     @classmethod
     def all(cls) -> list[str]:

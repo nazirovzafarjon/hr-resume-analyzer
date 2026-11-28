@@ -99,6 +99,7 @@ async function loadAllTranslations(): Promise<TranslationModules> {
       "-common",
       "-admin", // admin console
       "-portal", // Candidate Portal
+      "-support", // Help Center chat
     ];
 
     const loadLangModule = async (lang: Language) => {

@@ -25,6 +25,13 @@ from app.models.interview import Interview
 from app.models.job import Job
 from app.models.platform_settings import PlatformSettings
 from app.models.system_error import SystemErrorLog
+from app.models.support import (
+    SupportConversation,
+    SupportConversationStatus,
+    SupportMessage,
+    SupportRequesterKind,
+    SupportSender,
+)
 from app.models.pending_registration import PendingRegistration
 from app.models.telegram_link import (
     TelegramAccountKind,
@@ -53,6 +60,11 @@ __all__ = [
     "AuditLog",
     "PlatformSettings",
     "SystemErrorLog",
+    "SupportConversation",
+    "SupportConversationStatus",
+    "SupportMessage",
+    "SupportRequesterKind",
+    "SupportSender",
     "RevokedToken",
     "SessionCutoff",
     "AnalysisBatch",

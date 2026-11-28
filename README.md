@@ -142,6 +142,7 @@ graph TB
 - **Audit Logs & Security Trail**: Immutable, searchable audit logs tracking all sensitive actions (auth events, user mutations, job deletions, batch starts) enriched with actor ID, IP address, user agent, and unique request IDs.
 - **System Errors & Diagnostics**: Centralized logging of server-side 5xx errors with automated request-ID tracing and zero sensitive-data leakage.
 - **Runtime Feature Toggles & Health Checks**: Runtime toggles for public user registration and live health reports checking API status, PostgreSQL connectivity, AI providers, email delivery, and disk storage.
+- **Help Center Support Chat**: A floating Help button in the HR panel and the Candidate Portal opens a chat with the platform team. Admins answer every conversation from the **Support** inbox (live updates over Server-Sent Events fanned out through Redis pub/sub, an unread badge in the navigation, search and HR/candidate filters) and close a conversation when the problem is solved; a closed conversation is read-only and the requester starts a new one.
 
 ---
 
@@ -1252,6 +1253,25 @@ The API is served with the `/api` prefix.
 | `PUT` | `/api/users/{id}` | Superuser | Updates name, active status, or superuser privileges |
 | `DELETE` | `/api/users/{id}` | Superuser | Deletes user and cascades to owned jobs/applications |
 
+### 9a. Help Center Support Chat (`/api/support`, `/api/candidate/support`, `/api/admin/support`)
+| Method | Endpoint | Auth | Description |
+|---|---|---|---|
+| `GET` | `/api/support/conversations` | HR (verified) | The caller's conversations with unread counts |
+| `POST` | `/api/support/conversations` | HR (verified) | Opens a conversation with its first message (one open conversation at a time) |
+| `GET` | `/api/support/conversations/{id}` | HR (verified) | Conversation with messages; marks admin replies read |
+| `POST` | `/api/support/conversations/{id}/messages` | HR (verified) | Sends a message (409 once closed, rate limited) |
+| `GET` | `/api/support/unread-count` | HR (verified) | Unread admin replies |
+| `GET` | `/api/support/stream` | HR (verified) | Server-Sent Events: "conversation changed" notices |
+| `*` | `/api/candidate/support/...` | Candidate | The same routes for Candidate Portal accounts |
+| `GET` | `/api/admin/support/conversations` | Superuser | Inbox (`status`, `kind`, `q`, `page`, `limit`) |
+| `GET` | `/api/admin/support/conversations/{id}` | Superuser | Conversation detail; marks it read for admins |
+| `POST` | `/api/admin/support/conversations/{id}/messages` | Superuser | Replies as the signed-in admin |
+| `POST` | `/api/admin/support/conversations/{id}/close` | Superuser | Closes the conversation (audited as `SUPPORT_CLOSED`) |
+| `GET` | `/api/admin/support/unread-count` | Superuser | Conversations with unread requester messages |
+| `GET` | `/api/admin/support/stream` | Superuser | Server-Sent Events for every support change |
+
+Stream events carry only `{type, conversation_id}`; the browser reloads the conversation through the REST endpoints. Streams are read with `fetch` so the bearer token never appears in a URL, and send a keep-alive comment every 20 s (keep proxy read timeouts above that).
+
 ### 10. Public Endpoints (`/api/public` & System)
 | Method | Endpoint | Auth | Description |
 |---|---|---|---|
@@ -1497,6 +1517,18 @@ cd landing
 npm run dev
 ```
 - Landing Page URL: `http://localhost:5174`
+
+### 4. Public Test Access (ngrok)
+To let testers use the CRM and the Telegram bot from anywhere while the Docker
+stack runs on your machine, set `NGROK_AUTHTOKEN` and `NGROK_DOMAIN` in the root
+`.env` (see `.env.example`) and run:
+
+```powershell
+.\scripts\public.ps1 up     # https://<NGROK_DOMAIN> is live
+.\scripts\public.ps1 down   # back to local-only
+```
+
+Details, Google sign-in setup and limits: [docs/operations/PUBLIC_TEST_ACCESS.md](docs/operations/PUBLIC_TEST_ACCESS.md).
 
 ---
 
